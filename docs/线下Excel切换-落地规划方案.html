@@ -1,0 +1,529 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="AlBO9m3BsdTr4tSJHRSqEA">
+<head data-page-node-id="zlJZtiCpXDCD1MPfCU2SOh">
+<meta charset="UTF-8" data-page-node-id="7Z8ZC1MGXFjfURmveZokJR">
+<meta name="viewport" content="width=device-width, initial-scale=1.0" data-page-node-id="07A4KM9oyAZsV4MGLWI82U">
+<title>线下 Excel → 系统 落地规划方案 · 虹越智造平台</title>
+<style>
+  :root{
+    --bg:#f5f7fa; --card:#ffffff; --ink:#1e293b; --ink2:#475569; --ink3:#64748b;
+    --line:#e2e8f0; --line2:#cbd5e1;
+    --brand:#1d4ed8; --brand-soft:#eff6ff;
+    --p0:#dc2626; --p0-soft:#fef2f2;
+    --p1:#ea580c; --p1-soft:#fff7ed;
+    --p2:#64748b; --p2-soft:#f1f5f9;
+    --ok:#15803d; --ok-soft:#f0fdf4;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; padding:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",sans-serif;
+    font-size:14px; line-height:1.7;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:32px 24px 64px;}
+  header.hero{
+    background:linear-gradient(135deg,#1e3a8a 0%,#1d4ed8 55%,#3b82f6 100%);
+    color:#fff; border-radius:14px; padding:34px 36px; margin-bottom:26px;
+    box-shadow:0 6px 24px rgba(29,78,216,.18);
+  }
+  header.hero h1{margin:0 0 8px; font-size:27px; letter-spacing:.5px; font-weight:700;}
+  header.hero .sub{opacity:.92; font-size:14.5px;}
+  header.hero .meta{margin-top:16px; display:flex; flex-wrap:wrap; gap:10px;}
+  header.hero .pill{
+    background:rgba(255,255,255,.16); border:1px solid rgba(255,255,255,.28);
+    padding:4px 12px; border-radius:999px; font-size:12.5px;
+  }
+  h2{
+    font-size:19px; margin:34px 0 14px; padding-left:12px;
+    border-left:4px solid var(--brand); line-height:1.35;
+  }
+  h3{font-size:15.5px; margin:22px 0 10px; color:var(--brand);}
+  h4{font-size:14px; margin:16px 0 8px; color:var(--ink);}
+  .card{
+    background:var(--card); border:1px solid var(--line); border-radius:12px;
+    padding:20px 22px; margin-bottom:16px; box-shadow:0 1px 3px rgba(15,23,42,.04);
+  }
+  .lead{font-size:14.5px; color:var(--ink2);}
+  table{width:100%; border-collapse:collapse; font-size:13px; background:#fff;}
+  th,td{border:1px solid var(--line); padding:8px 10px; text-align:left; vertical-align:top;}
+  th{background:#f8fafc; font-weight:600; color:var(--ink); white-space:nowrap;}
+  tbody tr:nth-child(even){background:#fcfdfe;}
+  td.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .tbl-wrap{overflow-x:auto; border-radius:10px; border:1px solid var(--line); margin:10px 0 4px;}
+  .tag{
+    display:inline-block; padding:1px 8px; border-radius:5px;
+    font-size:11.5px; font-weight:600; white-space:nowrap; line-height:1.6;
+  }
+  .t-p0{background:var(--p0-soft); color:var(--p0); border:1px solid #fecaca;}
+  .t-p1{background:var(--p1-soft); color:var(--p1); border:1px solid #fed7aa;}
+  .t-p2{background:var(--p2-soft); color:var(--p2); border:1px solid var(--line2);}
+  .t-new{background:var(--brand-soft); color:var(--brand); border:1px solid #bfdbfe;}
+  .t-have{background:var(--ok-soft); color:var(--ok); border:1px solid #bbf7d0;}
+  .t-mod{background:#fefce8; color:#a16207; border:1px solid #fde68a;}
+  .grid2{display:grid; grid-template-columns:1fr 1fr; gap:14px;}
+  .grid3{display:grid; grid-template-columns:repeat(3,1fr); gap:14px;}
+  @media (max-width:900px){.grid2,.grid3{grid-template-columns:1fr;}}
+  .kpi{
+    background:var(--card); border:1px solid var(--line); border-radius:10px;
+    padding:14px 16px;
+  }
+  .kpi .n{font-size:22px; font-weight:700; color:var(--brand); font-variant-numeric:tabular-nums;}
+  .kpi .l{font-size:12.5px; color:var(--ink3); margin-top:2px;}
+  .note{
+    background:var(--brand-soft); border-left:3px solid var(--brand);
+    padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; font-size:13.5px; color:var(--ink2);
+  }
+  .warn{
+    background:var(--p0-soft); border-left:3px solid var(--p0);
+    padding:10px 14px; border-radius:0 8px 8px 0; margin:12px 0; font-size:13.5px; color:#7f1d1d;
+  }
+  ul,ol{margin:8px 0; padding-left:22px;}
+  li{margin:4px 0;}
+  code{
+    background:#f1f5f9; border:1px solid var(--line); border-radius:4px;
+    padding:1px 5px; font-size:12.5px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; color:#0f172a;
+  }
+  /* 路线图 */
+  .road{display:grid; grid-template-columns:repeat(4,1fr); gap:12px; margin-top:8px;}
+  @media (max-width:1000px){.road{grid-template-columns:repeat(2,1fr);}}
+  @media (max-width:640px){.road{grid-template-columns:1fr;}}
+  .phase{
+    background:#fff; border:1px solid var(--line); border-top:4px solid var(--brand);
+    border-radius:10px; padding:14px 16px; position:relative;
+  }
+  .phase .idx{
+    position:absolute; top:-14px; left:14px; background:var(--brand); color:#fff;
+    font-size:11.5px; font-weight:700; padding:2px 10px; border-radius:999px;
+  }
+  .phase h4{margin:8px 0 6px; font-size:14.5px; color:var(--ink);}
+  .phase .goal{font-size:12.5px; color:var(--ink3); margin-bottom:8px; font-style:normal;}
+  .phase ul{padding-left:18px; margin:6px 0 0; font-size:12.8px;}
+  .phase li{margin:3px 0; color:var(--ink2);}
+  .phase .acc{
+    margin-top:10px; padding-top:8px; border-top:1px dashed var(--line2);
+    font-size:12.2px; color:var(--ink3);
+  }
+  .phase.s1{border-top-color:#dc2626;} .phase.s1 .idx{background:#dc2626;}
+  .phase.s2{border-top-color:#ea580c;} .phase.s2 .idx{background:#ea580c;}
+  .phase.s3{border-top-color:#1d4ed8;} .phase.s3 .idx{background:#1d4ed8;}
+  .phase.s4{border-top-color:#15803d;} .phase.s4 .idx{background:#15803d;}
+  /* 工序链示意 */
+  .chain{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:10px 0;}
+  .chain .node{
+    background:var(--brand-soft); border:1px solid #bfdbfe; color:var(--brand);
+    padding:6px 14px; border-radius:8px; font-weight:600; font-size:13px;
+  }
+  .chain .arrow{color:var(--ink3); font-size:16px;}
+  .chain .node.ghost{background:#fff; border:1px dashed var(--line2); color:var(--ink3);}
+  footer{margin-top:40px; padding-top:16px; border-top:1px solid var(--line); color:var(--ink3); font-size:12.5px;}
+  @media print{
+    body{background:#fff;} .wrap{max-width:100%; padding:0;}
+    header.hero{box-shadow:none;} .card{break-inside:avoid; box-shadow:none;}
+  }
+</style>
+</head>
+<body data-page-node-id="Lwxp5YWNkqoi1tuKWjALjO">
+<div class="wrap" data-page-node-id="DTVuYM2GYddDakWUKodOxw">
+
+<header class="hero" data-page-node-id="ldSOSwKeJZ5zSvJNykrYYT">
+  <h1 data-page-node-id="AxgQOE4qvTsqPSLfY6Ov5t">线下生产进度总表 → 系统化 落地规划方案</h1>
+  <div class="sub" data-page-node-id="a5BTiQDcFUf8xCogyHKnY6">虹越智造平台 · 安徽虹越（注塑/吹塑）· 核心目标：<strong data-page-node-id="qaWsRts2YsAeiyLM6EsM6f">并行过渡、降低使用者习惯变更、提升便捷性</strong></div>
+  <div class="meta" data-page-node-id="ONuKQY3Skva44A2HGdgF7i">
+    <span class="pill" data-page-node-id="jwkIypD4h4sh8YZ7w2Gmbl">依据：2026生产进度总表-2026-09-03.xlsx（11 sheet / 2161 行）</span>
+    <span class="pill" data-page-node-id="MR0gsU2b4vMKPP1xvPKEaX">策略：导出同格式 + 车间逐步切换</span>
+    <span class="pill" data-page-node-id="mRIGPKjAbAchBtBRMFsbS6">编制日期：2026-09-07</span>
+  </div>
+</header>
+
+<!-- ============ 摘要 ============ -->
+<h2 data-page-node-id="jjLse71f9ctlNdR4OI35s6">摘要 · 三句话结论</h2>
+<div class="card" data-page-node-id="UcEoCoARPEmNRVmLXmuFrG">
+  <ol class="lead" style="font-size:14.5px;" data-page-node-id="URM4hzrHijcwh7TFJAX8BV">
+    <li data-page-node-id="QFKnBfkFEanENUrhpbTAfW"><strong data-page-node-id="rllheGCTEy7lvU3tZtug5X">不要一次性废掉 Excel。</strong>采用「并行过渡」：系统成为唯一数据源，但每天能一键导出<strong data-page-node-id="C62DswAHEswAyIPHL5xDKR">与线下完全同格式</strong>的总表，业务端拿到的还是熟悉的表格——这样业务端零学习成本。</li>
+    <li data-page-node-id="MqoKH4WUclYB30Y4fuuB4G"><strong data-page-node-id="RRmIbsNouPbqTdU36TRE2f">第一期绝不碰车间。</strong>先做「Excel 导入建档 + 导出同格式 + 只读进度总表页」，让计划员/业务员先感受到「不用手工算、不用每月复制 sheet」，建立信任后再切换报工。</li>
+    <li data-page-node-id="gib43EXeV4TjE1LJIbjlFO"><strong data-page-node-id="1UvlVIxrxsekcDmk5KnxBx">复现习惯，而不是推翻习惯。</strong>「报工月历页」保留线下「一行一工单 × 一列一天」的填写手势，点格子填数即可；区别只是填完后三道工序进度与汇总自动更新，并且把线下缺失的<strong data-page-node-id="4pAJiyAFRYJLUAjt5i1nmL">喷漆每日报工</strong>补上。</li>
+  </ol>
+</div>
+
+<div class="grid3" style="margin-bottom:8px;" data-page-node-id="A7bc8e1o7Xybbk8hB0xLsB">
+  <div class="kpi" data-page-node-id="qbFPaxp9uNR9fG825I5R8g"><div class="n" data-page-node-id="as0WZSSstFVy9M6G5wgFAQ">2161</div><div class="l" data-page-node-id="UNY2QMruBv1NAscK07m92i">线下主表工单行数（一行 = 一个工单/产品）</div></div>
+  <div class="kpi" data-page-node-id="IGa2OYpQBATG82Ssbmixq3"><div class="n" data-page-node-id="dn7zDGuUgaKszEoSZypIeh">3</div><div class="l" data-page-node-id="ypEna5QVLB6bqfYfkTleol">实际工序：成型 → 喷漆 → 包装（喷漆缺日报工）</div></div>
+  <div class="kpi" data-page-node-id="5VaveFrdBXffpy0sgu2c0E"><div class="n" data-page-node-id="FD5Z2OrOQnfKZzWYMKdqCU">147</div><div class="l" data-page-node-id="xiY7L9xNfe0JRnQzbcAJCf">整行重复导致的重复工单号（数据质量隐患）</div></div>
+</div>
+
+<!-- ============ 一、现状诊断 ============ -->
+<h2 data-page-node-id="2feDPylSh9p2NfAenhywxC">一、现状诊断：线下表到底怎么用的</h2>
+
+<h3 data-page-node-id="kyrFM7dD8XhVomoto8JlyR">1.1 这份 Excel 的结构</h3>
+<div class="tbl-wrap" data-page-node-id="crR564vByZ5cGQtKpuAKBo">
+<table data-page-node-id="0AdZUU3eml66qVrdlFFqQQ">
+  <thead data-page-node-id="gqDXoIUPbiteMfHziFkevt"><tr data-page-node-id="P2CapjC5gM2EMo9jLDDf8U"><th data-page-node-id="xGPuUATn4cdaAaHFGrEpRv">Sheet</th><th data-page-node-id="6KB7M7JRI64zR2QFqsG0oD">规模</th><th data-page-node-id="icrgfvWOuQGlr4IVaNQs5H">作用</th><th data-page-node-id="SL3KbSXQZx7dLlBBZnQHdF">谁在用</th></tr></thead>
+  <tbody data-page-node-id="TCcODxwioFEggZxvxcaC2u">
+    <tr data-page-node-id="Ao6woO5dA6JEInYQ6tzl1X"><td data-page-node-id="kTYo5p6j0trI6gIiF1pj05"><strong data-page-node-id="XmdAsDiY5n2yFU30atwZyg">2026订单明细</strong>（主表）</td><td data-page-node-id="z6MpMGFnTYaGJHNDuAcRRy">2161 行 × 47 列</td><td data-page-node-id="ZwvzJczbsCKaMuGWjV5NbX">一行一个工单，记录订单量、交期、三道工序的产能与完成/未完成</td><td data-page-node-id="SZ6BIGtULn85KrwMew2pgk">计划员（维护）、全员（看）</td></tr>
+    <tr data-page-node-id="VsBu0XKfFtLFGwix4DyXt1"><td data-page-node-id="aPJSddzOWMlppwkxIkW396"><strong data-page-node-id="y5XlpT2ffGbaH2rmijNV5p">8月成型当日完成</strong></td><td data-page-node-id="LwNWlzPS9dRq4izaPHKZkY">2140 行 × 45 列</td><td data-page-node-id="0HHCdqeD7TYwIFLXUzBvjF">横向日历：一行一工单 × 1~31 号日期列，每天填成型完成数</td><td data-page-node-id="I4VCp0G4vDaWLgDC5vFAZ1">车间统计员（每天填）</td></tr>
+    <tr data-page-node-id="tAOAD07rAP4eBmVkrVaoZv"><td data-page-node-id="KMqWriUis0Ryb6BQcs7Rfo"><strong data-page-node-id="P1mzZ8OqZI1jbVCeB5leDR">8月包装当日完成</strong></td><td data-page-node-id="mWRqqj3fZjoiOD9lE30GIc">2240 行 × 50 列</td><td data-page-node-id="SQwoiBuqsrsm4WGSIT9wiZ">同上，包装工序；另有外箱数、托盘数</td><td data-page-node-id="b9MRv256C4uHTLj9aakCwk">车间统计员（每天填）</td></tr>
+    <tr data-page-node-id="hZ0JpT1qp0iBFKlfFDiRQ5"><td data-page-node-id="OisRSSTTGS6VK3CUDfxp94">未确定交期 / 7月前 / 7月 / 8月 / 8月后 / 总订单未完成</td><td data-page-node-id="ugt9TtduGFHGOvN2451wMy">6 张</td><td data-page-node-id="MjzX3HUg7Pan5TT9fAWOd9"><strong data-page-node-id="ECsnMoflGD8Box4esLTAR8">数据透视表</strong>：按产品汇总订单量、成型未完成、喷漆未完成、需要班次</td><td data-page-node-id="AAn4JS0MDXwY0wFqM427G2">业务员、管理层</td></tr>
+    <tr data-page-node-id="j8M0sgotlOJ5q1hv6s6tA2"><td data-page-node-id="xTyZ5OtmcD15ABTcVl3hHd">交期变更记录</td><td data-page-node-id="4lHDHPSsdOK2lHjBnyUMab">114 行 × 14 列</td><td data-page-node-id="6edWoPYY2vUR9rNI59ybJC">最初交期 → 变更交期 → 变更理由</td><td data-page-node-id="XaTMkgrLZNnRWo8WFEsT5A">计划员、业务员</td></tr>
+    <tr data-page-node-id="bnotS5JlCaQxR4q4yqRtow"><td data-page-node-id="1MFBoD9FEGqmd8DiqpQ886">2025明细</td><td data-page-node-id="hrFBjDHpQQHEIhsJ3ZLJa3">1823 行 × 46 列</td><td data-page-node-id="if9yG6pyUlYKvXqtBE1crn">历史归档</td><td data-page-node-id="o6DXnRFSwDyhhVMKGe1D11">参考</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h3 data-page-node-id="XXV4jVaWlbBKQGwYpMTsRc">1.2 主表的核心字段结构（三道工序 × 6 列）</h3>
+<div class="chain" data-page-node-id="UFct2HLlUPKlHOlGhumhHH">
+  <span class="node" data-page-node-id="EmKaPm6U1l44D6lx1Lhbrb">成型</span><span class="arrow" data-page-node-id="ggiqJ4eBStPBWwTY0moxiS">→</span>
+  <span class="node" data-page-node-id="9kAoZ3tdhJrp5KTNB3Uqny">喷漆</span><span class="arrow" data-page-node-id="RbFfI2wUTFBVX1LrCZcuZ7">→</span>
+  <span class="node" data-page-node-id="WIRnDy7lTYqiKNQND6suGN">包装</span>
+  <span class="node ghost" data-page-node-id="Ak6DqBrAmntVHjIwE20Aqu">效果（按产品可选，非必独立）</span>
+</div>
+<div class="tbl-wrap" data-page-node-id="YkPsRoGlatRxSEIVP21TCd">
+<table data-page-node-id="BY3M7TWY2iKyTnqCrZXfeP">
+  <thead data-page-node-id="D5qroMEgEsIu6n4RPPPZbH"><tr data-page-node-id="Lq3LN8b32cpFUmznShgfnX"><th data-page-node-id="d0fl6IvNOkPhe9CYAuZ95I">字段组</th><th data-page-node-id="Cprts29vI91tRrEyXNYNf1">成型</th><th data-page-node-id="bKqU2PtgeuJHnJ51DkbHke">喷漆</th><th data-page-node-id="aHWa6lygI6uZ6Jy1xpoMtF">包装</th></tr></thead>
+  <tbody data-page-node-id="MgoQdZ9TP8PLhbVDXU8p3y">
+    <tr data-page-node-id="VreGk73EaKNRfK1D6o7zR2"><td data-page-node-id="sJtHpEubdNelfMhXqfrGfv">班次</td><td data-page-node-id="uQNOkYrRFnipFNFwToEAF4">成型班次</td><td data-page-node-id="13TlS3NLQB2TCg0pIkpyYc">喷漆班次</td><td data-page-node-id="dZMUKfCAkun9KxUnwTehGC">包装班次</td></tr>
+    <tr data-page-node-id="4PhQqEKufgqhQE2gbBOjjy"><td data-page-node-id="VUSyt4uVVRIKFm2B6he7w8">产能</td><td data-page-node-id="hc1LC3xW0kMllPRjh66TUB">成型产能(班次)</td><td data-page-node-id="hJNzbK9dtIzZBVKUDFSWhs">喷漆产能(班次)</td><td data-page-node-id="PWZMJpngbRvVEJMVFEyRv9">包装产能(班次)</td></tr>
+    <tr data-page-node-id="G7HxojYwHtAsTMvyDeJ1Un"><td data-page-node-id="YsbXWuCy87AOC6ZGIea84c">当日完成</td><td data-page-node-id="thPCZZHA9Y1IMV4yx1iPQt">成型当日完成</td><td data-page-node-id="yZNqC6YxNP9GBLrzWYqXfQ">喷漆当日完成</td><td data-page-node-id="HnjdAY8GnZF4EKPKXJTxv6">包装当日完成</td></tr>
+    <tr data-page-node-id="blortgCBUnm3vpxUbleIuR"><td data-page-node-id="JFsGlQBwhN0MDCkTSFDC9e">已完成</td><td data-page-node-id="CrsBM5imYDdHLragMvJaXE">成型已完成-产品数</td><td data-page-node-id="5UV3y6T4BAu3taCuQzGLqD">喷漆已完成-产品数</td><td data-page-node-id="Cy1hkV4eIlO8jGkMiV0r5T">包装已完成-产品数 / 外箱数 / 托盘数</td></tr>
+    <tr data-page-node-id="HtryTphkrptrxbEUAKNuLp"><td data-page-node-id="H2e5UhZQlxuoCoTPwSCzyW">未完成</td><td data-page-node-id="nt9hXlCY5aTJK770fzldVk">成型未完成-产品数</td><td data-page-node-id="TXaUuz1vTS3JcM82kffh4C">喷漆未完成-产品数</td><td data-page-node-id="WFibqAb0SmRb8DpdIL8vFb">包装未完成-产品数 / 外箱数 / 托盘数</td></tr>
+    <tr data-page-node-id="FlVtXFQGEu47mqHkstNVNu"><td data-page-node-id="Wzc2JCiXTZQtoZPQtRvWiy">需要班次</td><td data-page-node-id="pgYD7alQ7qH35F2HIa0N10">成型需要班次</td><td data-page-node-id="QAbmGrZWUvLdwFcXaDZUne">喷漆需要班次</td><td data-page-node-id="v2N7QkOulVjOJ9dMTfQr4Z">包装需要班次</td></tr>
+  </tbody>
+</table>
+</div>
+<div class="note" data-page-node-id="W2CCwCXLTSYJGsKfDFgenr">
+  <strong data-page-node-id="812Ae44Osv7MYk6Xmj7KD6">产能口径关键差异：</strong>线下用「<strong data-page-node-id="FuNUDMEjLRBhuarH7DipFI">每班次件数</strong>」（如成型 800/700/2500/3200，包装 2000/900/12000），并派生「<strong data-page-node-id="jp06v8ZudBtVE2ZrtsCEB0">需要班次 = 未完成 ÷ 班次产能</strong>」做负荷判断；
+  而现有系统是「<strong data-page-node-id="mpCk630IAa0wIgbxPcIhpA">件/小时</strong>」（<code data-page-node-id="HS7cTDZhJP7WwbXwawGiBU">machines.capacity_per_hour</code>）+ 班制，排产只输出小时，<strong data-page-node-id="858xTMwlrPtMZZQphZMvmC">没有"班次产能"和"需要班次"</strong>。这是计划员最直观的口径，必须对齐（见 G8）。
+</div>
+
+<h3 data-page-node-id="s8UU9X85xacNUzeNzlOHUi">1.3 四类使用者：每天做什么、痛在哪</h3>
+<div class="tbl-wrap" data-page-node-id="TFoXIABqqhz6hAfa1mHv4w">
+<table data-page-node-id="a6sY8pRaAZTxIn9IrP2PNK">
+  <thead data-page-node-id="v6SBxwtW4MEsMGYByIrCsw"><tr data-page-node-id="kfCzatbM5tBOMiY0WQJALO"><th data-page-node-id="uXVEVFLM1ACp8Cdc0hApDl">角色</th><th data-page-node-id="T3DebtIKlbQhW6aZYC7wcj">每日动作</th><th data-page-node-id="eFUi3KmggVVKKBPzZLlqe2">痛点</th><th data-page-node-id="ekr2bHHXLmuiDxdO6Zfkx9">系统可立刻减负</th></tr></thead>
+  <tbody data-page-node-id="ooLDM5gIplRjD3YB47LM46">
+    <tr data-page-node-id="4SopIf70kpj2alKD2M77V0">
+      <td data-page-node-id="I4Qa11IlWj7aMLUflJOia1"><strong data-page-node-id="BSdJ6bWVICSOTqnjgp1PYG">车间统计员</strong><br data-page-node-id="WSiqXZpmDe3OtPYFMGFXPP"><span class="tag t-p1" data-page-node-id="xaF28pYEJLuuuuhdAB5ZWo">报工人</span></td>
+      <td data-page-node-id="GZsktUOY4QraJDlS0JDhBP">在「8月成型/包装当日完成」里找到工单行，在当天日期列填完成数</td>
+      <td data-page-node-id="KUy2HMUD1mVQFPU5nAyrdx">2000+ 行里翻找工单；两道工序要填两张表；月末还要核对「多做的产品数量」</td>
+      <td data-page-node-id="JYaI3DUX6EZzqvuCaFIZbr">月历页一屏可见、点格即填；一次填报三工序进度自动更新；超产自动标识</td>
+    </tr>
+    <tr data-page-node-id="JBExqaHEfBrLh9w8UD5mVl">
+      <td data-page-node-id="TboEHCjmlN4gH0nYsBHA8U"><strong data-page-node-id="STA2s2AkzOmW4XTYECBCSA">计划员</strong><br data-page-node-id="8fdHnX2OlBhJKHiKAR8hxy"><span class="tag t-p0" data-page-node-id="4MkAKzcCXDqmMqugDBGKRo">主表维护</span></td>
+      <td data-page-node-id="hZKipoKfhgLPW5WbhHk8w8">维护主表三道工序的班次/产能/当日完成/已完成/未完成/需要班次</td>
+      <td data-page-node-id="r4VfJ7izqLhW3ImNK8v6d8">公式易出 <code data-page-node-id="c62V8NmwP2s70kBElipgbH">#DIV/0!</code>；每月要复制新 sheet、重设公式；147 个工单号被整行复制重复</td>
+      <td data-page-node-id="HHxpisHYUsH8DEQ4UwVOcs">需要班次自动算、永不 <code data-page-node-id="VaY3vGZf7I6248V39JRLFl">#DIV/0!</code>；不必每月复制 sheet；工单号唯一约束根除重复</td>
+    </tr>
+    <tr data-page-node-id="HD1lvCqrStWdoRUOFfcERG">
+      <td data-page-node-id="nzdN0YxYOeia1RrNEnpPFs"><strong data-page-node-id="sTyZ2vkqyT7p4vufmkT5Rd">业务员</strong>（10 人）<br data-page-node-id="2cZ2MKq9Q7FY5CqV9K1NdY"><span class="tag t-p1" data-page-node-id="Ir2TEEDz5LHg4lBf4Jxk6s">看进度</span></td>
+      <td data-page-node-id="lq0gTdltOLKwDKbzpXWZ0l">筛选自己客户的工单看交期与进度</td>
+      <td data-page-node-id="hSCajByYrzYj3YgZC64n9e">进度非实时（等统计员更新）；只能被动翻表、要打电话问；改交期靠口头通知、无留痕</td>
+      <td data-page-node-id="Ihv1BwiOnIXcGs0Yhi6IU1">实时进度自助查；按业务员维度筛选；交期变更强制填理由并留痕可追溯</td>
+    </tr>
+    <tr data-page-node-id="RkKDDqxmWHTXRiRulgskid">
+      <td data-page-node-id="rhxTG06O3rSPhYGOV3dwd1"><strong data-page-node-id="BUDHCVXPB6rRxOrxjpVEyH">管理层</strong><br data-page-node-id="oN7xUu2ZYn97GgEJncdGKu"><span class="tag t-p2" data-page-node-id="wJBOsVYpUnmtAAZknaCVcw">看全局</span></td>
+      <td data-page-node-id="AJJB37Ad8UPGsGN1Gm4IGc">看 6 张透视表判断产能负荷与未完成量</td>
+      <td data-page-node-id="yqKdCjNjMH1f9SZFwBWvye">透视表是离线快照、要手动刷新；不区分喷漆进度（线下无喷漆日历表）</td>
+      <td data-page-node-id="w7t7vk2TIwnPpn8iMGPAuY">实时汇总视图；喷漆纳入日报工后进度透明；红灯自动预警</td>
+    </tr>
+    <tr data-page-node-id="uB0vcmPjZP0t66WePSV9Tt">
+      <td data-page-node-id="pEQtremRfL4TSe1vDXGDaT"><strong data-page-node-id="I1nfoNuKDR8VFwcBPrrHGV">喷漆班组</strong><br data-page-node-id="gCeup5RXmbIqtneMIDBYwM"><span class="tag t-p0" data-page-node-id="APYFhju1bGi1LIDy8cKdw5">最不透明</span></td>
+      <td data-page-node-id="Z00H5u5lsgtcfuYzB27UWA">实际每天有产出（你已确认需每日报工）</td>
+      <td data-page-node-id="y3aSG9ENNpe7cWTNfBajyf"><strong data-page-node-id="lC7ykdQigwGk0zMjK2mkOD">线下没有喷漆日历表</strong>，进度只能靠主表手填累计，最滞后、最容易漏</td>
+      <td data-page-node-id="tCv7G1JKnpjNX7wpeMAcKs">月历页按工序切换即含喷漆；喷漆首获日报工能力</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<h3 data-page-node-id="rT8KsmMNhyk7rAxcUDUWMr">1.4 数据质量隐患（导入前必须先处理）</h3>
+<div class="grid2" data-page-node-id="tbBzVZlxp993OscpDa9nEW">
+  <div class="card" style="margin:0;" data-page-node-id="HHcqGQkeyIy0EnEYn5aEtk">
+    <h4 style="margin-top:0;" data-page-node-id="HQYGs2cEdE3hv2o8G4pWWR">已发现的问题</h4>
+    <ul data-page-node-id="xqiH67PuUSvofbdzzM1LJS">
+      <li data-page-node-id="4DvdkA6TIGU5s3GJ4auWcG"><strong data-page-node-id="SMj5Noct7hWwdW6KiO8grd">147 个工单号重复</strong>：系整行复制粘贴导致（产品、订单号、数量、完成数完全相同），非「一工单多产品」</li>
+      <li data-page-node-id="mjeLgcXL6wuNi4Om2DOeCu"><strong data-page-node-id="C4FOBZw9YFyK0QbT7Pyd8Z">工单号类型混用</strong>：int 1399 个 + 文本 446 个</li>
+      <li data-page-node-id="KELkcVyXIYJBlAAhvtn3hR"><strong data-page-node-id="xOyNDDO9PdGUUYXO8eWojC">#DIV/0! 满表</strong>：箱数/托数/体积等除零错误</li>
+      <li data-page-node-id="D7rIhOv5TeNbr6m6saCNRl">交期列混入字符串类型值</li>
+    </ul>
+  </div>
+  <div class="card" style="margin:0;" data-page-node-id="pyYUS7iCJ0n6QE9r9YTkBT">
+    <h4 style="margin-top:0;" data-page-node-id="Ri8r5Y6I0OdtlteLk9dbjl">系统侧天然免疫</h4>
+    <ul data-page-node-id="yqAniye2FTFQunl0AFkRrB">
+      <li data-page-node-id="fjbl7ZoQEEt8q2e5mhAGlM"><code data-page-node-id="mnBqPV7bRExRGuoFKRZlqX">task_no</code> 由 <code data-page-node-id="gU3Qixw0ZVUBeZQKxE2f7x">TSK-{order_no}-{seq}</code> 生成，<strong data-page-node-id="XNpb6vVfB7BjC0Q5eQS0q2">唯一约束</strong>根除重复</li>
+      <li data-page-node-id="9ypJNVFviH1R1vxn6TRZdB">工单号统一按字符串存储，保留原「入表序号」溯源</li>
+      <li data-page-node-id="AI4PSNjJauWpjwS22yC0Z3">除零场景由服务端计算，输出 <code data-page-node-id="kMcrTVPCe0GiQUTcADHex0">—</code> 而非错误值</li>
+      <li data-page-node-id="TGnGCHWcvfQrcSMMe781ek">导入时逐行校验，错误行反馈行号、不阻塞合法行</li>
+    </ul>
+  </div>
+</div>
+
+<!-- ============ 二、差距清单 ============ -->
+<h2 data-page-node-id="NE8JAWjfPinO4b2n8wRdDx">二、差距清单（GAP）：线下能力 → 系统现状</h2>
+<div class="tbl-wrap" data-page-node-id="7TBKvqoJduXwhoqEeZ2WcO">
+<table data-page-node-id="IEwj4pCcky8Aozz7b70ea3">
+  <thead data-page-node-id="xsT2PSMScVdzNxb8M2Qm77">
+    <tr data-page-node-id="30BTIEHFdhSvFzslIniHpA"><th data-page-node-id="TaHibVxgFFZiEIHo5ZKGUQ">#</th><th data-page-node-id="72Fg0Jqv9QvYjyXHx9xWkL">能力</th><th data-page-node-id="hKInj3W3FC9aexYGxeRSoF">线下</th><th data-page-node-id="Jkzs2iCnxmdNhsmvpFUAQV">系统现状</th><th data-page-node-id="Pm0U7uQHvMNQLagJynufXH">动作</th><th data-page-node-id="kHBB6j8ESPfYexnEmbu1Do">优先级</th></tr>
+  </thead>
+  <tbody data-page-node-id="eUCKLeBDDiNfCssMRWTVdV">
+    <tr data-page-node-id="CWnOVlt3lfESJ9ybfz5pOg"><td data-page-node-id="bIcECVbikUIdBE5WCbELvp">G1</td><td data-page-node-id="ihH6MJ548BAffDQFiUS2Cv"><strong data-page-node-id="UO0y5earBERn0hHZIDa4mt">业务员</strong>字段</td><td data-page-node-id="5LgGMtregb13O2rSrYLSB8">主表核心维度（10 人）</td><td data-page-node-id="8SEWvlE2QXOt1DjemipcsB"><code data-page-node-id="JgL5DA5kqqEVWHGVIK2cAm">orders</code> 只有 <code data-page-node-id="XhAz7h5bPBKOjMx4Hz54OY">customer_name</code> / <code data-page-node-id="yBvVuoxokgEwoKNgTrFim7">created_by</code>，<strong data-page-node-id="VMgScsrouyDC2FEXUcyDvW">无业务员</strong></td><td data-page-node-id="db3mlIFlGE3GR5ye2rLdwn"><span class="tag t-new" data-page-node-id="sLFnQEEFd7cH99UYUfEPfp">新建</span></td><td data-page-node-id="KwQnTWgJPxpfYJHlBfYgBs"><span class="tag t-p0" data-page-node-id="ByaFKKjoUFvOFxrSCrjmo3">P0</span></td></tr>
+    <tr data-page-node-id="j4uDjNAis2pHhHuFfP7Z7F"><td data-page-node-id="hLH7xteV2KT2EIhj6AH7PM">G2</td><td data-page-node-id="LG9LAawAdn2PAV07pJFQtN">客人订单号 / 工厂款号 / 装柜日期 / 装箱组（每箱每托产品数、外箱与托盘尺寸体积）</td><td data-page-node-id="ymnsWUQXbLZp51h5czll4A">主表有</td><td data-page-node-id="s1I5aAXk34RZIfvekBRtKw">无对应字段</td><td data-page-node-id="DGJ3ngu7fri7OcHsabElGj"><span class="tag t-new" data-page-node-id="kcvoN4vvG1fzQHFa81qrUS">新建</span></td><td data-page-node-id="VhRClxpzNKnW688vFD4gKn"><span class="tag t-p1" data-page-node-id="4IGwktGA4dFLEPOJeBdUHN">P1</span></td></tr>
+    <tr data-page-node-id="kUB5qcBoFl2nOjH7xyyNVP"><td data-page-node-id="ix2aBZnGUVXbKBud4VpxDh">G3</td><td data-page-node-id="cFjAkz6IW7sQgSyU7r6CXb"><strong data-page-node-id="LSeuRsN7X2FBN7dpg0cwQS">交期变更记录</strong>（旧值→新值+理由+可追溯）</td><td data-page-node-id="A8BPdkAmQMaBI8woJmdFhH">专用 sheet，含理由枚举</td><td data-page-node-id="w5LYphKTDKBXLqufTz0iTK">仅写 <code data-page-node-id="FGTrza2zGFuIc7BEdHtJ7e">WorkOrderLog(ACTION_EDIT)</code>，<strong data-page-node-id="iZjGMD2f1AoG24vuKWQR8G">无旧值、无理由、无专用表</strong></td><td data-page-node-id="9O3xJWPHxA7HNa3PtzYfx3"><span class="tag t-new" data-page-node-id="EGXAwleI6uhJ3wzyoL01Tw">新建</span></td><td data-page-node-id="vukMEFwV4usu3kQClHLb3Y"><span class="tag t-p0" data-page-node-id="Rf2fnqze3YPpnSrdsjo7fg">P0</span></td></tr>
+    <tr data-page-node-id="NbMXYbpWW0LtfSU93y7gye"><td data-page-node-id="QMMBhrSxgxQ9M6sxEh35sx">G4</td><td data-page-node-id="tLQ0r6wRiMv6DHw3czhko5"><strong data-page-node-id="KI2bdIHTWr7Xi23DR98QCF">Excel 导入「每行一工单」</strong></td><td data-page-node-id="HbjDV2fzVa0AgDCHKRYILz">每行是独立工单</td><td data-page-node-id="2lyxy9IzQhlZ8KauFiWt8J"><code data-page-node-id="WDpfD01rw9YIdYAPrMwJmJ">OrdersImport</code> 把整个文件合并成 <strong data-page-node-id="4OFn80mAbLqL9bGYnTGPuG">1 个 Order</strong>，语义不符</td><td data-page-node-id="wsfjxhhh6BiuDlrP0Ne7q2"><span class="tag t-mod" data-page-node-id="vX1ayfS2eE1WqvwjbaPTTm">改造</span></td><td data-page-node-id="KrT0LGBDCzaaDQtlERFRHR"><span class="tag t-p0" data-page-node-id="UCFrKGlKnYg4ifQotBzPFa">P0</span></td></tr>
+    <tr data-page-node-id="Y8FrkU39F6uDynZaUPnoIv"><td data-page-node-id="VAIcBLbNqiBuQOUwjzHm8m">G5</td><td data-page-node-id="7QJnpZiSx4IfvSIh33qkUB"><strong data-page-node-id="a1LMIfbw5Y5oXMGwjq9OpU">Excel 导出（同格式）</strong></td><td data-page-node-id="Pj9zkbIXcAtWSWGLAcA4k0">主表 / 月历表 / 汇总表三套</td><td data-page-node-id="KgIgxAX6LGRryLReIPUjj1"><strong data-page-node-id="usdA3gWoXM3HjIUDWHR1gW">无任何导出能力</strong>（无 Exports 目录）；但 <code data-page-node-id="yvaZKYGF0YCZhBgmER97QP">maatwebsite/excel ^4.0</code> <strong data-page-node-id="1xOmMGxPH2r0idxvag97Xd">已安装</strong>，可直接复用</td><td data-page-node-id="cvc46llnn0Gv9l5cZu0Fb9"><span class="tag t-new" data-page-node-id="VyEuBaXEHe1KTKDmjIbJyL">新建</span></td><td data-page-node-id="beZ4wN7ayM7C7Zd9sZb3Nj"><span class="tag t-p0" data-page-node-id="24Prb1o2NPxxRLEFYFPoXd">P0</span></td></tr>
+    <tr data-page-node-id="lLsubVzkFOW6F2vZYg4yTa"><td data-page-node-id="KmwCKC2Oe9ARkmxlN2airM">G6</td><td data-page-node-id="KiLpudaCLhOhMhkt0MxYRN"><strong data-page-node-id="pMZlP0AlwCXXCHddpsJFAW">报工月历视图</strong>（一行工单 × 一列一天）</td><td data-page-node-id="clYEKGFh2Fj6aMzAsau9hZ">两张月历 sheet</td><td data-page-node-id="f4w7RZPVibIibtnvOpZY5l"><code data-page-node-id="eZwbwStlGOiJvlTeDw6MGt">DailyReportGrid.vue</code> 是<strong data-page-node-id="BfhgjYnMpPm4sZDEDhUIPk">单日 × 一行=排程段</strong>，非横向月历</td><td data-page-node-id="jlBU0jAozaybosT1MGBPEq"><span class="tag t-new" data-page-node-id="GCGcjOsKLHpsSBsKdZLmzE">新建</span></td><td data-page-node-id="gWbKmUwQSedbQ4DEKxNYUP"><span class="tag t-p1" data-page-node-id="dmaACPbOcXp8hdDyydtVJc">P1</span></td></tr>
+    <tr data-page-node-id="vXu199brIBMhnfIJeUZGBO"><td data-page-node-id="LpXj6SRfxq7zbqp3J7eUN4">G7</td><td data-page-node-id="XRma0CC950OSOSuwOOHBBM"><strong data-page-node-id="3Kp28apI68WymxO3PpABOD">喷漆每日报工</strong></td><td data-page-node-id="slCZA6QbGqVTIcAyAazM2Z">线下缺表（实际每天报）</td><td data-page-node-id="ZqbsdCExuCk03Esfhj8Rnn"><code data-page-node-id="EWhFVKk4kxi0ClsBSobmuC">route_ops</code> 已支持 <code data-page-node-id="jVxZJCJm0vMYeLAOyM3vGR">paint</code>，<code data-page-node-id="8UWSDOAcVnUHDXi0acDTx1">report()</code> 通用 → 天然可纳入</td><td data-page-node-id="6gkfhyoT9bBZa4YGiu1O75"><span class="tag t-have" data-page-node-id="tFfo6sYFxrjCRCEfBDcYff">已具备</span></td><td data-page-node-id="3sIn3sSLuaFjDbnD1ZEuTx"><span class="tag t-p1" data-page-node-id="72R5vNNLxGwHiBZAVCr6L1">P1</span></td></tr>
+    <tr data-page-node-id="97cSut6HZhrFAQp0F7Mm2c"><td data-page-node-id="VpaLdTvhFft9o9KfHsfXiF">G8</td><td data-page-node-id="hNVR2jM7pJAS7Kmo5chYxg">产能「<strong data-page-node-id="GdW2J6ph5el6VdqObZkwdq">班次产能 / 需要班次</strong>」口径</td><td data-page-node-id="0ugCcBX6WE3AaWiV6Sx4f5">每班次件数 + 需要班次</td><td data-page-node-id="dhiYu78nWPCPOFuslsh4Y3">只有件/小时，排产只输出小时</td><td data-page-node-id="GyYZIVyDJJbSYmhjSvRBwH"><span class="tag t-mod" data-page-node-id="Id6bEhSx10jHbKGrqsvMWn">改造</span></td><td data-page-node-id="Wj6Pxe904BwG519UgAXzak"><span class="tag t-p1" data-page-node-id="HKrHcYNKe7viDwfwvSogT8">P1</span></td></tr>
+    <tr data-page-node-id="1C68AHonJwGu5x4zxx0iJh"><td data-page-node-id="wGTjr38OkQ77NQ2wPVlOCx">G9</td><td data-page-node-id="rEKv61Qfh4Q5SrpT7Nm1GV"><strong data-page-node-id="IWxImoyGiFnfLy9Hdltq1l">业务端透视汇总页</strong>（产品/交期/业务员/客户）</td><td data-page-node-id="erOxhhW7hUarjfNGu2jgNq">6 张透视表</td><td data-page-node-id="pNHQGGgd6tUQzsS3tWyD4t">Dashboard 有 5 视图，但<strong data-page-node-id="tSlskMhc33Pv3Dr3qvsEOv">无按维度聚合未完成量/需要班次</strong>的页</td><td data-page-node-id="JmvGezLyK5f8w442ZxRCa7"><span class="tag t-new" data-page-node-id="XvHvK5HabzPc5uySH6DnbA">新建</span></td><td data-page-node-id="bAiMgSEvrRd2er7OSUsAg2"><span class="tag t-p1" data-page-node-id="n41wP2CEYdBcR1tgAIrOKy">P1</span></td></tr>
+    <tr data-page-node-id="CNHlqIuOag0Rw9gIW3AYza"><td data-page-node-id="WLmgltE6cCAzBU3nl7xHOx">G10</td><td data-page-node-id="bcy1jouBesAKIxSA5Z1NxP">超产留痕（「多做的产品数量」）</td><td data-page-node-id="Nh0wS3eaB2Mt46FnX93G0N">月历末段有该列</td><td data-page-node-id="Yspi80hs0CxAgTnvIqEjZZ">有超产上限校验，但<strong data-page-node-id="GzZYRXIHWpxw7Syb8q6E1Z">无超产量字段/标记</strong></td><td data-page-node-id="UrRoozY5cY5AW1t3Dc7ATn"><span class="tag t-mod" data-page-node-id="ZMyUOGI0xuwsyTLFhJPmc2">改造</span></td><td data-page-node-id="quSgtZ6XezlMZDGoYXLn4X"><span class="tag t-p2" data-page-node-id="WXZUQ6UerLQZxTWIoRM3vF">P2</span></td></tr>
+    <tr data-page-node-id="CYIVQpDNPNEUEUEdV97EsX"><td data-page-node-id="Y4HYffhNJ1J16Qg6JeszhA">G11</td><td data-page-node-id="1FrWRXVHzWTBtTOfmfUzif"><strong data-page-node-id="EAoOOsGQ46mzWKHTGztbDY">只读「生产进度总表」页</strong></td><td data-page-node-id="CD5UedjAVrwUsgmKCdqKLq">主表本身</td><td data-page-node-id="17eFIDHBMz4t4yGBqYyggm">无「一行一工单 × 三工序进度」的独立页</td><td data-page-node-id="WbklVzBC1FumbddsEkybZb"><span class="tag t-new" data-page-node-id="oA7EKL8D20fiGrE9GoBYpw">新建</span></td><td data-page-node-id="ejgmuFrV7PPoXfc9mDofXH"><span class="tag t-p0" data-page-node-id="lbhoTE3GMNkmQu5v0bkhwi">P0</span></td></tr>
+  </tbody>
+</table>
+</div>
+<div class="note" data-page-node-id="p0Gsl7dKDqje7ee3vJ1eAJ">
+  <strong data-page-node-id="inqcSjb4lcTMiXT6PsANDM">已具备、无需改造的部分：</strong>报工（含班次 <code data-page-node-id="ibD6rLNs0knHZ64oMed4SL">shift_code=day/night</code>、超产上限、冲减 <code data-page-node-id="O4KDUmlGkQeFxpY6QDLfHr">sign=-1</code>+remark、离线队列）、
+  工单模型（一工单一产品）、工序按产品配置（三道/四道均可，<code data-page-node-id="kGdGtyXRimqh3vHKtw6Adc">effect</code> 可选）、进度按工序阶段展示（<code data-page-node-id="GIdWtPp3wGTabjt59YvQrY">OrderProgressSteps.vue</code>，已按 <code data-page-node-id="CTPr5arDCClbBWHIhhxgIh">seq</code> 排序）、
+  移动端扫码报工、红灯预警。这些是落地的良好基础。
+</div>
+
+<!-- ============ 三、核心产品设计 ============ -->
+<h2 data-page-node-id="RzifbooletaxYGCe5yK4OR">三、核心产品设计：复现习惯 + 顺手减负</h2>
+
+<h3 data-page-node-id="bDBO1GG5zGt1xfCIp6iHkx">C1 · 「生产进度总表」页（1:1 复现主表观感）</h3>
+<div class="card" data-page-node-id="27FEIIM1ZIcH9DxzAuH0NL">
+  <p class="lead" data-page-node-id="DFaVaroRuYziDMVjB5HljL"><strong data-page-node-id="8hWozvtx3pt8PZQ9BcBySP">做法：</strong>把线下主表原样搬进系统——一行一个工单，列组保持「标识 → 业务员 → 客人订单号 → 订单数量 → 交期 → 三道工序组 → 装箱组」，字段名与顺序都和 Excel 一致。</p>
+  <h4 data-page-node-id="GNJCNWnsMmfpbvIgeafLUI">比线下便捷的地方</h4>
+  <ul data-page-node-id="ngGxlvWL0QMD9phZbtTdMT">
+    <li data-page-node-id="eiGjS8HMhcw1fQmHaBcCoy"><strong data-page-node-id="YagR1DvXgzgRy5EYzIci2s">需要班次自动算</strong>：<code data-page-node-id="RgIYcY9cXZLMYllmPmHlAg">ceil(未完成 ÷ 班次产能)</code>，彻底告别 <code data-page-node-id="noEHGxdKCA4yn9Hio1DUML">#DIV/0!</code></li>
+    <li data-page-node-id="1mST90odpKXKggBFW9uftO"><strong data-page-node-id="PrNll3oUvN3BNPH6Y1OwsW">实时汇总</strong>：报工落库即更新，不再是「等统计员月底填完」的快照</li>
+    <li data-page-node-id="m0oorcT6nP2NmeprfdALpV"><strong data-page-node-id="cGQZzMHTQ3WTe8k2NHPMLI">红灯提醒</strong>：交期逾期、未完成 &gt; 0 自动高亮（复用既有 <code data-page-node-id="LC8egy1ZCRYCQFFInXUvKo">RedLightService</code>）</li>
+    <li data-page-node-id="ZsTQzdUwN9zkiNhOHe2JaI"><strong data-page-node-id="Ht9EaCdias9OWVeuMUJyn3">重复根除</strong>：<code data-page-node-id="vvYqDFdyDK9Z5wHZnfV31N">task_no</code> 唯一约束，不会再出现 147 个重复工单号</li>
+    <li data-page-node-id="VPeng4oiSvCuFJSpr3trL0"><strong data-page-node-id="Wk5CQN6OxIGU4Zcg5JCLAy">点击钻取</strong>：点工单号看该工单三道工序的明细与报工流水</li>
+  </ul>
+  <p style="margin:10px 0 0; font-size:12.8px; color:var(--ink3);" data-page-node-id="L52vXqMJGYiDVydIccEVZK">
+    建议路径：<code data-page-node-id="sSS3ffnGorvTQxGCklb3Nu">frontend/src/views/production/ProductionProgressView.vue</code>（新建）+ 后端 <code data-page-node-id="joKoO2H2hOEdpMDCeYJCDG">GET /production/progress-grid</code>
+  </p>
+</div>
+
+<h3 data-page-node-id="bhYCbOGHXSl3B4611NKKoy">C2 · 「报工月历」页（保留填写手势，一次填报全联动）★ 降低习惯变更的关键</h3>
+<div class="card" data-page-node-id="nCKcEMF1BQ9hIzFuornpPF">
+  <p class="lead" data-page-node-id="RRbDjPujDlnO43HC9YKseU"><strong data-page-node-id="cf74WAmmi9e0IKV7EV7p0Y">做法：</strong>完整复现线下月历 sheet 的填写手势——<strong data-page-node-id="3Cf4NFRD1worntCOxFVmUD">一行一个工单、一列一天（1~31 号）</strong>，找到格子填数。视觉和操作与 Excel 几乎一致，统计员无需重新学习。</p>
+  <div class="tbl-wrap" data-page-node-id="JXSdcb4neQmBxKzE4J6mGv">
+    <table style="font-size:12.5px;" data-page-node-id="AUtB5to7Zw46e9dvEoaCvi">
+      <thead data-page-node-id="spYO2VCJP9xWes25Ur9yyY">
+        <tr data-page-node-id="EEdbAvOp22XI14BhLo9utg">
+          <th data-page-node-id="ZvwAmDgYonAFaZZ2RvHVKi">工单号码</th><th data-page-node-id="QGya2rbfCuJexol6NGUAGA">产品名称</th><th data-page-node-id="O0OrK9PBsquKkt32OFdfZH">订单数量</th>
+          <th data-page-node-id="sylgLBDmfGUnTHrFZCf6ar">1号</th><th data-page-node-id="KUWpHUQPBzVvL4bc0duuF3">2号</th><th data-page-node-id="fDAjDwLsEvlxmEdBwZB4F9">3号</th><th data-page-node-id="vzByoT4vrJ7TaDn1D44JkX">…</th><th data-page-node-id="jBiEVBnt4a55cUwGmkxHX4">30号</th><th data-page-node-id="1zqYIxj7VQHgvf9192GLDs">31号</th><th data-page-node-id="OgPGFUEWcMWcKopLEZ4gxL">月完成总数</th><th data-page-node-id="qc9QsrzHa2A8rwZaWeZCJn">多做的</th><th data-page-node-id="EDyJqFQ4MWHsBCybJWqMKv">未完成</th>
+        </tr>
+      </thead>
+      <tbody data-page-node-id="1wQvnbp6LekeAEBWzOxIVT">
+        <tr data-page-node-id="ZzzXdy9oBEeCVhfgkKnEEK"><td data-page-node-id="jRlxxLsjRYFm7EloDbnCbR">T-2026-0186</td><td data-page-node-id="vFgFoDSLy6h017Psj72QZm">16寸艾德勒盆黑色</td><td class="num" data-page-node-id="EhoCKjwUlKsaZqpNv4GJ23">192</td><td class="num" data-page-node-id="Z9mGh0KbGg7AE3ThzbREEn">—</td><td class="num" data-page-node-id="poTdoead2UAgHnJUd4bJAu">—</td><td class="num" data-page-node-id="epRw0gdDPqFgQOGo59uGts">—</td><td class="num" data-page-node-id="prIpwjuljb7MDjTEiQ7U2C">…</td><td class="num" data-page-node-id="h1DveOdi95OwtSWVztGL6F">—</td><td class="num" data-page-node-id="I9V9FH8JYc0KFBYIriBhed">—</td><td class="num" data-page-node-id="ig8vskVkKilRraLGEtBLGj">192</td><td class="num" data-page-node-id="3SoFgOGlE8Xpt85xSuLpqA">0</td><td class="num" data-page-node-id="flrhG0Zy4EAGt0GoyHaDvL">0</td></tr>
+        <tr data-page-node-id="zkfaqFan2kq1pUc4AjoVC7"><td data-page-node-id="t6OuFFnGHxPj4t3X7L9te7">T-2026-0450</td><td data-page-node-id="aPLXLb6KzvxlrwXx1UOHyg">8寸马洛里盆棕色</td><td class="num" data-page-node-id="kpojBQyqFybFbac0cCMM95">330</td><td class="num" data-page-node-id="aoOSSrawOnYQfieTYb00bR">—</td><td class="num" data-page-node-id="gDqkFgGw8zQenQEAFBAe5O">120</td><td class="num" data-page-node-id="eD1hi0nkxI8ntIVIf97T5N">210</td><td class="num" data-page-node-id="Ba7lSedA4fqAyCXZz6cgwV">…</td><td class="num" data-page-node-id="nROoo5BlO0rW1A6dfpWeGy">—</td><td class="num" data-page-node-id="kZF9y9MIqKqcT2BJ6yPX1A">—</td><td class="num" data-page-node-id="AsXsCycHFbODZXE5944Zei">330</td><td class="num" data-page-node-id="j1cFbXwrmBpFEC6ao0vjG8">0</td><td class="num" data-page-node-id="HTTMm6R7aNzdgdOIYQb4jl">0</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <h4 data-page-node-id="jDpwW2oUHEkl5idseNKDZB">与线下的差别（都是减负）</h4>
+  <ul data-page-node-id="lkqUZooKEuG7AStIOHzqK3">
+    <li data-page-node-id="SIs0DEJyI7QDBktJuxaQeu"><strong data-page-node-id="vch8ZoWikql5NHDkdi1wbE">点格即报工</strong>：点任意日期格 → 弹窗填合格/次品/班次/备注 → 走既有 <code data-page-node-id="uAOPCrkLXjJ1QevC9F7Erv">POST /api/reports</code>，无需手算累计</li>
+    <li data-page-node-id="ovzbh71lQ6UokoUbT6ybbl"><strong data-page-node-id="2WVnBmde65DXTPVjDwQWZ9">填一次，全联动</strong>：三道工序进度、主表已完成/未完成/需要班次、汇总视图同步更新（线下要填两张表 + 改主表）</li>
+    <li data-page-node-id="aFBCjFXFexaZkUNtKvsAKZ"><strong data-page-node-id="c4EkWPb6s9V3ozTCHlgIWc">喷漆纳入</strong>：月历顶部按 <code data-page-node-id="su0Cz7AE7HibIrgMpgAwYU">op_type</code> 切换（成型 / <strong data-page-node-id="7D5kFSu9hs4DAVqsZIGNOf">喷漆</strong> / 包装），补上线下缺失的喷漆日报工</li>
+    <li data-page-node-id="GUHhDSPopy04zanE97TtqZ"><strong data-page-node-id="gOOJjFZkXsYF8J3Ij76NRE">不必每月复制 sheet</strong>：切月份即可，历史数据永久可查</li>
+    <li data-page-node-id="rcwnkzVmwLlIgbda55vKFD"><strong data-page-node-id="vFdFUhe18DxOTvxDQIrISA">超产自动标识</strong>：超过订单量自动计入「多做的产品数量」并留痕</li>
+  </ul>
+  <p style="margin:10px 0 0; font-size:12.8px; color:var(--ink3);" data-page-node-id="uZyfMO4sbQFnYbOguDAeuR">
+    建议路径：<code data-page-node-id="USueT8Tl6eNoJHl9HW4w1O">frontend/src/components/production/ReportCalendar.vue</code>（新建）+ 后端 <code data-page-node-id="0WH8Xh5kNzhluVpkbSO4Nz">GET /reports/month-calendar?year=&month=&op_type=</code>
+  </p>
+</div>
+
+<h3 data-page-node-id="1OHgb5WGfJHpt60bGNw9VL">C3 · 「业务端汇总视图」（替代 6 张透视表）</h3>
+<div class="card" data-page-node-id="rPoyRM8c1u1SxOpG6D5Veu">
+  <p class="lead" data-page-node-id="QTDA38EXHuDweGm4OSiFn6"><strong data-page-node-id="posmwES1HAcVgC8tQnMcSF">做法：</strong>把线下 6 张离线透视表合并成一个<strong data-page-node-id="WgdQNBJlIdoWfF0Dtb2pEi">实时</strong>汇总页，筛选器与线下保持一致（交期多项、成型班次），行维度可切换。</p>
+  <ul data-page-node-id="n2DIKT1RcRZDjod7U1i8Yu">
+    <li data-page-node-id="Pt0awlZZY4LejL9724YIUW"><strong data-page-node-id="5hdaFFC3PcPEirURAnXCzD">维度切换</strong>：按产品 / 交期 / <strong data-page-node-id="9a6WstpX8fSbW2QThrPBky">业务员</strong> / 客户 聚合（线下缺业务员维度，G1 补上后即可支持）</li>
+    <li data-page-node-id="ixvwj0oKCK7trA0tKBVGSP"><strong data-page-node-id="VXFfG5WHbu0wWkHeT8jKxm">指标对齐</strong>：订单数量-产品数、成型未完成、<strong data-page-node-id="Q0xhFfy0aNfFv5cEEnZ3cL">喷漆未完成</strong>、包装未完成、成型需要班次</li>
+    <li data-page-node-id="oFi1APXPkhldjIVGffe3Zf"><strong data-page-node-id="w57suOwf5KZvC2b3g1cOc0">实时性</strong>：不再需要手动刷新透视表；管理层随时看当前负荷</li>
+  </ul>
+  <p style="margin:10px 0 0; font-size:12.8px; color:var(--ink3);" data-page-node-id="or2zCGxGyx5BfiD2V6RCfY">
+    建议路径：<code data-page-node-id="8Hm6MifbBpeDStVOSUzROI">frontend/src/views/production/ProgressSummaryView.vue</code> + <code data-page-node-id="VrK3lBHo3uWCCLv7sm89OL">GET /production/summary?dim=product|due|salesperson|customer</code>
+  </p>
+</div>
+
+<h3 data-page-node-id="C1GQ85A2mqxmaA1xnJzHgx">C4 · Excel 导出（同格式，业务端「熟悉的味道」）★ 并行过渡的支柱</h3>
+<div class="card" data-page-node-id="W4pXX04WUsMGd5QMc5gI3k">
+  <p class="lead" data-page-node-id="S7Ao1ure9AzVwrJAkdlXxt"><strong data-page-node-id="pL1NA5bPC0gz3umg8T1DT7">做法：</strong>一键导出三个 sheet，<strong data-page-node-id="F0sS5R4MV26XrGtsLziWhG">列名与顺序对齐线下</strong>，业务端拿到手还是原来那张表。</p>
+  <div class="tbl-wrap" data-page-node-id="bac5K8GlgzdM4FYXz8BmOR">
+    <table data-page-node-id="xEDIBcRoI2lkITgDEa5wiU">
+      <thead data-page-node-id="2S8Qf3mMTGZZppN0rj5lFZ"><tr data-page-node-id="RlXjM0whJTkP0eLgdv4LWJ"><th data-page-node-id="jePfm9keYBL4G33cgBRrp7">导出 Sheet</th><th data-page-node-id="wSNGWnMtDvpXEQ5E6dK676">对齐线下</th><th data-page-node-id="Ey4Tw4uo9J7N9v5qSijg5C">说明</th></tr></thead>
+      <tbody data-page-node-id="C0NZTnj5fRaryrlGL0kS6H">
+        <tr data-page-node-id="pWJsS5cZaH7UGVaRkCnOtT"><td data-page-node-id="6BtH2ldVYE7VcUA1NmWDoA">订单明细</td><td data-page-node-id="4mjuzafLQLZtkwaXFzvYZd">2026订单明细</td><td data-page-node-id="MBzuRkvyYkerY7L2iBwZGg">47 列结构，含三工序组与装箱组；除零场景输出 <code data-page-node-id="c4kqsiCKWrdK6OAMTM6gUV">—</code></td></tr>
+        <tr data-page-node-id="IGONtONOW4d2q3wpq3jhgU"><td data-page-node-id="Cv19MB2ApbZsIfDk6kRlR5">X月成型当日完成 / X月包装当日完成 / X月喷漆当日完成</td><td data-page-node-id="Act4kaKfV7ExwvzkjeopMM">8月成型/包装当日完成</td><td data-page-node-id="93Fz4yDvuhVe0Aw1zhrHPk">1~31 号日期列 + 月完成总数 / 多做的 / 未完成 / 产能</td></tr>
+        <tr data-page-node-id="Hl9B8VQFEpunJKHVfbMnTw"><td data-page-node-id="RbGwx5Y2GnT7ytoseD4UTN">汇总</td><td data-page-node-id="BpAkCjUX8CAGs2rkCZ9lO5">6 张透视表</td><td data-page-node-id="l1zwwLooTa5S0MWxskdddG">按产品/交期/业务员聚合未完成量与需要班次</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="note" style="margin-bottom:0;" data-page-node-id="tZ213cHuyYtPr2ilTE163l">
+    <strong data-page-node-id="dZRYQ21TmtAjvlsOFAoHMC">技术可行性已确认：</strong><code data-page-node-id="lAFr0yGYZEU4htmi0IVnzf">maatwebsite/excel ^4.0</code> 已在 <code data-page-node-id="VkE1GFCfjygS1LQ7K9JLDd">hongyue/composer.json</code> 的 require 中（目前仅用于导入），
+    新建 <code data-page-node-id="6SYS1hxNeAlgFzFN9UdhGx">app/Modules/Order/Exports/</code> 即可实现导出，<strong data-page-node-id="OeEgj6sB0UWC1ajcA9vA48">无需新增依赖</strong>。
+  </div>
+</div>
+
+<h3 data-page-node-id="6H6xDhqngC5pp384wBaWFS">C5 · Excel 导入（每行一工单 + 历史建档）</h3>
+<div class="card" data-page-node-id="uhaX1xJBNwrjPctahc1qGG">
+  <p class="lead" data-page-node-id="OyMvdNyeTj5WEu3uaCSyqZ"><strong data-page-node-id="nE79BBKfYG58w5jmhPJSl8">做法：</strong>改造现有导入，新增工单级模式：每行 → 独立 Order + OrderLine + ProdTask，与线下「每行一个工单」语义一致。</p>
+  <ul data-page-node-id="L4JO8Oh9TFX9Og53z7slKX">
+    <li data-page-node-id="L8pHJ6R0XSQYUdmRxmKgNK"><strong data-page-node-id="rHGtJ267a9NwFYe4aW0ck4">历史建档</strong>：一次性把 2161 行历史工单导入系统，作为数据底座</li>
+    <li data-page-node-id="eU17kyBnJzKT9IPoZTqSMz"><strong data-page-node-id="YYfbmlsjku1lEMMgJ6cWFp">过渡期兼容</strong>：如果个别工序仍想先用 Excel 记，可导入后由系统汇总</li>
+    <li data-page-node-id="VGUwkH0Djoe6UeRsrz4nGo"><strong data-page-node-id="4ZYznpzjeiHoRQCccVvM0C">容错</strong>：工单号重复、产品不存在等错误行反馈具体行号，<strong data-page-node-id="SE2lrPceImYMKGojJVqKHZ">不阻塞合法行</strong></li>
+    <li data-page-node-id="UJwCfAilPIlnsqRg1okUcO"><strong data-page-node-id="gpsuGhwD0FcuMwByuLgvuE">字段映射</strong>：业务员、客人订单号、工厂款号、装柜日期、装箱组一并导入（G1/G2 支撑）</li>
+  </ul>
+  <p style="margin:10px 0 0; font-size:12.8px; color:var(--ink3);" data-page-node-id="FeJY3w8BdrcfIAywHYYmzL">
+    建议路径：改造 <code data-page-node-id="qMFNS8nka48i3xF0mPFC7R">Order/Imports/OrdersImport.php</code> + <code data-page-node-id="SFVnZLDRCxP8pbD30wj5C4">ExcelImportService.php</code>，新增 <code data-page-node-id="GcME7AUCti6XZMLBvgE2n2">mode=workorder</code>
+  </p>
+</div>
+
+<h3 data-page-node-id="cBCEJInrIcxSwHbZs5FzrG">C6 · 交期变更（必填理由 + 自动留痕）</h3>
+<div class="card" data-page-node-id="zzCZBrrxZOp42BgaB17wRr">
+  <p class="lead" data-page-node-id="zz2gLHGOOrCN4I4SCbFiBC"><strong data-page-node-id="fggrvcpPVVpNMZdq9EWwy1">做法：</strong>改交期不再只是改个日期——必须选择变更理由，系统自动记录「旧值 → 新值 → 谁改的 → 何时改的」。</p>
+  <ul data-page-node-id="y0NiK2F3Dfwx8JXI0uDBwo">
+    <li data-page-node-id="pk1EgvODgS5RlZYZCWDJ2c"><strong data-page-node-id="kWtXg6nsuuFYW3muOb22IF">理由枚举沿用线下</strong>：生产主任变更 / 业务同意晚点 / 模具保养维修 / 计划调整（临时加单）/ 其他</li>
+    <li data-page-node-id="iuEFC56zJm6LzGvrRWHWJ6"><strong data-page-node-id="rx5cWTtcFzJDssKJvGrXlZ">专用表</strong>：<code data-page-node-id="6GYc1iiWSuLfARWTpPyeh0">delivery_change_logs</code>(order_id, old_due, new_due, reason, operator_id, created_at)</li>
+    <li data-page-node-id="YtFXh47Ppkks2VAgZT63Av"><strong data-page-node-id="dyn8PrrW6EFk3FFZG18iTC">可追溯</strong>：替代线下「交期变更记录」sheet，且无法被误删或漏记</li>
+  </ul>
+</div>
+
+<!-- ============ 四、路线图 ============ -->
+<h2 data-page-node-id="oRpyYNVMgpAvyG9oAOhg2F">四、分阶段路线图</h2>
+<div class="road" data-page-node-id="SlTafyO3yPAMK1rzl5ewBZ">
+  <div class="phase s1" data-page-node-id="hEKEloHZYTQVfvDOurfaqX">
+    <span class="idx" data-page-node-id="IVOJ9PPLqfCUPPGXTq63VG">第 1 期</span>
+    <h4 data-page-node-id="Cn1efJvGOWjxBGHZ1qFhUK">零阻力 · 立刻有感知</h4>
+    <div class="goal" data-page-node-id="eQ5Q3JfHpMW1C8A5dIG8ry">目标：业务端先熟悉系统出的数据，<strong data-page-node-id="WSviOK2JVuwHUVAFYdIvbL">车间完全不改</strong></div>
+    <ul data-page-node-id="lMbMDBRQdDI7pduw9Qg185">
+      <li data-page-node-id="u70zI6cohJKesuIiDhSQWJ">G1 业务员字段（+迁移）</li>
+      <li data-page-node-id="UlvRFt0z9ED1B9yC0FGPaY">G4 工单级导入（历史建档）</li>
+      <li data-page-node-id="to5XHBFd1U1qOcomFHadle">G5 主表/汇总 Excel 导出</li>
+      <li data-page-node-id="JKPrHfXEDROrfbrD0IQ2f7">G11 只读「生产进度总表」页</li>
+    </ul>
+    <div class="acc" data-page-node-id="3i1sswURtR8FMAL11nF0tQ">
+      <strong data-page-node-id="lAqTlAQKAGlGtsBEN8prD5">习惯变化：</strong>计划员停止维护线下主表（改用系统导出件）；业务员开始看系统导出的表。<strong data-page-node-id="BAG43laVeSPP9nbB8mE9S3">车间零变化。</strong><br data-page-node-id="JjnShxrVjcydStfLFLHOGM">
+      <strong data-page-node-id="Mufb8mRjtohIpFCg3bOT1S">验收：</strong>导出表字段与线下主表一致；导入每行生成独立工单；重复工单号被拦截。
+    </div>
+  </div>
+  <div class="phase s2" data-page-node-id="Rm1e1A6XNcEHByCgOhYFiL">
+    <span class="idx" data-page-node-id="0UXdCR7heIZkKgLK0rB0kc">第 2 期</span>
+    <h4 data-page-node-id="nhxbKiZyArEkN5EDHzuuZu">减负 · 统计员先受益</h4>
+    <div class="goal" data-page-node-id="NWdTt2HMYD1LN2csDRnGou">目标：统计员不再手填月历、不再维护公式</div>
+    <ul data-page-node-id="KEabRqiOJzi6a38sjldC8f">
+      <li data-page-node-id="41Tfk0bymGECpbnFTAs52A">G6 报工月历页（点格填报）</li>
+      <li data-page-node-id="q5HsCW8PvmCP2qdryNKdDS">G7 喷漆纳入每日报工</li>
+      <li data-page-node-id="H0TNw3QDmhiG8WL9V0Ju8B">G8 班次产能与「需要班次」</li>
+      <li data-page-node-id="K3c3SGZG9SLHCV3bZ0AiNc">移动端扫码报工沿用既有</li>
+    </ul>
+    <div class="acc" data-page-node-id="IULQjlwv1Gg9oSpjYwX2Yx">
+      <strong data-page-node-id="AzswHk2jN1K0qnpaCnsfcE">习惯变化：</strong>从「Excel 里翻行填日期列」→「系统月历页点格填数」，手势基本一致；喷漆首次拥有日报工。<br data-page-node-id="cHPF7Q0nKuiDOvXLpk0cdt">
+      <strong data-page-node-id="1yXMFRWiHRb49iEtqF188N">验收：</strong>填一次三工序联动更新；需要班次数值与线下口径误差 &lt; 1 班次。<br data-page-node-id="WDWwWvYGlhyZW4wj90GEb0">
+      <strong data-page-node-id="rRCQ3C6kNoFWLha20bPaDc">依赖：</strong>一期已完成数据建档。
+    </div>
+  </div>
+  <div class="phase s3" data-page-node-id="5hhnDnqaEn5NRxEfiOHfpW">
+    <span class="idx" data-page-node-id="fJTuf8AwWzKRdH66p2sm8A">第 3 期</span>
+    <h4 data-page-node-id="Y6AbV6QoXIhmnxutGLvwHx">自助 · 业务端受益</h4>
+    <div class="goal" data-page-node-id="CzHgZpwe9P2263OCZuot8a">目标：业务员自助查，管理层弃用离线透视表</div>
+    <ul data-page-node-id="h21ST1XB6AYeOUq1TQAhIl">
+      <li data-page-node-id="HTfKpDoEk88RLTcYuVWREH">G9 业务端透视汇总页</li>
+      <li data-page-node-id="ijW3mWwfdoYWEnFtpHMpnR">G3 交期变更留痕（理由必填）</li>
+      <li data-page-node-id="cSqreICUoGL8d3B07LYjK6">G2 装箱/装柜字段补全</li>
+      <li data-page-node-id="LuOVIhUL0FtuTYNPYk7OFk">G10 超产留痕</li>
+    </ul>
+    <div class="acc" data-page-node-id="jOLulSoJ4BwYuYTSUkKbWQ">
+      <strong data-page-node-id="YLvvSnGGMWXFqHyzlsmW8o">习惯变化：</strong>业务员不再打电话问进度；改交期必须选理由（一次性适应）。<br data-page-node-id="CWNPUkMbOGxlTztgUMmrgI">
+      <strong data-page-node-id="S5sGXbzw7gIeyTj6Y0GwOv">验收：</strong>汇总页维度聚合准确；交期变更 100% 留痕可追溯。
+    </div>
+  </div>
+  <div class="phase s4" data-page-node-id="IRyFefFV8BVyb0Ssp2aXMV">
+    <span class="idx" data-page-node-id="kYjx2dUgy6pIHvLGJLAFdB">第 4 期</span>
+    <h4 data-page-node-id="QxLDyCQh7vRHbLDhcdqdAp">双轨合并</h4>
+    <div class="goal" data-page-node-id="dJuUlupOa38AJCDF75Ly3n">目标：线下 Excel 停用，全量系统报工</div>
+    <ul data-page-node-id="YFlXiQcrNjBPk1nEpviIcW">
+      <li data-page-node-id="plX8yHJaanW1sJAMbDwmOk">导出能力保留作审计用途</li>
+      <li data-page-node-id="Rwr8lAK50z4w6JNVxCkEs3">数据质量看板</li>
+      <li data-page-node-id="PWWfL5kcraOopLilWOvPF4">K3 拉单复用导入通道</li>
+    </ul>
+    <div class="acc" data-page-node-id="zjEfo8V9Je682lzyPczys4">
+      <strong data-page-node-id="6KJR79TQ60cFktZ6ThzGXp">习惯变化：</strong>线下表停更，车间全部走系统/移动端报工。<br data-page-node-id="e7sjKFYnApyVFYtENRSCQP">
+      <strong data-page-node-id="6ZtJBjoEBVfI2b1ZjWCtSd">验收：</strong>连续 2 周系统数据与车间实况一致，线下表停止更新。
+    </div>
+  </div>
+</div>
+
+<div class="note" style="margin-top:16px;" data-page-node-id="eAiiBckTjGJJkXRGkIPIKz">
+  <strong data-page-node-id="xdT2xeTat8iAqMGMdktYpX">为什么第 1 期最重要：</strong>它不要求任何人改变操作习惯，却能让所有人第一次看到「系统产出的数据」。
+  信任建立之后，第 2 期让车间改用月历页的阻力会小得多——因为那时他们已经确认「系统算出来的数和我们记的一样」。
+</div>
+
+<!-- ============ 五、风险 ============ -->
+<h2 data-page-node-id="PxS5JnO9hPVaEnYsMypqQ4">五、关键风险与对策</h2>
+<div class="tbl-wrap" data-page-node-id="BMeD4HVkxnIVyt2rlLstvL">
+<table data-page-node-id="93cJu0cFwqRZjNnNR51Pgp">
+  <thead data-page-node-id="va39zHhNBY8xKnGfojRkPT"><tr data-page-node-id="gLzqtUEqXdGjJSDH814SUL"><th data-page-node-id="81rj1HEEyMNHFi8fM1ujh0">风险</th><th data-page-node-id="3rmvp8SxS0OIuwY7oDHejN">影响</th><th data-page-node-id="liZ1DfpSsJGHuRrHQ2aBfC">对策</th></tr></thead>
+  <tbody data-page-node-id="zAlTjrhpcTZa2UdH7p3esH">
+    <tr data-page-node-id="tEGrU2K33D58MXsE0EFTat">
+      <td data-page-node-id="da5U5aabyDOkrfum4hde2F"><strong data-page-node-id="Ay18XjSCvG2EDtg9Bu57Da">产能口径换算误差</strong><br data-page-node-id="FBjDdsNbZ2BmFjxXGuLVHw">（线下"班次产能" vs 系统"件/小时"）</td>
+      <td data-page-node-id="lMIomSiJ86y9aS8nEEArIO">「需要班次」与线下算的不一致 → 计划员不信任系统</td>
+      <td data-page-node-id="uYUOj04I65edmaTu1HRFh1">派生：<strong data-page-node-id="AdY6cDkJ671I4my8xTLsrL">班次产能 = capacity_per_hour × 班次小时</strong>（已核实：两班制单班 <strong data-page-node-id="0YNaCwW1GeB4vwBhRujupD">12h</strong>，白班 <strong data-page-node-id="QF2AkhyxjTGJRbePr0upJi">9h</strong>）。上线前用线下实际产能（成型 800/700/2500/3200）反算校验；过渡期<strong data-page-node-id="FrP0hvrNy8WRGi7GVUdw2Q">双口径并列显示</strong>，确认一致后再单轨</td>
+    </tr>
+    <tr data-page-node-id="WnPVoTfI7G1gCM6X6quR4i">
+      <td data-page-node-id="9ru2fCXuSaHQYITktsG9bM"><strong data-page-node-id="lYQFD4QjXDtsnzPHHITM2Q">数据质量</strong><br data-page-node-id="skZabmly4GOS9uGYOeiqq0">（147 重复工单号、int/str 混用、#DIV/0!）</td>
+      <td data-page-node-id="WIkOzHJ434aIEDYlmUVctL">导入后数据混乱、统计翻倍</td>
+      <td data-page-node-id="dDhnT7BerDVk9OUvEgl1fG">导入前清洗：按「工单号+产品+订单号+数量」去重；工单号统一转字符串；原「入表序号」保留溯源。系统侧 <code data-page-node-id="qkfjQGP8BlrztDvIVeL2cy">task_no</code> 唯一约束兜底</td>
+    </tr>
+    <tr data-page-node-id="G7qHN3GKFbdAqBaoe7HEo8">
+      <td data-page-node-id="llYptcnz8zOBQT1BIeaYGr"><strong data-page-node-id="tkUSSBgKw4LsbWaweq7hWW">双轨期数据不一致</strong></td>
+      <td data-page-node-id="M010eA5ht1gKE2ZOu97Qbn">Excel 与系统两套数，谁为准？</td>
+      <td data-page-node-id="5O5vfDBJFvE7nNb9vdj1EG">明确<strong data-page-node-id="feR9ABqjl4zvKHRk8GfAbQ">系统为唯一真源</strong>，导出件仅供业务端查看（标注导出时间戳）；日结时统计员核对差异，用冲减（<code data-page-node-id="aYrI87ctmzMuhFozt6fkFY">sign=-1</code> + remark）修正，已有机制支持</td>
+    </tr>
+    <tr data-page-node-id="k7ygPgbS2XwAgUUvrSeAuZ">
+      <td data-page-node-id="AMl01AngB7NMFSVPJShpjq"><strong data-page-node-id="rWY861Q5mzTqYm4ji54w9D">车间抵触</strong></td>
+      <td data-page-node-id="0BzJCkoi8WVnjzQmsCfEQ2">一线不用，系统沦为摆设</td>
+      <td data-page-node-id="qWLxz3lI0ZwoeSbQE9C6Wo">第 1 期<strong data-page-node-id="C1U3yhXqxirTA2rBy03fNq">完全不动车间</strong>；第 2 期月历页交互贴近线下「点格填数」，学习成本 ≈ 0；同时提供移动端扫码报工降低门槛；先让统计员（受益最大的人）成为推动者</td>
+    </tr>
+    <tr data-page-node-id="ZLVU6rFPQf1dJ0yPh2TdNw">
+      <td data-page-node-id="IZrGVwIpbSdgg6jNHJtN8z"><strong data-page-node-id="hdxReDLJmgYZqXsXAoFcID">喷漆日报工工作量新增</strong></td>
+      <td data-page-node-id="9ByWogz1vHr6Njz3mt2ula">喷漆班组觉得"多了一份活"</td>
+      <td data-page-node-id="lgAyxE4SeMpZpAercygcfO">强调这是补上线下遗漏（原来也要报，只是没表、更混乱）；提供移动端快速报工；可先由班组长代报过渡</td>
+    </tr>
+    <tr data-page-node-id="8fHgXEhmaVQzUJJWIJW25z">
+      <td data-page-node-id="nYB4Q1pzKJUlHk4JDTMD4N"><strong data-page-node-id="wn36uzhoa86GnnLF6LvlMd">超产/错误报工</strong></td>
+      <td data-page-node-id="6WoWr4J73ctreLFLGWyKAN">数据失真</td>
+      <td data-page-node-id="rZhkI8kmyZVPGxREbUOK1E">既有超产上限校验 <code data-page-node-id="ETGHSnmjHBqd82YoXIzQL1">qty×(1+over_report_pct%)</code> + 5 分钟防重窗口 + 冲减留痕（<code data-page-node-id="7ZUi0rEwUig6SxGG46IVZ5">sign=-1</code>+remark 必填）+ 弱网离线补传</td>
+    </tr>
+  </tbody>
+</table>
+</div>
+
+<!-- ============ 附：事实依据 ============ -->
+<h2 data-page-node-id="CRF7aiQLS8XWDuupqiiPDU">附录 · 本方案的事实依据</h2>
+<div class="card" data-page-node-id="Chw5dOEwwHFbkumRO3tGA8">
+  <h4 style="margin-top:0;" data-page-node-id="3xlvtDycGwxZoQUVnOU3Ex">线下 Excel（已解析确认）</h4>
+  <ul style="font-size:13px;" data-page-node-id="bt8yaFChaxjrofNhzcexW5">
+    <li data-page-node-id="ptQu0XGNlDIilSJEn1r7Li">文件：<code data-page-node-id="OPDLNq1uoQo9CKxXoU0EG3">2026生产进度总表-2026-09-03.xlsx</code>，11 个 sheet</li>
+    <li data-page-node-id="i0Z8R55R91orncSIEKEFfF">主表 2161 行 × 47 列；月历表 2140/2240 行，含 1~31 号日期列；6 张透视表；交期变更 114 行</li>
+    <li data-page-node-id="aJ7eJyYlaUNnST8JveNFR4">唯一工单号 1696 个，重复 147 个；业务员 10 人（汪冬梅 353、诸鸿锋 151 …）</li>
+    <li data-page-node-id="sEw3yoEwkPtPzbrtR2c7MM">成型班次全部「白班+晚班」；喷漆班次：手动白班 1687 / 自动白班+晚班 255 / 自动白班 219</li>
+  </ul>
+  <h4 data-page-node-id="zntsPWWFJxMJ7KORHJXbtq">现有系统（代码已核实路径）</h4>
+  <ul style="font-size:13px;" data-page-node-id="gYFG30gQSpcOwQBhPk9DJe">
+    <li data-page-node-id="B7JfBpiSss7uh7QgvmKtSi">报工：<code data-page-node-id="Iy0Zb5VvwkWQzRrWomsiVH">Production/Controllers/ReportController.php</code>、<code data-page-node-id="TDElcgBTMdJwwCjOVmkWl4">ReportService::report()</code>；<code data-page-node-id="Rwj2XH8DODSiD5qZTQyckT">work_reports</code> 含 <code data-page-node-id="MPaCKPIjVm2Vt0NKeVR9EX">work_date</code>/<code data-page-node-id="sURuNZUTAO83YIDoNBYhLC">shift_code(day/night)</code>/<code data-page-node-id="pDVFkb5csnWKFiQeA7ou5a">sign</code>/<code data-page-node-id="cAYib8BEkXF4Ni8U3rraHA">remark</code></li>
+    <li data-page-node-id="qZbWmp56mlihnGcCToNF9H">班次时长：<code data-page-node-id="MBJuZIWfPBuPfqYzw79XtV">System/Services/ConfigService.php</code> → two_shift 白班 08–20 + 夜班 20–08（单班 12h）；day 08–17（9h）</li>
+    <li data-page-node-id="m6J4fRvxxvUE1DYl0kOGW9">产能：<code data-page-node-id="A8wg44Gy1wK8YoZtanNbWq">machines.capacity_per_hour</code>（件/小时）+ <code data-page-node-id="dxWc2rT7KFlL1Zw1I2mLIL">shift_mode</code>；排产 <code data-page-node-id="Z8Hq72e7AFq0SQLszxcUXB">Plm/Services/CapacityCalcService.php</code> 只输出小时</li>
+    <li data-page-node-id="qlIZLrcb28GcgAqGVOfKdG">进度：<code data-page-node-id="gGo5OC24CvNq4vtyKM5bRp">OrderService::progressByTaskIds()</code> → stages[]；前端 <code data-page-node-id="jQLCoBhpT1nrHZv9D4CtOF">components/order/OrderProgressSteps.vue</code>（已按 <code data-page-node-id="YeWBZkEYAOkaRfoT0INLrp">seq</code> 排序）</li>
+    <li data-page-node-id="Cfddb9qnHxJrk4uBc8hV6E">导入：<code data-page-node-id="RSB2oH48NQiVM9CWZdGl2N">Order/Imports/OrdersImport.php</code>（整文件→1 个 Order）；导出：<strong data-page-node-id="9ivf4U2LWXc1FCgpQFNaiB">无</strong>，但 <code data-page-node-id="qbA0fal1F8KkWfxKA5WWjX">maatwebsite/excel ^4.0</code> 已装</li>
+    <li data-page-node-id="5FBGqxAlykYGNKm84h4JsW">按天界面：<code data-page-node-id="nVGEe5qIxqiRYF6Z6Gyjfn">components/production/DailyReportGrid.vue</code> + <code data-page-node-id="iyIsekF3VQPB3yOoci1KLC">GET /reports/daily-context</code>（单日 × 排程段）</li>
+    <li data-page-node-id="OKgG6IvN8JYG6BkGM6fiTj">移动端：<code data-page-node-id="E6EoFf1IsCcdaLJZdGc385">mobile/src/views/task-detail/ScanReportView.vue</code> → <code data-page-node-id="roh0fgShD3esUoFcrp9sMt">ReportFormView.vue</code> + <code data-page-node-id="x32o2iMfh5C6YqeEUrVuHC">offlineQueue.ts</code></li>
+  </ul>
+</div>
+
+<footer data-page-node-id="5ZTHPYyd0Nz14pC6ba6BZj">
+  虹越智造平台 · 线下 Excel 系统化落地规划方案 · 编制于 2026-09-07 · 本文为规划文档，不含代码改动；功能开发待评审通过后排期。
+</footer>
+
+</div>
+</body>
+</html>

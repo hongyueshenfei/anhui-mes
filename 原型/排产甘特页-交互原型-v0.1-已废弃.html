@@ -1,0 +1,440 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虹越智造平台 · 排产甘特页 · 交互原型 v0.1</title>
+<style>
+  :root{
+    --pri:#1a56db; --pri-d:#1e429f; --pri-l:#ebf2ff;
+    --accent:#d97706; --warn:#b45309; --ok:#047857; --bad:#b91c1c;
+    --bg:#eef1f7; --card:#fff; --line:#d7deeb; --txt:#111827; --mut:#6b7280;
+    --night:#e3e9f4; --day:#f8fafc;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt);font-size:13px}
+  /* ===== 顶栏 ===== */
+  .topbar{background:var(--pri);color:#fff;padding:10px 16px;display:flex;align-items:center;gap:14px;position:sticky;top:0;z-index:50;flex-wrap:wrap}
+  .topbar .logo{font-weight:700;font-size:15px;letter-spacing:.5px}
+  .topbar .logo small{font-weight:400;opacity:.8;margin-left:8px;font-size:11px}
+  .btn{background:#fff;color:var(--pri-d);border:none;border-radius:6px;padding:6px 12px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .btn:hover{background:#e8f0ff}
+  .btn.ok{background:var(--ok);color:#fff}.btn.ok:hover{background:#065f46}
+  .btn.warn{background:var(--accent);color:#fff}.btn.warn:hover{background:#b4530a}
+  .btn.ghost{background:transparent;color:#fff;border:1px solid rgba(255,255,255,.5)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .seg{display:flex;background:rgba(255,255,255,.18);border-radius:6px;overflow:hidden}
+  .seg button{border:none;background:transparent;color:#fff;padding:5px 10px;font-size:12px;cursor:pointer}
+  .seg button.on{background:#fff;color:var(--pri-d);font-weight:700}
+  .hint{font-size:11.5px;opacity:.9}
+  /* ===== 主体 ===== */
+  .main{display:flex;gap:0;height:calc(100vh - 46px)}
+  /* 左：任务池 */
+  .pool{width:252px;min-width:252px;background:var(--card);border-right:1px solid var(--line);display:flex;flex-direction:column}
+  .pool h3{font-size:12.5px;padding:10px 12px 6px;color:var(--pri-d);border-bottom:2px solid var(--pri-l)}
+  .pool .sub{font-size:11px;color:var(--mut);padding:6px 12px 2px}
+  .pool-list{flex:1;overflow-y:auto;padding:8px}
+  .ptask{border:1.5px solid var(--line);border-radius:8px;padding:8px 9px;margin-bottom:7px;cursor:grab;background:#fff;transition:.15s}
+  .ptask:hover{border-color:var(--pri);box-shadow:0 2px 8px rgba(26,86,219,.12)}
+  .ptask.urgent{border-color:var(--bad);background:#fef6f6}
+  .ptask .row1{display:flex;justify-content:space-between;align-items:center}
+  .ptask .prod{font-weight:700;font-size:13px}
+  .ptask .ord{font-size:11px;color:var(--mut)}
+  .ptask .meta{font-size:11.5px;color:#374151;margin-top:3px;display:flex;gap:8px;flex-wrap:wrap}
+  .ptask .due{font-weight:600}
+  .ptask .tag{font-size:10.5px;border-radius:8px;padding:1px 6px;font-weight:600}
+  .tag.urg{background:var(--bad);color:#fff}
+  .tag.typ{background:var(--pri-l);color:var(--pri-d)}
+  .ptask .cap{font-size:10.5px;color:var(--mut);margin-top:3px}
+  .pool-foot{font-size:11px;color:var(--mut);padding:8px 12px;border-top:1px solid var(--line);line-height:1.6}
+  /* 右：甘特 */
+  .gantt-wrap{flex:1;overflow:auto;background:var(--card)}
+  .gantt{min-width:1580px;position:relative}
+  .ghead{display:flex;position:sticky;top:0;background:var(--card);z-index:30;border-bottom:1px solid var(--line)}
+  .ghead .corner{width:150px;min-width:150px;padding:8px;font-weight:700;font-size:12px;color:var(--pri-d)}
+  .timeline{position:relative;flex:1;height:44px;background:var(--day)}
+  .timeline .tick{position:absolute;top:0;bottom:0;border-left:1px solid #c9d3e4}
+  .timeline .tick label{position:absolute;top:26px;font-size:10px;color:var(--mut);transform:translateX(-50%)}
+  .timeline .daybar{position:absolute;top:0;height:22px;background:var(--pri-l);border-radius:0 0 4px 4px;font-size:10px;color:var(--pri-d);font-weight:700;display:flex;align-items:center;justify-content:center}
+  .gbody{}
+  .grow{display:flex;border-bottom:1px solid var(--line);min-height:38px}
+  .grow .mh{width:150px;min-width:150px;padding:6px 10px;background:#fafbfe;border-right:1px solid var(--line);line-height:1.3}
+  .grow .mh b{font-size:12.5px}
+  .grow .mh small{display:block;font-size:10.5px;color:var(--mut)}
+  .grow .track{position:relative;flex:1;min-height:38px}
+  .shift{position:absolute;top:0;bottom:0}
+  .shift.day{background:var(--day)}
+  .shift.night{background:var(--night)}
+  /* 任务块 */
+  .job{position:absolute;top:5px;height:27px;border-radius:6px;font-size:11px;color:#fff;padding:2px 6px;cursor:pointer;overflow:hidden;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,.18);border:1.5px solid rgba(255,255,255,.35)}
+  .job.locked{border-style:dashed;opacity:.85}
+  .job.urgent{background:var(--bad)}
+  .job.late{outline:2px solid var(--bad);outline-offset:-1px}
+  .job.delayed{background:var(--warn)}
+  .job .nm{font-weight:700}
+  .job .tm{font-size:9.5px;opacity:.92}
+  .job .badge{position:absolute;top:-7px;right:-4px;font-size:9px;background:#fff;color:var(--bad);border:1px solid var(--bad);border-radius:8px;padding:0 4px;font-weight:700}
+  .job .badge.ym{color:var(--warn);border-color:var(--warn)}
+  .grow .slotline{position:absolute;top:0;bottom:0;width:2px;background:var(--accent);display:none}
+  .grow.dragover .slotline{display:block}
+  .grow .slotline span{position:absolute;top:-16px;left:-24px;background:var(--accent);color:#fff;font-size:9.5px;border-radius:4px;padding:1px 4px;white-space:nowrap}
+  /* 底部面板 */
+  .panel{background:var(--card);border-top:2px solid var(--pri);padding:10px 16px;display:flex;gap:18px;align-items:flex-start;flex-wrap:wrap;min-height:74px}
+  .panel .cap{font-size:11px;color:var(--mut);margin-bottom:2px}
+  .panel .val{font-weight:700;font-size:13px}
+  .panel .col{min-width:110px}
+  .panel .workout{background:var(--pri-l);border-radius:8px;padding:6px 10px}
+  .panel .workout .formula{font-size:12px;color:var(--pri-d);font-family:Menlo,monospace}
+  .impact{background:#fff7ed;border:1px solid var(--accent);border-radius:8px;padding:6px 10px;font-size:12px;max-width:360px}
+  .impact b{color:var(--warn)}
+  .toast{position:fixed;top:56px;right:16px;background:#111827;color:#fff;padding:8px 14px;border-radius:8px;font-size:12.5px;z-index:99;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1}
+  ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#c3cde0;border-radius:5px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="logo">虹越智造平台<small>排产中心 · 交互原型 v0.1</small></div>
+  <div class="seg" id="rangeSeg">
+    <button data-d="4" class="on">近4天</button>
+    <button data-d="7">近7天</button>
+    <button data-d="14">近14天</button>
+  </div>
+  <button class="btn ok" id="btnAuto">⚡ 一键智能排产</button>
+  <button class="btn warn" id="btnUrgent">🔴 演示：插入紧急单</button>
+  <button class="btn" id="btnUndo" disabled>↩ 撤销</button>
+  <button class="btn ghost" id="btnRedo" disabled>重排</button>
+  <span class="hint" style="margin-left:auto">拖「待排任务」到机台行 = 手工排产 · 点任务块看计算明细</span>
+</div>
+
+<div class="main">
+  <!-- 任务池 -->
+  <div class="pool">
+    <h3>📋 待排任务池 <span style="float:right;color:var(--accent)" id="poolCount"></span></h3>
+    <div class="sub">拖动卡片到下方机台行排产（按机台产能自动算结束时间）</div>
+    <div class="pool-list" id="poolList"></div>
+    <div class="pool-foot">
+      状态说明：<b style="color:var(--warn)">黄</b>=受影响顺延　<b style="color:var(--bad)">红</b>=紧急/超期<br>
+      虚线框 = 已锁定任务（报工后可解锁）
+    </div>
+  </div>
+
+  <!-- 甘特 -->
+  <div class="gantt-wrap">
+    <div class="gantt" id="gantt"></div>
+  </div>
+</div>
+
+<!-- 底部详情面板 -->
+<div class="panel" id="panel">
+  <div class="col"><div class="cap">当前选中任务</div><div class="val" id="pName">—</div></div>
+  <div class="col"><div class="cap">机台 / 标准产能</div><div class="val" id="pMachine">—</div></div>
+  <div class="col"><div class="cap">数量</div><div class="val" id="pQty">—</div></div>
+  <div class="col"><div class="cap">预计开始</div><div class="val" id="pStart">—</div></div>
+  <div class="col"><div class="cap">预计结束</div><div class="val" id="pEnd">—</div></div>
+  <div class="col"><div class="cap">交期对照</div><div class="val" id="pDue">—</div></div>
+  <div class="workout" id="pCalc"><div class="cap">自动计算明细</div><div class="formula" id="pFormula">选中任务后显示（数量 ÷ 产能 + 换模）</div></div>
+  <div class="impact" id="pImpact" style="display:none"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= 演示数据 ================= */
+const PX = 15; // 每小时像素
+const BASE = new Date(2026,7,27,0,0,0); // 8/27 00:00
+function hOf(d){return (d-BASE)/3600000}
+function fmt(h){const d=new Date(BASE.getTime()+h*3600000);const m=d.getMonth()+1,dd=d.getDate();return m+"/"+dd+" "+(d.getHours()<10?"0":"")+d.getHours()+":00"}
+function fmtFull(h){const d=new Date(BASE.getTime()+h*3600000);const p=h%24<8?"夜班":"白班";return (d.getMonth()+1)+"/"+d.getDate()+" "+(d.getHours()<10?"0":"")+d.getHours()+":00 "+p}
+
+const machines=[
+  {id:"I-01",name:"注塑机1号",type:"注塑",cap:300},
+  {id:"I-02",name:"注塑机2号",type:"注塑",cap:300},
+  {id:"I-03",name:"注塑机3号",type:"注塑",cap:250},
+  {id:"I-04",name:"注塑机4号",type:"注塑",cap:250},
+  {id:"B-01",name:"吹塑机1号",type:"吹塑",cap:200},
+  {id:"B-02",name:"吹塑机2号",type:"吹塑",cap:180},
+  {id:"P-01",name:"喷漆线1号(人工)",type:"人工",cap:150},
+];
+
+let tasks=[
+  {id:"t1",ord:"SO-240826-01",prod:"花盆 A-300",qty:6000,due:hOf(new Date(2026,7,29,18,0)),type:"注塑",mold:45,urgent:false},
+  {id:"t2",ord:"SO-240826-01",prod:"花盆 A-300(蓝)",qty:4000,due:hOf(new Date(2026,7,29,18,0)),type:"注塑",mold:45,urgent:false},
+  {id:"t3",ord:"SO-240826-02",prod:"育苗盘 B-128",qty:8000,due:hOf(new Date(2026,7,30,12,0)),type:"注塑",mold:30,urgent:false},
+  {id:"t4",ord:"SO-240826-03",prod:"托盘 C-60",qty:12000,due:hOf(new Date(2026,7,28,9,0)),type:"注塑",mold:60,urgent:true},
+  {id:"t5",ord:"SO-240826-03",prod:"托盘 C-60(加强)",qty:6000,due:hOf(new Date(2026,7,28,18,0)),type:"注塑",mold:60,urgent:false},
+  {id:"t6",ord:"SO-240826-04",prod:"营养钵 D-12",qty:15000,due:hOf(new Date(2026,7,31,12,0)),type:"吹塑",mold:40,urgent:false},
+  {id:"t7",ord:"SO-240826-04",prod:"营养钵 D-16",qty:10000,due:hOf(new Date(2026,7,31,12,0)),type:"吹塑",mold:40,urgent:false},
+  {id:"t8",ord:"SO-240826-05",prod:"花盆 A-300 喷漆",qty:6000,due:hOf(new Date(2026,7,30,18,0)),type:"人工",mold:15,urgent:false},
+  {id:"t9",ord:"SO-240826-06",prod:"花盆 B-260",qty:5000,due:hOf(new Date(2026,8,1,12,0)),type:"注塑",mold:50,urgent:false},
+];
+
+// 初始已排（锁定）
+let placed=[
+  {task:mk("t0","SO-240826-00","花盆 A-300(红)",5000,60,"注塑",false),machine:"I-01",start:hOf(new Date(2026,7,27,8,0)),locked:true},
+  {task:mk("t0b","SO-240826-00","花盆 A-300(红)",4000,45,"注塑",false),machine:"I-02",start:hOf(new Date(2026,7,27,8,0)),locked:true},
+  {task:mk("t0c","SO-240826-00","育苗盘 B-128",9000,30,"注塑",false),machine:"I-03",start:hOf(new Date(2026,7,27,8,0)),locked:true},
+];
+function mk(id,ord,prod,qty,mold,type,urgent){return {id,ord,prod,qty,type,mold,urgent}}
+
+function durOf(task,machine){return task.qty/machine.cap + task.mold/60} // 加工+换模(小时)
+
+/* ================= 状态 & 撤销 ================= */
+let undostack=[];
+function snap(){return JSON.stringify(placed)}
+function pushUndo(){undostack.push(snap());document.getElementById("btnUndo").disabled=false}
+
+/* ================= 渲染 ================= */
+const gantt=document.getElementById("gantt");
+const poolList=document.getElementById("poolList");
+
+function renderTimeline(days){
+  let html='<div class="ghead"><div class="corner">机台 / 标准产能</div><div class="timeline" style="width:'+(days*24*PX)+'px">';
+  // 日期条
+  for(let d=0;d<days;d++){
+    const x0=d*24*PX;
+    const dt=new Date(BASE.getTime()+d*86400000);
+    html+=`<div class="daybar" style="left:${x0}px;width:${24*PX}px">${dt.getMonth()+1}月${dt.getDate()}日</div>`;
+  }
+  // 刻度
+  for(let h=0;h<=days*24;h+=6){
+    const x=h*PX;
+    html+=`<div class="tick" style="left:${x}px"><label>${h%24===0?((new Date(BASE.getTime()+h*3600000)).getMonth()+1)+'/'+(new Date(BASE.getTime()+h*3600000)).getDate():''}${h%24<10?'0':''}${h%24}:00</label></div>`;
+  }
+  html+='</div></div>';
+  return html;
+}
+
+function renderGantt(days){
+  let html=renderTimeline(days);
+  html+='<div class="gbody">';
+  machines.forEach(m=>{
+    html+=`<div class="grow" data-m="${m.id}">
+      <div class="mh"><b>${m.name}</b><small>${m.type} · 标准产能 ${m.cap} 件/时 · 2班制</small></div>
+      <div class="track" style="width:${days*24*PX}px">`;
+    // 班次背景 08-20 白班 / 20-08 夜班
+    for(let d=0;d<days;d++){
+      const base=d*24*PX;
+      for(const [s,e,cls] of [[8,20,'day'],[20,32,'night']]){
+        html+=`<div class="shift ${cls}" style="left:${base+s*PX}px;width:${(e-s)*PX}px"></div>`;
+      }
+    }
+    html+='<div class="slotline" id="sl-'+m.id+'"><span>插入点</span></div>';
+    html+='</div></div>';
+  });
+  html+='</div>';
+  gantt.innerHTML=html;
+  // 画任务块
+  placed.forEach(p=>{drawJob(p)});
+  // 绑定拖放
+  bindDnD();
+  renderPool();
+}
+
+function drawJob(p){
+  const row=document.querySelector(`.grow[data-m="${p.machine}"] .track`);
+  if(!row)return;
+  const m=machines.find(x=>x.id===p.machine);
+  const dur=durOf(p.task,m);
+  const late=p.start+dur>p.task.due;
+  const el=document.createElement("div");
+  el.className="job"+(p.locked?" locked":"")+(p.task.urgent?" urgent":"")+(late?" late":"")+(p.delayed?" delayed":"");
+  el.style.left=(p.start*PX)+"px";
+  el.style.width=Math.max(dur*PX,52)+"px";
+  el.style.background=jobColor(p);
+  el.dataset.id=p.task.id;
+  el.innerHTML=`<span class="nm">${p.task.prod}</span><br><span class="tm">${fmt(p.start)} → ${fmt(p.start+dur)}</span>`+(late&&!p.locked?`<span class="badge">超期!</span>`:'')+(p.delayed?`<span class="badge ym">顺延</span>`:'');
+  el.title=`订单${p.task.ord}｜${p.task.qty}件｜结束 ${fmt(p.start+dur)}｜交期 ${fmt(p.task.due)}`;
+  el.addEventListener("click",e=>{e.stopPropagation();showDetail(p)});
+  row.appendChild(el);
+}
+
+function jobColor(p){
+  if(p.locked)return "#64748b";
+  const palette=["#1a56db","#0e7490","#7c3aed","#b45309","#be185d","#15803d"];
+  let i=0;try{i=parseInt(p.task.ord.slice(-2))%palette.length}catch(e){}
+  return palette[i];
+}
+
+/* ================= 任务池 ================= */
+function renderPool(){
+  const inPool=placed.filter(p=>p.task.raw).map(p=>p.task.raw);
+  // task raw 指针：给池任务打上 raw 引用
+  placed.forEach(p=>{if(p.task.raw===undefined)p.task.raw=p.task});
+  const poolIds=new Set(placed.map(p=>p._tid||p.task._tid||p.task.id));
+  // 简化：池显示 tasks 中 id 不在 placed.tid 中的
+  const remaining=tasks.filter(t=>!placed.some(p=>(p.task.id===t.id)||(p.task.raw&&p.task.raw.id===t.id)));
+  document.getElementById("poolCount").textContent=remaining.length+" 个";
+  poolList.innerHTML="";
+  if(remaining.length===0){
+    poolList.innerHTML='<div style="text-align:center;color:var(--mut);padding:30px 0">✅ 全部已排产</div>';
+    return;
+  }
+  remaining.forEach(t=>{
+    const el=document.createElement("div");
+    el.className="ptask"+(t.urgent?" urgent":"");
+    el.draggable=true;
+    el.dataset.tid=t.id;
+    el.innerHTML=`
+      <div class="row1"><span class="prod">${t.prod}</span><span>${t.urgent?'<span class="tag urg">紧急</span>':'</span>'}</div>
+      <div class="ord">${t.ord} · ${t.qty.toLocaleString()} 件</div>
+      <div class="meta"><span>交期 <b class="due">${fmt(t.due)}</b></span><span class="tag typ">${t.type}</span></div>
+      <div class="cap">适用机台：${machines.filter(m=>m.type===t.type).map(m=>m.name.split("(")[0]).join(" / ")} · 换模 ${t.mold}min</div>`;
+    el.addEventListener("dragstart",e=>{
+      e.dataTransfer.setData("text/plain",t.id);
+      e.dataTransfer.effectAllowed="move";
+    });
+    poolList.appendChild(el);
+  });
+}
+
+/* ================= 拖放排产 ================= */
+function bindDnD(){
+  document.querySelectorAll(".grow").forEach(row=>{
+    const mId=row.dataset.m;
+    const track=row.querySelector(".track");
+    const slot=row.querySelector(".slotline");
+    row.addEventListener("dragover",e=>{
+      e.preventDefault();
+      const x=e.clientX-row.querySelector(".mh").getBoundingClientRect().right+row.querySelector(".mh").getBoundingClientRect().width-0;
+      // 计算相对 track
+      const rect=track.getBoundingClientRect();
+      const mx=e.clientX-rect.left;
+      slot.style.left=mx+"px";
+      const h=Math.floor(mx/PX*2)/2; // 30min 对齐
+      slot.querySelector("span").textContent=fmt(h);
+      row.classList.add("dragover");
+    });
+    row.addEventListener("dragleave",()=>row.classList.remove("dragover"));
+    row.addEventListener("drop",e=>{
+      e.preventDefault();
+      row.classList.remove("dragover");
+      const tid=e.dataTransfer.getData("text/plain");
+      const t=tasks.find(x=>x.id===tid);
+      const m=machines.find(x=>x.id===mId);
+      if(!t||!m)return;
+      if(t.type!==m.type){
+        toast("⛔ 该任务不可用此机台（需要 "+t.type+" 类机台）");
+        return;
+      }
+      const rect=track.getBoundingClientRect();
+      let h=Math.floor((e.clientX-rect.left)/PX*2)/2;
+      h=Math.floor(h*2)/2;
+      if(h<0)h=0;
+      pushUndo();
+      placed.push({task:t,machine:mId,start:h,locked:false,_tid:t.id});
+      renderGantt(days);
+      const p=placed[placed.length-1];
+      showDetail(p);
+      toast("✅ 已排产："+t.prod+" → "+m.name+"，结束 "+fmt(h+durOf(t,m))+(h+durOf(t,m)>t.due?" ⚠️ 超交期":""));
+    });
+  });
+}
+
+/* ================= 一键智能排产（演示） ================= */
+document.getElementById("btnAuto").onclick=()=>{
+  pushUndo();
+  const remaining=tasks.filter(t=>!placed.some(p=>(p.task.id===t.id)||(p.task.raw&&p.task.raw.id===t.id)));
+  if(remaining.length===0){toast("✅ 没有待排任务了");return}
+  // 交期排序
+  remaining.sort((a,b)=>a.due-b.due);
+  const mEnd={};machines.forEach(m=>{
+    const onm=placed.filter(p=>p.machine===m.id);
+    mEnd[m.id]=onm.length?Math.max(...onm.map(p=>p.start+durOf(p.task,m))):hOf(new Date(2026,7,27,8,0));
+  });
+  remaining.forEach(t=>{
+    const cands=machines.filter(m=>m.type===t.type);
+    const pick=cands.reduce((a,b)=>mEnd[a.id]<=mEnd[b.id]?a:b);
+    placed.push({task:t,machine:pick.id,start:mEnd[pick.id],locked:false,_tid:t.id});
+    mEnd[pick.id]+=durOf(t,pick);
+  });
+  renderGantt(days);
+  toast("⚡ 智能排产完成（按交期优先+最早空闲机台）。演示算法，已支持撤销");
+};
+
+/* ================= 演示：插入紧急单（自动顺延） ================= */
+document.getElementById("btnUrgent").onclick=()=>{
+  const t=tasks.find(x=>x.id==="t4");
+  if(t&&placed.some(p=>(p.task.id==="t4")||(p.task.raw&&p.task.raw.id==="t4"))){toast("紧急单已排过啦");return}
+  pushUndo();
+  // 找最早空闲的注塑机
+  const mEnd={};machines.filter(m=>m.type==="注塑").forEach(m=>{
+    const onm=placed.filter(p=>p.machine===m.id);
+    mEnd[m.id]=onm.length?Math.max(...onm.map(p=>p.start+durOf(p.task,m))):hOf(new Date(2026,7,27,8,0));
+  });
+  const pick=Object.keys(mEnd).reduce((a,b)=>mEnd[a]<=mEnd[b]?a:b);
+  const m=machines.find(x=>x.id===pick);
+  const ins=mEnd[pick];
+  const dur=durOf(t,m);
+  placed.push({task:t,machine:pick,start:ins,locked:false,_tid:t.id});
+  // 顺延该机台后续任务
+  const moved=[];
+  placed.forEach(p=>{
+    if(p.machine===pick && (p.task.id!==t.id) && p.start>=ins){
+      p.start+=dur; p.delayed=true; moved.push(p.task.prod+" → "+fmt(p.start));
+    }
+  });
+  renderGantt(days);
+  const imp=document.getElementById("pImpact");
+  imp.style.display="block";
+  imp.innerHTML=`<b>🔴 插单影响（演示）</b><br>「${t.prod}」插入 ${m.name} ${fmt(ins)}，该机台后续任务自动顺延：<br>`+(moved.length?moved.join("<br>"):"<span style='color:var(--mut)'>（该机台当前无后续任务受影响）</span>");
+  toast("🔴 紧急单已插入并自动顺延后续任务（可撤销）");
+};
+
+/* ================= 撤销 / 重排 ================= */
+document.getElementById("btnUndo").onclick=()=>{
+  if(undostack.length===0)return;
+  const prev=undostack.pop();
+  placed=JSON.parse(prev);
+  // 恢复 raw 引用
+  placed.forEach(p=>{
+    const ori=tasks.find(t=>t.id===p.task.id)||(p.task.raw&&tasks.find(t=>t.id===p.task.raw.id));
+    if(ori)p.task=ori;
+  });
+  if(undostack.length===0)document.getElementById("btnUndo").disabled=true;
+  renderGantt(days);
+  toast("↩ 已撤销上一步");
+};
+document.getElementById("btnRedo").onclick=()=>{renderGantt(days);toast("已重新渲染（演示）")};
+
+/* ================= 详情面板 ================= */
+function showDetail(p){
+  const m=machines.find(x=>x.id===p.machine);
+  const dur=durOf(p.task,m);
+  const proc=p.task.qty/m.cap;
+  const late=p.start+dur>p.task.due;
+  document.getElementById("pName").textContent=p.task.prod+"（"+p.task.qty.toLocaleString()+" 件）";
+  document.getElementById("pMachine").textContent=m.name+"／"+m.cap+"件/时";
+  document.getElementById("pQty").textContent=p.task.qty.toLocaleString()+" 件";
+  document.getElementById("pStart").textContent=fmtFull(p.start);
+  document.getElementById("pEnd").textContent=fmtFull(p.start+dur);
+  document.getElementById("pDue").textContent=fmt(p.task.due)+(late?"（⚠️ 超期 "+(Math.round((p.start+dur-p.task.due)*10)/10)+"h）":"（✓ 满足）");
+  document.getElementById("pFormula").innerHTML=
+    `加工 ${proc.toFixed(1)}h（${p.task.qty}÷${m.cap}） + 换模 ${p.task.mold/60}h = <b>${dur.toFixed(1)}h</b><br>结束 = 开始 ${fmt(p.start)} + ${dur.toFixed(1)}h`;
+}
+
+/* ================= 周期切换 ================= */
+let days=4;
+document.getElementById("rangeSeg").addEventListener("click",e=>{
+  const b=e.target.closest("button");if(!b)return;
+  document.querySelectorAll("#rangeSeg button").forEach(x=>x.classList.remove("on"));
+  b.classList.add("on");
+  days=+b.dataset.d;
+  renderGantt(days);
+});
+
+/* ================= 工具 ================= */
+let toastTimer;
+function toast(msg){
+  const t=document.getElementById("toast");
+  t.textContent=msg;t.classList.add("show");
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2600);
+}
+
+/* ================= 启动 ================= */
+renderGantt(days);
+toast("👋 拖动左侧任务到机台行试试；点任务块查看自动计算的结束时间");
+</script>
+</body>
+</html>

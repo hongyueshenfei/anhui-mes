@@ -1,0 +1,79 @@
+# 虹越智造平台 · 一期本地开发编排（nginx + php-fpm + mysql + redis）
+# 用法：docker compose up -d --build；迁移：docker compose exec php-fpm php artisan migrate --seed
+services:
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: hongyue-nginx
+    ports:
+      - "8080:80"
+    volumes:
+      - ./:/var/www/html:delegated
+      - ./docker/nginx/default.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - php-fpm
+    networks:
+      - hongyue
+
+  php-fpm:
+    build:
+      context: ./docker/php-fpm
+    container_name: hongyue-php
+    volumes:
+      - ./:/var/www/html:delegated
+    environment:
+      - DB_HOST=mysql
+      - REDIS_HOST=redis
+    depends_on:
+      - mysql
+      - redis
+    networks:
+      - hongyue
+
+  mysql:
+    image: mysql:8.0
+    container_name: hongyue-mysql
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_DATABASE: hongyue
+      MYSQL_USER: hongyue
+      MYSQL_PASSWORD: hongyue123
+      MYSQL_ROOT_PASSWORD: root123
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    networks:
+      - hongyue
+
+  redis:
+    image: redis:7-alpine
+    container_name: hongyue-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - hongyue
+
+  # 二期：AI 计算服务（排产求解；内部 Token 鉴权）
+  ai-service:
+    build:
+      context: ../ai-service
+    container_name: hongyue-ai
+    ports:
+      - "8001:8001"
+    environment:
+      - TZ=Asia/Shanghai
+      - AI_SERVICE_TOKEN=${AI_SERVICE_TOKEN:-}
+      - REDIS_URL=${REDIS_URL:-}
+    networks:
+      - hongyue
+
+volumes:
+  mysql_data:
+  redis_data:
+
+networks:
+  hongyue:
+    driver: bridge

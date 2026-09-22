@@ -1,0 +1,764 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虹越智造平台 PRD · v1.0（已冻结）</title>
+<style>
+  :root{
+    --primary:#1a56db; --primary-dark:#1e429f; --primary-light:#ebf2ff;
+    --accent:#d97706; --success:#047857; --danger:#b91c1c; --warn:#b45309;
+    --bg:#f4f6fb; --card:#ffffff; --line:#dfe5f0; --text:#111827; --muted:#6b7280;
+    --tag-p0:#b91c1c; --tag-p1:#d97706; --tag-p2:#047857;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei",system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.7;font-size:14px}
+  .wrap{max-width:1180px;margin:0 auto;padding:24px 20px 80px}
+  /* ---------- 封面 ---------- */
+  .cover{background:linear-gradient(135deg,#1a56db 0%,#1e429f 70%);border-radius:16px;color:#fff;padding:52px 44px;margin-bottom:28px}
+  .cover .kicker{font-size:13px;letter-spacing:4px;opacity:.85;margin-bottom:10px}
+  .cover h1{font-size:34px;font-weight:700;margin-bottom:8px;letter-spacing:1px}
+  .cover .sub{font-size:17px;opacity:.92;margin-bottom:22px}
+  .cover .meta{display:flex;flex-wrap:wrap;gap:12px;font-size:13px}
+  .cover .meta span{background:rgba(255,255,255,.14);padding:5px 14px;border-radius:20px}
+  /* ---------- 目录 ---------- */
+  .toc{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:26px 30px;margin-bottom:28px}
+  .toc h2{font-size:16px;margin-bottom:14px;color:var(--primary-dark)}
+  .toc ol{columns:2;column-gap:44px;padding-left:20px}
+  .toc li{margin-bottom:7px;font-size:13.5px}
+  .toc a{color:var(--primary);text-decoration:none}
+  .toc a:hover{text-decoration:underline}
+  /* ---------- 章节 ---------- */
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:30px 34px;margin-bottom:26px}
+  section>h2{font-size:21px;color:var(--primary-dark);border-bottom:3px solid var(--primary);padding-bottom:10px;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+  section>h2 .no{background:var(--primary);color:#fff;font-size:13px;border-radius:8px;padding:2px 10px;font-weight:600}
+  h3{font-size:16.5px;margin:24px 0 12px;color:var(--primary-dark)}
+  h4{font-size:14.5px;margin:18px 0 8px;color:#374151}
+  p{margin-bottom:10px}
+  ul,ol{margin:6px 0 12px 22px}
+  li{margin-bottom:5px}
+  .muted{color:var(--muted)}
+  /* ---------- 表格 ---------- */
+  table{width:100%;border-collapse:collapse;margin:12px 0 20px;font-size:13px;background:#fff}
+  th{background:var(--primary-light);color:var(--primary-dark);text-align:left;padding:9px 12px;border:1px solid var(--line);font-weight:600;white-space:nowrap}
+  td{padding:8px 12px;border:1px solid var(--line);vertical-align:top}
+  tr:nth-child(even) td{background:#fafbfe}
+  /* ---------- 标签 ---------- */
+  .tag{display:inline-block;font-size:12px;padding:1px 9px;border-radius:10px;font-weight:600;color:#fff;white-space:nowrap}
+  .p0{background:var(--tag-p0)} .p1{background:var(--tag-p1)} .p2{background:var(--tag-p2)}
+  .ok{color:var(--success);font-weight:600}
+  .bad{color:var(--danger);font-weight:600}
+  .warn{color:var(--warn);font-weight:600}
+  /* ---------- 流程图 ---------- */
+  .flow{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:14px 0 20px;font-size:13px}
+  .flow .node{background:var(--primary-light);border:1.5px solid var(--primary);color:var(--primary-dark);border-radius:10px;padding:7px 14px;font-weight:600;text-align:center}
+  .flow .node.alt{background:#fff7ed;border-color:var(--accent);color:var(--warn)}
+  .flow .node.grn{background:#ecfdf5;border-color:var(--success);color:var(--success)}
+  .flow .arrow{color:#9ca3af;font-size:16px;font-weight:700}
+  .subflow{margin:8px 0 4px 8px;padding-left:18px;border-left:3px dashed #cbd5e1;color:#374151;font-size:13px}
+  /* ---------- 卡片 ---------- */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:14px;margin:14px 0 20px}
+  .card{border:1px solid var(--line);border-radius:10px;padding:16px 16px 12px;background:#fcfdff}
+  .card h4{margin:0 0 6px;color:var(--primary-dark);font-size:14px}
+  .card p{font-size:12.8px;color:#4b5563;margin:0}
+  .card .icon{font-size:20px}
+  /* ---------- 提示框 ---------- */
+  .note{border-left:4px solid var(--accent);background:#fffdf5;padding:12px 16px;border-radius:0 8px 8px 0;margin:14px 0;font-size:13.5px}
+  .note.red{border-color:var(--danger);background:#fef6f6}
+  .note.blue{border-color:var(--primary);background:var(--primary-light)}
+  /* ---------- 代码/数据结构 ---------- */
+  .schema{background:#0f172a;color:#e2e8f0;border-radius:10px;padding:16px 20px;font-family:"SF Mono",Menlo,monospace;font-size:12.5px;line-height:1.65;overflow-x:auto;margin:12px 0 20px;white-space:pre}
+  .schema .c{color:#94a3b8}
+  /* ---------- 里程碑 ---------- */
+  .gantt{display:flex;flex-direction:column;gap:8px;margin:14px 0}
+  .gantt .row{display:grid;grid-template-columns:170px 1fr;align-items:center;gap:10px;font-size:12.8px}
+  .gantt .bar{height:22px;border-radius:5px;color:#fff;display:flex;align-items:center;padding-left:10px;font-size:11.5px;font-weight:600;white-space:nowrap;overflow:hidden}
+  footer{text-align:center;color:var(--muted);font-size:12px;margin-top:30px}
+  @media(max-width:760px){.toc ol{columns:1}.cover h1{font-size:26px}.flow{flex-direction:column}.gantt .row{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ===================== 封面 ===================== -->
+<div class="cover">
+  <div class="kicker">PRODUCT REQUIREMENTS DOCUMENT</div>
+  <h1>虹越智造平台 PRD</h1>
+  <div class="sub">PLM · MES · AI 模拟报价 · 小程序协同 · 金蝶云星空集成 —— 注塑/吹塑一体化生产管理平台</div>
+  <div class="meta">
+    <span>版本：v1.0（已冻结）</span>
+    <span>日期：2026-08-26</span>
+    <span>状态：待进入原型设计</span>
+    <span>目标环境：阿里云部署</span>
+  </div>
+</div>
+
+<!-- ===================== 目录 ===================== -->
+<div class="toc">
+  <h2>📑 文档目录</h2>
+  <ol>
+    <li><a href="#s1">项目概述（背景 / 目标 / 用户画像 / 价值）</a></li>
+    <li><a href="#s2">现状与痛点分析</a></li>
+    <li><a href="#s3">竞品与市场分析</a></li>
+    <li><a href="#s4">需求总览（功能清单 + 优先级）</a></li>
+    <li><a href="#s5">信息架构</a></li>
+    <li><a href="#s6">核心业务流程（含异常流）</a></li>
+    <li><a href="#s7">功能规格（模块级详细设计）</a></li>
+    <li><a href="#s8">数据模型</a></li>
+    <li><a href="#s9">技术方案（架构 / 选型 / 集成 / 部署）</a></li>
+    <li><a href="#s10">非功能需求</a></li>
+    <li><a href="#s11">测试方案</a></li>
+    <li><a href="#s12">数据指标体系</a></li>
+    <li><a href="#s13">运营与推行方案</a></li>
+    <li><a href="#s14">项目计划与风险管理</a></li>
+    <li><a href="#s15">待确认问题清单</a></li>
+  </ol>
+</div>
+
+<!-- ===================== 01 项目概述 ===================== -->
+<section id="s1">
+  <h2><span class="no">01</span>项目概述</h2>
+
+  <h3>1.1 项目背景</h3>
+  <p>公司生产端现有系统无法满足日常管理需求，核心矛盾集中在三处：</p>
+  <ul>
+    <li><b>黑湖小工单（现用 MES）</b>：<span class="bad">没有排产功能</span>、排单不落地、现场操作难推进、定制开发无法实现；仅部分功能可借鉴。</li>
+    <li><b>金蝶云星空（现用 ERP）</b>：承担物料 / 库存 / 财务核算，公司<b>明确保留不动</b>；但其自带的 PLM、MES 模块经评估<span class="bad">二开与适配性差，不推荐使用</span>。</li>
+    <li><b>线下断层</b>：BOM 维护在金蝶生产制造模块，模具生命周期、产品工艺档案、报价数据等<span class="warn">全部在线下</span>（Excel / 纸质 / 经验），新品报价依赖老师傅经验、无数据沉淀。</li>
+  </ul>
+
+  <h3>1.2 项目目标</h3>
+  <p>自建一套「<b>PLM + MES + AI 模拟报价 + 管理看板</b>」一体化生产管理平台，替代黑湖小工单，实现：</p>
+  <div class="cards">
+    <div class="card"><div class="icon">🎯</div><h4>排产数字化</h4><p>订单 → 多产品逐项排产；插单自动顺延；智能排产 + 空余产能推荐，从"无排产"走向"自动排产"</p></div>
+    <div class="card"><div class="icon">📲</div><h4>任务落地</h4><p>排产结果直达机台/班组，工人一眼看到"今天干什么"；报工 1-2 步极简完成</p></div>
+    <div class="card"><div class="icon">🔁</div><h4>全链闭环</h4><p>小程序接单（已有）→ 排产 → 报工 → 进度回写小程序 → 小程序发货 → 推金蝶出库</p></div>
+    <div class="card"><div class="icon">🤖</div><h4>AI 报价</h4><p>新品快速估价：规格+数量 → AI 结合材料/模具摊销/工时/毛利目标出建议价与交期</p></div>
+    <div class="card"><div class="icon">📊</div><h4>管理可视</h4><p>订单进度、产能负荷、延期预警、产量效率，老板/管理层一屏掌控</p></div>
+  </div>
+
+  <h3>1.3 用户画像（4 类角色）</h3>
+  <table>
+    <tr><th>角色</th><th>使用端</th><th>核心诉求</th><th>备注</th></tr>
+    <tr><td><b>工程/工艺工程师</b></td><td>PC · PLM</td><td>维护产品档案、BOM、工艺路线、模具台账；新品开发流程推进</td><td>PLM 数据以本系统为主，发布推送金蝶</td></tr>
+    <tr><td><b>生产计划员/车间主任</b></td><td>PC · MES</td><td>智能排产、插单调整、任务派工、产能监控、延期处理</td><td>排产为本项目第一优先级能力</td></tr>
+    <tr><td><b>班组长/工人</b></td><td>手机/平板 · MES</td><td>查看本机台/班组今日任务；极简报工（扫码/点选）</td><td>过渡期由班组长手机代报，逐步推到工人</td></tr>
+    <tr><td><b>业务员</b></td><td>小程序（已有）</td><td>录入/查看订单；实时查看生产进度；移动发货</td><td>小程序为已有系统，本平台做能力增强与数据回写</td></tr>
+    <tr><td><b>老板/管理层</b></td><td>PC · 看板</td><td>订单全局进度、产能负荷、延期预警、经营报表</td><td>移动端可看摘要</td></tr>
+  </table>
+
+  <h3>1.4 商业价值</h3>
+  <ul>
+    <li><b>减少延误交付</b>：智能排产 + 延期预警，减少插单混乱与人工排程失误带来的交期延误。</li>
+    <li><b>提升接单效率</b>：AI 新品报价分钟级出价，把握询价窗口，避免"估错价亏单 / 估高价丢单"。</li>
+    <li><b>替代重复劳动</b>：消灭"班组长登记 → 纸质 → 专人录入"的断链，数据实时进入系统。</li>
+    <li><b>消除信息孤岛</b>：PLM / MES / 小程序 / 金蝶四方打通，业务员不再靠电话问进度。</li>
+    <li><b>知识资产化</b>：模具寿命、工艺工时、报价成交数据全部沉淀，越用越准。</li>
+  </ul>
+</section>
+
+<!-- ===================== 02 现状与痛点 ===================== -->
+<section id="s2">
+  <h2><span class="no">02</span>现状与痛点分析</h2>
+
+  <h3>2.1 生产形态（已确认）</h3>
+  <table>
+    <tr><th>维度</th><th>现状</th></tr>
+    <tr><td>行业</td><td>注塑 / 吹塑行业（园艺资材类塑料制品）</td></tr>
+    <tr><td>工序链</td><td>注塑成型 / 吹塑成型 → 喷漆 → 效果 → 包装</td></tr>
+    <tr><td>产能形态</td><td>注塑/吹塑为<b>机器产能</b>（每台机标准产能，换产品需<b>换模具</b>，占用时间）；喷漆、效果为<b>人工产线</b>（按班组工时）</td></tr>
+    <tr><td>班制/组织</td><td>2 班制；班组按车间划分（注塑车间、吹塑车间等）</td></tr>
+    <tr><td>数据现状</td><td>BOM 在金蝶"生产制造"模块维护；模具台账、工艺档案、报价数据在线下</td></tr>
+  </table>
+
+  <h3>2.2 痛点清单（访谈确认）</h3>
+  <table>
+    <tr><th>#</th><th>痛点</th><th>严重度</th><th>对应解决</th></tr>
+    <tr><td>P1</td><td>黑湖<b>没有排产功能</b>：订单含多产品无法拆解排产；插单后不能自动顺延；无智能排产、无空余产能推荐</td><td class="bad">极高</td><td>自研排产引擎（S7-2）</td></tr>
+    <tr><td>P2</td><td><b>任务不落地</b>：排单没有明确到机台/班组，工人不知道今天干什么，系统与实际脱节</td><td class="bad">极高</td><td>任务派工到机台/班组 + 今日任务视图（S7-3）</td></tr>
+    <tr><td>P3</td><td><b>现场报工断链</b>：班组长纸质登记 → 专人二次录入，延迟且易错</td><td class="bad">高</td><td>极简移动报工，干掉专人录入（S7-4）</td></tr>
+    <tr><td>P4</td><td><b>管理未强制推进</b>：无任务/未报工/逾期没有自动暴露机制，推不动</td><td class="warn">高</td><td>红灯看板 + 自动提醒（S7-6）</td></tr>
+    <tr><td>P5</td><td><b>定制受限</b>：黑湖定制开发无法实现，金蝶 PLM/MES 模块二开适配差</td><td class="warn">中</td><td>自建系统，代码自有、随需扩展</td></tr>
+    <tr><td>P6</td><td><b>新品报价靠经验</b>：无数据沉淀，估价依赖老师傅，不透明不可复制</td><td class="warn">中</td><td>AI 模拟报价 + 报价数据底座（S7-7）</td></tr>
+    <tr><td>P7</td><td>模具生命周期线下管理：寿命/保养/存放无台账，影响换模与生产安排</td><td class="warn">中</td><td>PLM 模具模块（S7-1）</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 03 竞品与市场 ===================== -->
+<section id="s3">
+  <h2><span class="no">03</span>竞品与市场分析</h2>
+
+  <h3>3.1 竞品对比</h3>
+  <table>
+    <tr><th>维度</th><th>黑湖小工单（现用）</th><th>金蝶 PLM/MES 模块</th><th>本项目（自建）</th></tr>
+    <tr><td>排产能力</td><td class="bad">无排产功能</td><td>有基础 MRP/工序排程，适配困难</td><td class="ok">智能排产引擎：多产品拆解 / 插单顺延 / 空余产能推荐 / 换模最小化</td></tr>
+    <tr><td>现场作业</td><td>操作难推进，任务不落地</td><td>传统 MES 流程重</td><td class="ok">任务直达机台班组；报工 1-2 步极简；班组长手机过渡</td></tr>
+    <tr><td>定制能力</td><td class="bad">无法定制</td><td>二开贵、周期长</td><td class="ok">自主代码，随需迭代</td></tr>
+    <tr><td>集成</td><td>与金蝶/小程序割裂</td><td>与金蝶打通但锁死生态</td><td class="ok">小程序双向 + 金蝶双向（销售订单/出库单/BOM 发布）</td></tr>
+    <tr><td>AI 能力</td><td>无</td><td>无</td><td class="ok">AI 新品报价（材料/模具/工时/毛利+交期联动排产）</td></tr>
+    <tr><td>模具管理</td><td>无</td><td>弱</td><td class="ok">模具全生命周期（台账/寿命/保养/存放）</td></tr>
+    <tr><td>成本</td><td>年费+定制费</td><td>模块授权费高</td><td>一次性自研 + 运维，长期可控</td></tr>
+  </table>
+
+  <h3>3.2 SWOT</h3>
+  <table>
+    <tr><th style="width:50%">Strengths（优势）</th><th>Weaknesses（劣势）</th></tr>
+    <tr>
+      <td>• 完全贴合注塑生产形态（机台产能+换模+人工线）<br>• 排产/插单/报价是行业刚需且现有系统空白<br>• 与已有小程序、金蝶无缝协同</td>
+      <td>• 自研需要投入研发资源与时间<br>• 无排产算法历史积累，参数需现场调优<br>• 上线初期需管理强推与培训</td>
+    </tr>
+    <tr><th>Opportunities（机会）</th><th>Threats（威胁）</th></tr>
+    <tr>
+      <td>• AI 报价可沉淀行业数据，形成差异化能力<br>• 数据资产（模具寿命/工时/成交价）长期增值<br>• 未来可复制到同行业其他工厂</td>
+      <td>• 现场执行不到位导致数据失真（成功关键）<br>• 金蝶接口/权限变更影响集成<br>• 员工习惯迁移阻力</td>
+    </tr>
+  </table>
+
+  <h3>3.3 差异化定位</h3>
+  <p class="note blue"><b>一句话定位：</b>为注塑/吹塑工厂打造的「排产强、操作简、数据通、能报价」的一体化生产管理平台 —— 既有成熟 MES 的自然流畅，又补上了它们普遍缺失的智能排产与 AI 报价能力。</p>
+</section>
+
+<!-- ===================== 04 需求总览 ===================== -->
+<section id="s4">
+  <h2><span class="no">04</span>需求总览（功能清单 + 优先级）</h2>
+  <p class="muted">优先级定义：<span class="tag p0">P0 首期必须</span> <span class="tag p1">P1 首期应有</span> <span class="tag p2">P2 二期增强</span></p>
+
+  <h3>4.1 功能清单</h3>
+  <table>
+    <tr><th>模块</th><th>功能点</th><th>优先级</th><th>验收标准（摘要）</th></tr>
+    <tr><td rowspan="5"><b>PLM 产品数据</b></td>
+        <td>产品档案（产品/料号/规格/单位）</td><td><span class="tag p0">P0</span></td><td>支持增删改查、状态流转（开发/试产/量产/停产）</td></tr>
+    <tr><td>BOM 管理（层级结构/材料配方/用量/损耗率）</td><td><span class="tag p0">P0</span></td><td>PLM 为主维护，审核发布后推送金蝶，支持版本管理</td></tr>
+    <tr><td>工艺路线（工序序列/标准工时/机台类型/人工线）</td><td><span class="tag p0">P0</span></td><td>每产品定义工序与产能参数，供排产计算调用</td></tr>
+    <tr><td>模具全生命周期（台账/关联产品/寿命/保养/存放/维修）</td><td><span class="tag p0">P0</span></td><td>模具档案可与产品&机台关联，寿命/开模次数、保养提醒</td></tr>
+    <tr><td>新品开发流程（询价→立项→开模→试模→小批→量产）</td><td><span class="tag p1">P1</span></td><td>阶段推进、任务清单、可配置审批节点</td></tr>
+    <tr><td rowspan="2"><b>报价数据底座</b></td>
+        <td>材料价格/工时费率/损耗率/模具摊销规则维护</td><td><span class="tag p0">P0</span></td><td>与 BOM 联动，数据有生效日期与来源</td></tr>
+    <tr><td>AI 新品快速估价（规格+数量→建议价+交期）</td><td><span class="tag p0">P0</span></td><td>分钟级出价；交期与排产产能联动；支持人工审核调整；历史报价/成交数据沉淀</td></tr>
+    <tr><td rowspan="8"><b>MES 生产执行</b></td>
+        <td>订单接单（接收小程序订单）</td><td><span class="tag p0">P0</span></td><td>自动拉取小程序订单，含多产品明细</td></tr>
+    <tr><td>智能排产引擎（核心）</td><td><span class="tag p0">P0</span></td><td>多产品逐项排产；插单自动顺延；空余产能推荐；机台产能+换模时间+2班制约束；同类连续减少换模</td></tr>
+    <tr><td>生产任务派工（落机台/班组/时间）</td><td><span class="tag p0">P0</span></td><td>排产结果即任务，明确机台、班组、数量、起止时间</td></tr>
+    <tr><td>现场极简报工（扫码/点选，1-2 步）</td><td><span class="tag p0">P0</span></td><td>扫码识任务，点"完成 N 件"即报；班组长手机代报过渡；<b>报工数据为二期计件工资核算提供数据源，须保证准确、可审计</b></td></tr>
+    <tr><td>车间看板（今日任务/机台状态/完成率）</td><td><span class="tag p0">P0</span></td><td>每机台当前任务、进度百分比、剩余时间</td></tr>
+    <tr><td>异常管理（停机/换模/次品/缺料）</td><td><span class="tag p1">P1</span></td><td>异常上报影响排产重排提示</td></tr>
+    <tr><td>进度回写小程序</td><td><span class="tag p0">P0</span></td><td>订单级/产品级进度、预计完成时间实时回写，业务员可查</td></tr>
+    <tr><td>小程序移动发货（联动金蝶）</td><td><span class="tag p0">P0</span></td><td>小程序选订单/产品/数量发货，完成后推金蝶生成销售出库单扣库存</td></tr>
+    <tr><td rowspan="3"><b>管理看板</b></td>
+        <td>订单进度总览</td><td><span class="tag p0">P0</span></td><td>在产/逾期/待排/已完成分区展示</td></tr>
+    <tr><td>产能负荷视图</td><td><span class="tag p1">P1</span></td><td>各机台/班组未来 N 天负荷，识别瓶颈</td></tr>
+    <tr><td>强制推进机制（红灯暴露）</td><td><span class="tag p0">P0</span></td><td>未排产/未报工/逾期自动标红，管理看板直达责任人</td></tr>
+    <tr><td rowspan="3"><b>系统集成</b></td>
+        <td>金蝶集成（订单/出库单/BOM 发布/物料同步）</td><td><span class="tag p0">P0</span></td><td>销售订单、销售出库单自动推送；BOM 发布；物料主数据同步</td></tr>
+    <tr><td>消息通知（企微/小程序订阅）</td><td><span class="tag p1">P1</span></td><td>任务下达、逾期、异常提醒</td></tr>
+    <tr><td>权限与审计（RBAC/操作日志）</td><td><span class="tag p0">P0</span></td><td>角色权限矩阵 + 关键操作留痕</td></tr>
+  </table>
+
+  <h3>4.2 功能优先级总览</h3>
+  <p>首期（P0+P1）聚焦打通「<b>接单 → 排产 → 报工 → 进度回写 → 发货出库</b>」主链路，PLM 为链路提供数据底座，看板与管理机制保障推行。P2 作为二期持续增强：</p>
+  <ul>
+    <li>P2 候选：<b>计件工资核算（基于报工数据核算工人工资，报工需满足稽核要求）</b>、机台自动数据采集（注塑机计数器对接）、多基地扩展、报价模型深度学习化（基于历史成交数据训练）、供应链物料预测。</li>
+  </ul>
+</section>
+
+<!-- ===================== 05 信息架构 ===================== -->
+<section id="s5">
+  <h2><span class="no">05</span>信息架构</h2>
+
+  <h3>5.1 PC 管理端（Web 控制台）</h3>
+  <div class="schema">虹越生产管理平台（PC Web）
+├── 📦 PLM 产品数据
+│   ├── 产品档案            （列表/详情/状态流转）
+│   ├── BOM 管理            （维护/版本/审核/发布金蝶）
+│   ├── 工艺路线            （工序/工时/产能参数）
+│   ├── 模具管理            （台账/关联/寿命/保养/存放）
+│   └── 新品开发流程        （阶段看板/任务清单）
+├── 💰 报价中心
+│   ├── AI 快速估价         （新品询价→建议价+交期）
+│   ├── 报价单管理          （草稿/已发/已成交/命中率）
+│   └── 报价参数配置        （材料价/费率/损耗/摊销规则）
+├── 🏭 MES 生产执行
+│   ├── 订单中心            （小程序订单/Excel导入/手工建单）
+│   ├── 智能排产            （自动排产/手动调整/插单/空余产能）
+│   ├── 任务中心            （机台/班组任务/派工/状态）
+│   ├── 现场报工            （扫码/点选/班组长代报/批量）
+│   └── 异常管理            （停机/换模/次品/缺料）
+├── 📊 管理看板
+│   ├── 订单进度总览        （分区:待排/在产/逾期/完成）
+│   ├── 产能负荷视图        （机台×日期热力）
+│   ├── 报表中心            （产量/效率/交期达成率/模具寿命）
+│   └── 红灯管理            （未排/未报/逾期——强制推进）
+├── ⚙️ 系统管理
+│   ├── 组织/用户/角色权限（RBAC）
+│   ├── 车间/机台/班组/班制
+│   ├── 集成配置            （金蝶API/小程序/消息通道）
+│   └── 操作日志/审计
+└── 🤖 AI 服务（后台）
+    └── 报价模型 / 排产推荐引擎 / 数据训练</div>
+
+  <h3>5.2 小程序端（已有系统增强）</h3>
+  <div class="schema">小程序（已有的订单前端，本平台负责数据回写与能力增强）
+├── 订单中心（已有）        —— 录单/接单，本平台同步拉取
+├── 🔄 生产进度（新增）     —— 订单/产品级进度、预计完成、延期提示
+├── 🚚 移动发货（新增）     —— 选单发货/分批发货/拍照上传，完成后推金蝶出库
+└── 消息通知（新增）        —— 生产进度变更/发货状态订阅提醒</div>
+</section>
+
+<!-- ===================== 06 核心业务流程 ===================== -->
+<section id="s6">
+  <h2><span class="no">06</span>核心业务流程（含异常流）</h2>
+
+  <h3>6.1 主线流程：接单 → 排产 → 生产 → 发货</h3>
+  <div class="flow">
+    <span class="node">小程序录单<br>（销售单）</span><span class="arrow">→</span>
+    <span class="node">推送金蝶<br>销售订单</span><span class="arrow">→</span>
+    <span class="node">金蝶下推<br>生产订单</span><span class="arrow">→</span>
+    <span class="node grn">新系统拉取生产订单<br>作为排产依据</span><span class="arrow">→</span>
+    <span class="node alt">排产<br>（机台产能+换模+人工线）</span><span class="arrow">→</span>
+    <span class="node">任务派工<br>落机台/班组</span><span class="arrow">→</span>
+    <span class="node grn">现场极简报工<br>（扫码1-2步）</span><span class="arrow">→</span>
+    <span class="node">完工 → 推金蝶<br>生产入库单</span><span class="arrow">→</span>
+    <span class="node">进度回写<br>小程序</span><span class="arrow">→</span>
+    <span class="node alt">小程序移动发货<br>（分批/拍照/物流）</span>
+  </div>
+  <div class="subflow">外部依赖：小程序 → 金蝶销售订单推送链路需保障（本平台依赖其产出的生产订单）；金蝶生产订单为本平台排产依据（源头在金蝶，非小程序）</div>
+
+  <h3>6.2 排产主流程（核心）</h3>
+  <div class="flow">
+    <span class="node">新订单进入</span><span class="arrow">→</span>
+    <span class="node">订单拆解为<br>产品级生产任务</span><span class="arrow">→</span>
+    <span class="node">读取工艺路线+机台产能+换模时间</span><span class="arrow">→</span>
+    <span class="node alt">排产引擎计算<br>（自动分配机台/时间）</span><span class="arrow">→</span>
+    <span class="node grn">排产结果确认<br>（可手动微调）</span><span class="arrow">→</span>
+    <span class="node">任务下达<br>机台/班组</span>
+  </div>
+
+  <h3>6.3 插单处理（异常流 · 用户第一痛点）</h3>
+  <div class="flow">
+    <span class="node">紧急订单插入</span><span class="arrow">→</span>
+    <span class="node alt">系统定位插入点<br>（按交期/优先级）</span><span class="arrow">→</span>
+    <span class="node">占用机台产能</span><span class="arrow">→</span>
+    <span class="node grn">原产线后续任务<br>自动顺延</span><span class="arrow">→</span>
+    <span class="node">受影响订单<br>延期预警提示</span><span class="arrow">→</span>
+    <span class="node">一键确认/回滚</span>
+  </div>
+  <p class="note">关键规则：<b>插单自动顺延</b> —— 插入后原产线其他订单理论上自动往后排，并明示哪些订单受影响的交期变化，由计划员一键确认（可回滚）。<b>同类产品/同色系连续排产</b>，减少换模次数，降低停机损失。</p>
+
+  <h3>6.4 报工流程（极简 · 消灭断链）</h3>
+  <div class="flow">
+    <span class="node">工人/班组长<br>扫任务码</span><span class="arrow">→</span>
+    <span class="node">显示任务信息<br>（产品/数量/机台）</span><span class="arrow">→</span>
+    <span class="node grn">点选"完成 N 件"<br>（1-2步）</span><span class="arrow">→</span>
+    <span class="node">实时入系统</span><span class="arrow">→</span>
+    <span class="node alt">任务进度/看板/小程序<br>同步更新</span>
+  </div>
+  <p class="note red"><b>过渡方案</b>：上线初期可保留"班组长手机登记"（替代纸质），系统自动取代"专人二次录入"；后续逐步推到工人扫码。无论哪种方式，数据都实时进系统。</p>
+
+  <h3>6.5 发货流程（小程序 → 金蝶）</h3>
+  <div class="flow">
+    <span class="node">业务员小程序<br>发起发货</span><span class="arrow">→</span>
+    <span class="node">选订单/产品/数量<br>（支持分批）</span><span class="arrow">→</span>
+    <span class="node">确认发货<br>（可拍照/填物流）</span><span class="arrow">→</span>
+    <span class="node grn">发货状态记录<br>（同步小程序+看板）</span>
+  </div>
+  <p class="note red"><b>发货-库存衔接说明（已确认）</b>：一期<b>不与金蝶销售出库打通</b>；成品入库已推金蝶（库存增加），发货后的库存扣减由仓库在金蝶内人工处理；金蝶销售出库自动集成列为二期候选。</p>
+
+  <h3>6.6 AI 报价流程</h3>
+  <div class="flow">
+    <span class="node">客户询价<br>（新品）</span><span class="arrow">→</span>
+    <span class="node">业务员录入规格+数量<br>（选近似老品）</span><span class="arrow">→</span>
+    <span class="node alt">AI 估算<br>材料+模具摊销+工时+损耗</span><span class="arrow">→</span>
+    <span class="node">+毛利目标=建议价</span><span class="arrow">→</span>
+    <span class="node">交期=排产产能测算</span><span class="arrow">→</span>
+    <span class="node grn">业务员确认<br>出正式报价单</span>
+  </div>
+</section>
+
+<!-- ===================== 07 功能规格 ===================== -->
+<section id="s7">
+  <h2><span class="no">07</span>功能规格（模块级详细设计）</h2>
+
+  <h3>7.1 PLM 产品数据模块</h3>
+  <h4>7.1.1 产品档案</h4>
+  <ul>
+    <li>字段：产品编码（对齐金蝶物料编码）、名称、规格、单位、状态（开发/试产/量产/停产）、默认模具、默认工艺路线。</li>
+    <li>规则：产品编码与金蝶物料编码保持一致（以金蝶为主做映射，避免双主数据冲突）；状态流转有记录。</li>
+  </ul>
+  <h4>7.1.2 BOM 管理（PLM 为主，发布推金蝶）</h4>
+  <ul>
+    <li>层级结构：成品 → 半成品/原材料（含材料配方），带用量、单位、损耗率。</li>
+    <li>版本管理：每次修改生成新版本，<b>工程自审后一键发布（一期无审批流）</b>，发布动作同步推送金蝶生产制造模块。</li>
+    <li>存量数据：迁移期从金蝶 BOM 一次性导入，后续以 PLM 为主维护。</li>
+    <li><b>权限</b>：工程/工艺维护 → <b>自审后直接发布</b>（操作留痕兜底）。未发布版本不可被排产/报价引用。</li>
+  </ul>
+  <h4>7.1.3 工艺路线</h4>
+  <ul>
+    <li>工序序列：成型（注塑/吹塑）→ 喷漆 → 效果 → 包装；每道工序绑定：可用机台类型或班组、标准产能（件/小时）、班制、换模时间（成型工序）。</li>
+    <li>支撑排产引擎（自动算结束时间）与 AI 报价的工时计算。</li>
+    <li><b>配置便捷性（重点设计）</b>：
+      <ul>
+        <li><b>标准工序模板</b>：喷漆/效果/包装等常用工序做成模板，一键选用，不必每次新建；</li>
+        <li><b>类似产品复制</b>：相似产品可直接复制已有工艺路线再改参数，杜绝重复录入；</li>
+        <li><b>批量维护</b>：机台标准产能、班制、换模时间为"机台侧默认值"，产品侧为空时自动取默认；支持 Excel 批量导入机台产能与工艺参数；</li>
+        <li><b>即时预览</b>：配置过程中即时显示"按此产能，1000 件该工序需 X 小时"的换算提示，减少配置错误。</li>
+      </ul>
+    </li>
+  </ul>
+  <h4>7.1.4 模具全生命周期</h4>
+  <table>
+    <tr><th>能力</th><th>说明</th></tr>
+    <tr><td>模具台账</td><td>编码/名称/类型（注塑模/吹塑模）/状态（在用/闲置/维修/报废）/存放位置/采购信息</td></tr>
+    <tr><td>模具-产品关联</td><td>一具模具可关联多个产品（一具多件），同一产品可多副模具（备用模）</td></tr>
+    <tr><td>模具-机台匹配</td><td>模具档案含<b>适用机台类型/机台</b>（如 I-01~I-04）；排产时校验「产品-模具-机台」三者匹配，不符不可排</td></tr>
+    <tr><td>寿命跟踪</td><td>设计寿命（额定开模次数）、累计开模次数（<b>按报工数 ÷ 模穴数</b>折算累加）、剩余寿命预警；台账含模穴数</td></tr>
+    <tr><td>保养计划</td><td>保养周期、上次保养日期、下次保养提醒</td></tr>
+    <tr><td>维修记录</td><td>维修历史、维修厂商、费用</td></tr>
+    <tr><td>换模关联</td><td>换模时间进入排产约束；换模事件在 MES 异常/任务模块登记</td></tr>
+  </table>
+  <h4>7.1.5 新品开发流程</h4>
+  <p>阶段看板：询价 → 立项 → 设计 → 开模 → 试模 → 小批试产 → 量产。每阶段有任务清单与负责人，支持审批节点配置；量产确认后自动建立正式产品档案并触发 BOM 发布。</p>
+
+  <h3>7.2 排产模块（一期：手工排产为主 · 智能排产为辅）</h3>
+  <h4>7.2.0 排产策略（外部调研结论 + 分阶段落地）</h4>
+  <ul>
+    <li><b>外部调研结论</b>：注塑排产在学术界对应「带序依赖换模时间的并行机调度（P‖sds）」，即多台同型注塑机 + 模具切换耗时与前后产品相关；标准目标 = 最小化完工周期 + 最小化总拖期。工程上有<b>Google OR-Tools CP-SAT（开源免费）</b>等求解器可直接求解，100 任务规模毫秒~秒级；配套 job_shop_lib 封装与甘特图组件成熟。</li>
+    <li><b>一期策略</b>：<span class="ok">手工排产为日常主操作路径（便捷性铁保底，必须好用）</span>；智能排产作为"一键自动排/重排"辅助按钮，计划员可整版接受、局部采纳或回滚。即使智能算法效果不达预期，手工排产也能支撑全部业务。</li>
+    <li><b>二期深化</b>：积累真实参数（产能/换模时长）后，逐步提高智能排产采纳率；可引入序依赖换模矩阵 + 元启发式（改进 GA）。</li>
+  </ul>
+  <h4>7.2.1 输入</h4>
+  <ul>
+    <li>生产任务：订单 → 产品 → 数量 → 交期（来自小程序订单/手工/Excel）。</li>
+    <li>资源：机台（类型、2 班制日历、标准产能）、班组（人工线工时）、模具（每产品可用模具、换模时间）。</li>
+    <li>约束：已锁定任务、已排产占用、模具状态（保养/维修期间不可用）。</li>
+  </ul>
+  <h4>7.2.2 智能排产算法（外部借鉴 · P0 辅助）</h4>
+  <ol>
+    <li><b>排序规则</b>：任务按交期紧迫度 + 客户优先级排序（EDD 规则）。</li>
+    <li><b>建模求解</b>：采用 OR-Tools CP-SAT 建模——每任务=机台可选的区间变量，机台内 AddNoOverlap，目标最小化总完工时间 + 加权总拖期（可按"紧交期"调节）；求解器输出排程。</li>
+    <li><b>换模优化</b>：同类产品/同色系连续排产，减少换模次数（序依赖换模最小化）；换模时间计入机台占用。</li>
+    <li><b>空余产能推荐</b>：插单时自动定位最早可用机台空档；生产空闲期推荐可提前生产的产品。</li>
+    <li><b>插单顺延</b>：插入后原产线后续任务自动往后顺延，输出"受影响订单交期变化清单"。</li>
+  </ol>
+  <h4>7.2.3 手工排产交互（一期核心 · 便捷性重点设计）</h4>
+  <ul>
+    <li><b>机台空缺一目了然</b>：甘特图按机台分行，空闲时段灰块清晰展示；左侧"待排任务池"列出未排任务（含数量/交期/重量级标识）。</li>
+    <li><b>拖拽排产</b>：从任务池拖任务到机台时间轴，自动吸附到最近空闲时段；可连续拖动多个任务。</li>
+    <li><b>自动计算结束时间（用户核心诉求）</b>：任务拖上机台后，系统按 <b>机台标准产能 + 班制（2班）+ 换模时间</b> 自动计算开始/结束时间并即时显示，计划员无需手算。</li>
+    <li><b>冲突即时报错</b>：位置产能不足 / 模具不可用 / 超客户交期，即时红框提示 + 可选"强制排入（标记超期）"。</li>
+    <li><b>交期自动对照</b>：排产结果自动对照订单交期，晚于交期自动标红并提示顺延方案。</li>
+    <li><b>一键智能 / 重排</b>：点击"自动排/重排"调用智能算法生成建议排程，可整版接受或局部采纳；支持回滚到上一版本。</li>
+    <li><b>插单操作</b>：拖入紧急任务 → 系统自动顺延原产线后续任务并给出受影响的订单清单，一键确认或回滚。</li>
+    <li><b>保存即锁定</b>：计划员确认后排程锁定，报工按锁定排程执行；锁定后变更需解锁留痕。</li>
+  </ul>
+
+  <h3>7.3 任务派工与落地（P0）</h3>
+  <ul>
+    <li>排产结果自动生成<b>生产任务单</b>：机台/班组、产品、数量、起止时间、模具、标准工时。</li>
+    <li><b>今日任务视图</b>（手机端）：工人/班组长登录即见本机台/班组当天任务 —— 解决"任务不落地"。</li>
+    <li>任务状态机：待开始 → 进行中 → 暂停（异常）→ 已完成；报工驱动状态流转。</li>
+  </ul>
+
+  <h3>7.4 现场极简报工（P0）</h3>
+  <ul>
+    <li><b>报工方式</b>：扫任务二维码 → 任务详情 → 点选"完成 N 件 / 累计完成"，1-2 步完成；支持补报（班组长当日批量登记）。</li>
+    <li><b>登录与免密（已确认）</b>：工人用<b>自带手机</b>登录，方案＝微信扫码登录（PC 端）/ 小程序微信授权（移动端，openid 绑定工号后免密）/ 企业微信身份免登（企微已部署，优先推荐）；首次绑定后日常使用零密码。</li>
+    <li><b>防重复</b>：服务端校验累计报工数不超过任务量（可配置超 100% 提示）。</li>
+    <li><b>联动</b>：报工即更新任务进度 → 看板/小程序/模具开模次数/产量报表同步。</li>
+    <li><b>工资核算预留（二期）</b>：报工记录为二期<b>计件工资核算</b>的数据源——一期即按"谁报工/何时报/哪台机/哪个任务/<b>实际作业人</b>"完整留痕（<b>代报必选实际作业归属人</b>），保证可稽核；二期基于报工流水 × 计件单价自动算薪。</li>
+    <li><b>冲减与质量口径</b>：台账只增不改，报错用「冲减」（负数量）更正留痕；报工区分<b>合格数/次品数</b>，计件按合格数。</li>
+    <li><b>离线容错</b>：弱网环境允许本地暂存，联网自动补传。</li>
+  </ul>
+
+  <h3>7.5 订单接收与多端联动（P0）</h3>
+  <table>
+    <tr><th>方向</th><th>内容</th><th>方式</th></tr>
+    <tr><td>金蝶 → 平台</td><td><b>拉取生产订单</b>（金蝶生产模块下推，含产品/数量/交期）——作为排产依据</td><td><b>轮询 10min</b> + 页面手动拉取</td></tr>
+    <tr><td>平台 → 小程序</td><td>订单/产品/工序级生产进度、预计完成时间、延期提示</td><td>API 回写 + 订阅消息通知</td></tr>
+    <tr><td>平台 → 金蝶</td><td><b>生产入库单</b>（<b>分批</b>入库）、BOM 发布（直发）、物料同步</td><td>K3Cloud WebAPI（经确认后推送）</td></tr>
+    <tr><td>小程序 → 金蝶（外部依赖）</td><td>销售订单推送（业务员录单后）——由小程序侧实现，本平台依赖此链路产出生产订单</td><td>小程序既有/规划接口</td></tr>
+  </table>
+
+  <h3>7.6 管理看板与强制推进机制（P0）</h3>
+  <table>
+    <tr><th>看板</th><th>内容</th><th>红灯规则（强制推进）</th></tr>
+    <tr><td>订单进度总览</td><td>待排产/在产/逾期/已完成分区；逾期与临期醒目提示</td><td>逾期=红；临期=黄</td></tr>
+    <tr><td>任务执行看板</td><td>各机台当前任务、完成率、剩余时间；未报工任务清单</td><td>超时未报工=红</td></tr>
+    <tr><td>产能负荷</td><td>机台×日期负荷热力图；瓶颈机台识别</td><td>负荷&gt;85% 预警</td></tr>
+    <tr><td>红灯管理</td><td>按责任人聚合的待办红灯，直达处理入口</td><td>未处理持续置顶</td></tr>
+  </table>
+  <p class="note"><b>强制推进设计</b>：所有红灯项可一键定位到责任人，配合企微/小程序消息提醒；管理看板数据每日复盘 —— 对应"管理上强制推进"的诉求。</p>
+
+  <h3>7.7 AI 模拟报价（P0）</h3>
+  <h4>7.7.1 输入</h4>
+  <ul>
+    <li>产品规格（尺寸/重量/壁厚等）、预估数量、客户、是否含模具费、目标毛利率。</li>
+    <li>可选的相近老品参照（AI 学习历史报价/成交数据）。</li>
+  </ul>
+  <h4>7.7.2 计算模型（第一版：规则引擎 + LLM 辅助，二期：历史数据训练）</h4>
+  <div class="schema"><span class="c"># 建议价构成（规则引擎）</span>
+建议单价 = (材料成本 + 加工成本 + 模具摊销 + 损耗) × (1 + 目标毛利率)
+
+材料成本   = Σ(材料用量 × 材料单价)          <span class="c">← 来自 BOM/报价数据底座</span>
+加工成本   = Σ(工序标准工时 × 工序费率)      <span class="c">← 来自工艺路线（机台费率/人工费率）</span>
+模具摊销   = 模具造价 ÷ 预估订单总数(或寿命上限) <span class="c">← 来自模具台账</span>
+损耗       = 材料成本 × 行业损耗率            <span class="c">← 来自报价参数配置</span>
+
+<span class="c"># LLM 辅助层</span>
+- 解析客户规格描述 → 结构化参数（用料判断/近似品匹配）
+- 解释报价构成、生成报价说明话术
+- 校验异常价（偏离历史成交价 ±30% 时提示）</div>
+  <h4>7.7.3 输出</h4>
+  <ul>
+    <li>建议价（含成本明细，可展开）、建议交期（<b>联动排产</b>：按当前产能估生产周期+排队缓冲）、报价说明。</li>
+    <li>业务员可调价 → 生成正式报价单（报价单可推小程序给客户）。</li>
+    <li>数据沉淀：每条询价/报价/是否成交/成交价留档，构成后续训练数据集。</li>
+  </ul>
+
+  <h3>7.8 发货管理（小程序增强 · 一期不打通金蝶出库）</h3>
+  <ul>
+    <li>业务员在小程序选择订单/产品/已生产数量发起发货；支持<b>分批发货</b>（订单可拆多次）。</li>
+    <li>可拍照、填收货信息/物流单号；出库数量不超过已生产数量校验。</li>
+    <li>发货完成记录发货状态（待发/部分发/已发完）并同步小程序与看板；<b>不推送金蝶销售出库单</b>（见 6.5 衔接说明）。</li>
+    <li><b>分批入库（已确认）</b>：报工完成即可<b>分批入库</b>（不必等全部完工），可入库量 = 报工完成量 − 已入库量；每次入库独立生成<b>生产入库单</b>推金蝶（成品入库、库存增加）；发货前校验金蝶库存余量防超发。</li>
+  </ul>
+
+  <h3>7.9 权限与审计（P0）</h3>
+  <table>
+    <tr><th>角色</th><th>权限范围</th></tr>
+    <tr><td>管理员</td><td>全部 + 系统配置 + 权限管理</td></tr>
+    <tr><td>工程/工艺</td><td>PLM 维护（产品/BOM/工艺/模具）、新品流程、报价参数</td></tr>
+    <tr><td>计划员/车间主任</td><td>排产、插单、任务管理、异常处理、看板</td></tr>
+    <tr><td>班组长</td><td>本班组任务查看、报工登记、异常上报</td></tr>
+    <tr><td>工人</td><td>本人任务、扫码报工（只读+报工）</td></tr>
+    <tr><td>业务员</td><td>报价发起、订单查看、发货（小程序）</td></tr>
+    <tr><td>老板/管理层</td><td>全部看板与报表（只读）</td></tr>
+  </table>
+  <p>关键操作（BOM 发布、排产变更、发货、调价）写审计日志。</p>
+</section>
+
+<!-- ===================== 08 数据模型 ===================== -->
+<section id="s8">
+  <h2><span class="no">08</span>数据模型</h2>
+
+  <h3>8.1 核心实体关系</h3>
+  <div class="schema"><span class="c"># 核心实体（ER 摘要）</span>
+Product(产品) 1─n BOM(材料组成) 1─n BOMLine(子项:材料/用量/损耗)
+Product 1─1 Route(工艺路线) 1─n RouteOp(工序:类型/产能/工时/换模)
+Mold(模具) n─n Product(一具多件/一件多副) 
+Mold 1─n MoldLife(开模次数/保养/维修记录)
+
+Order(订单:来自小程序) 1─n OrderLine(产品/数量/交期)
+OrderLine 1─n ProdTask(生产任务:机台/班组/数量/起止)
+ProdTask 1─n WorkReport(报工记录:数量/时间/操作人)
+ProdTask 1─n MoldChange(换模事件:耗时)
+
+Quote(询价) 1─n QuoteLine(规格/数量/估算明细)
+QuoteLine 1─1 QuoteResult(建议价/成本构成/建议交期)
+Quote 0─1 Order(成交后转订单)
+
+Shipment(发货单:小程序) 1─n ShipmentLine(产品/数量)
+Shipment 1─1 K3Result(金蝶出库单回执:单号/状态)
+
+User 1─n Role;  TaskLog(操作审计)</div>
+
+  <h3>8.2 关键表设计（核心 8 表）</h3>
+  <table>
+    <tr><th>表名</th><th>关键字段</th><th>说明</th></tr>
+    <tr><td>product</td><td>id, code(对齐金蝶), name, spec, unit, status, default_mold_id, route_id</td><td>产品档案</td></tr>
+    <tr><td>bom / bom_line</td><td>version, status(草稿/审核/已发布), item_id, qty, loss_rate</td><td>版本管理 + 发布状态</td></tr>
+    <tr><td>route_op</td><td>route_id, seq, op_type(注塑/吹塑/喷漆/效果/包装), capacity_per_hour, mold_change_min, shift_mode</td><td>排产与报价共用产能参数</td></tr>
+    <tr><td>mold</td><td>code, type, status, location, lifetime_openings, opened_count, last_maintain, product_ids</td><td>模具台账+寿命</td></tr>
+    <tr><td>order / order_line</td><td>src(小程序), status, product_id, qty, delivery_date, priority</td><td>订单来自小程序</td></tr>
+    <tr><td>prod_task</td><td>order_line_id, machine_id/team_id, qty, done_qty, plan_start, plan_end, status, mold_id</td><td>生产任务（排产结果）</td></tr>
+    <tr><td>work_report</td><td>task_id, qty, report_by(工人/班组长), report_time, source(扫码/登记)</td><td>报工流水</td></tr>
+    <tr><td>quote / quote_result</td><td>spec, qty, material_cost, process_cost, mold_amort, loss, margin, suggest_price, suggest_delivery, status(已发/成交/未成交)</td><td>AI 报价（含沉淀数据）</td></tr>
+  </table>
+  <p class="muted">完整数据字典在开发设计阶段输出，本 PRD 定义实体关系与关键字段口径。</p>
+</section>
+
+<!-- ===================== 09 技术方案 ===================== -->
+<section id="s9">
+  <h2><span class="no">09</span>技术方案</h2>
+
+  <h3>9.1 系统总体架构</h3>
+  <div class="schema"><span class="c"># 阿里云部署 · 前后端分离 · 服务化</span>
+┌─────────────────────────────────────────────────────┐
+│                   使用端 (Browser / 小程序)            │
+│   PC管理端(React) · 车间PAD/手机(移动端) · 已有小程序   │
+└──────────────────────┬──────────────────────────────┘
+                       │ HTTPS / WebSocket
+┌──────────────────────┴──────────────────────────────┐
+│              应用服务层 (阿里云 ECS · Docker)          │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  业务主服务：PHP 8 + Laravel（已定案）         │  │
+│  │  PLM · MES业务 · 排产编排 · 看板 · 发货 · 集成 │  │
+│  └───────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────┐  │
+│  │   计算微服务：Python FastAPI（1 人负责）        │  │
+│  │   [排产求解 OR-Tools CP-SAT] + [AI 报价规则引擎 │  │
+│  │    +LLM DeepSeek + 历史数据训练]               │  │
+│  └───────────────────────────────────────────────┘  │
+│  ┌───────────────────────────────────────────────┐  │
+│  │           集成网关 (API Gateway)               │  │
+│  └──┬───────────┬───────────┬────────────────────┘  │
+└─────┼───────────┼───────────┼───────────────────────┘
+      │           │           │
+┌─────▼───┐ ┌─────▼───┐ ┌─────▼──────────┐
+│ 金蝶云星空│ │ 已有小程序 │ │ AI 服务         │
+│ K3Cloud  │ │ (订单前端) │ │ LLM(DeepSeek)   │
+│ WebAPI   │ │  API     │ │ +历史数据训练池   │
+└──────────┘ └──────────┘ └────────────────┘
+数据层: 阿里云 RDS(MySQL8) + Redis + OSS(附件)</div>
+
+  <h3>9.2 技术选型建议</h3>
+  <table>
+    <tr><th>层</th><th>建议方案</th><th>理由</th></tr>
+    <tr><td>前端（PC 管理端）</td><td>Vue3 + Element Plus（与 PHP/Laravel 后台生态匹配度高）；甘特图组件 dhtmlx-gantt / 国产成熟组件</td><td>管理后台组件成熟；Vue 在 PHP 技术团队中普及度高、上手快</td></tr>
+    <tr><td>移动端（车间）</td><td>PWA / 手机 H5（扫码+点选）</td><td>免安装、扫码即用，贴合极简报工</td></tr>
+    <tr><td>小程序端</td><td>复用已有小程序技术栈，新增进度/发货页面与接口</td><td>最小侵入</td></tr>
+    <tr><td>后端（主栈）</td><td><b>PHP 8 + Laravel（已定案）</b></td><td>团队 3 人主力、与小程序栈一致、维护成本最低；排产/AI 为独立 Python 服务，不受主栈影响</td></tr>
+    <tr><td>排产引擎</td><td><b>Python FastAPI 微服务 + Google OR-Tools CP-SAT（开源免费）</b>；甘特图 dhtmlx-gantt/国产成熟组件</td><td>OR-Tools 对注塑"并行机+序依赖换模"有成熟解法、零授权成本；PHP 无绑定，故独立成 Python 服务，与 AI 报价共用</td></tr>
+    <tr><td>AI 报价</td><td><b>Python（同上微服务）</b>：规则引擎（成本构成）+ LLM（DeepSeek）辅助 + 历史数据训练</td><td>可解释、可控、可迭代；公司已用 DeepSeek；与排产求解合并为一个 Python 服务，1 人可维护</td></tr>
+    <tr><td>数据库</td><td>MySQL 8（RDS）主库 + Redis 缓存</td><td>成熟稳定，排产/报工并发场景足够</td></tr>
+    <tr><td>部署</td><td>阿里云 ECS + Docker Compose/K8s + RDS + OSS + HTTPS</td><td>云部署确认，运维轻量</td></tr>
+    <tr><td>消息</td><td>企微应用消息 + 小程序订阅消息</td><td>强制推进提醒通道</td></tr>
+  </table>
+
+  <h3>9.3 集成方案</h3>
+  <table>
+    <tr><th>集成对象</th><th>接口方式</th><th>内容</th><th>频率/触发</th></tr>
+    <tr><td>金蝶云星空</td><td>K3Cloud WebAPI（表单+自定义 API）</td><td><b>拉生产订单（轮询 10min，排产依据）、推生产入库单（分批入库）、BOM 发布（直发）、物料同步；不做销售订单推送/销售出库（一期，销售单链条在小程序→金蝶）</b></td><td>轮询（10min）+ 事件触发 + 定时对账</td></tr>
+    <tr><td>已有小程序</td><td>REST API + Webhook + 订阅消息</td><td>拉取订单；回写生产进度；发货单提交；报价单展示（可选）</td><td>事件推送 + 定时轮询兜底</td></tr>
+    <tr><td>AI 服务</td><td>LLM API（DeepSeek）+ 本地模型服务</td><td>规格解析、报价说明、异常价校验</td><td>调用即用</td></tr>
+  </table>
+  <p class="note red"><b>集成风险提示</b>：金蝶 K3Cloud 接口需确认授权方案与账套权限；建议一期先实现"推销售订单 + 推销售出库单 + 物料/BOM 同步"三个核心接口，其余逐步扩展。</p>
+</section>
+
+<!-- ===================== 10 非功能需求 ===================== -->
+<section id="s10">
+  <h2><span class="no">10</span>非功能需求</h2>
+  <table>
+    <tr><th>类别</th><th>需求</th></tr>
+    <tr><td>性能</td><td>排产引擎单次全量重排（100 个任务）≤ 30 秒；订单/任务列表查询 ≤ 2 秒；报工提交 ≤ 1 秒；看板秒级刷新</td></tr>
+    <tr><td>可用性</td><td>阿里云部署，核心链路 99.5% 可用；报工支持弱网离线暂存；金蝶/小程序接口故障降级不影响现场报工</td></tr>
+    <tr><td>安全</td><td>HTTPS 全链路；RBAC 权限；操作审计日志；敏感配置（金蝶密钥）加密存储；数据每日备份（RDS 自动+定期快照）</td></tr>
+    <tr><td>扩展性</td><td>模块化服务，支撑二期：机台数据采集、多基地、报价模型训练、移动端深化</td></tr>
+    <tr><td>兼容性</td><td>车间移动端适配主流手机（微信/浏览器扫码）；PC 端适配 Chrome/Edge</td></tr>
+    <tr><td>数据一致性</td><td>与金蝶同步采用"平台先行+金蝶回执+定时对账"；发货扣库存以金蝶为准，异常回滚可追溯</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 11 测试方案 ===================== -->
+<section id="s11">
+  <h2><span class="no">11</span>测试方案</h2>
+  <h3>11.1 测试层级</h3>
+  <ul>
+    <li><b>单元测试</b>：排产引擎（排序/分派/换模/插单顺延）、报价计算（成本构成/毛利）、报工防重校验等核心逻辑。</li>
+    <li><b>接口测试</b>：与小程序、金蝶的集成接口契约测试（含失败重试、幂等）。</li>
+    <li><b>场景测试</b>：重点业务流（录单→排产→报工→发货→出库）、异常流（插单顺延、减产、模具故障）。</li>
+    <li><b>验收测试</b>：按 4.1 验收标准逐项，车间真实环境试运行 2 周。</li>
+  </ul>
+  <h3>11.2 核心测试用例（示例）</h3>
+  <table>
+    <tr><th>#</th><th>用例</th><th>预期</th></tr>
+    <tr><td>T1</td><td>订单含 3 个产品，产能充足</td><td>自动排产到可用机台，交期满足</td></tr>
+    <tr><td>T2</td><td>插入紧急订单至满负荷机台</td><td>后续任务自动顺延，输出受影响订单延期清单，可回滚</td></tr>
+    <tr><td>T3</td><td>同类产品连续下达</td><td>引擎尽量连续排产，换模次数最小化</td></tr>
+    <tr><td>T4</td><td>工人扫码报工累计超任务量</td><td>防重校验拦截并提示</td></tr>
+    <tr><td>T5</td><td>小程序发货完成后推送金蝶</td><td>金蝶生成销售出库单、库存扣减、回执写回</td></tr>
+    <tr><td>T6</td><td>AI 报价 2 次同参数估价</td><td>结果一致（规则引擎部分确定性），说明可解释</td></tr>
+    <tr><td>T7</td><td>金蝶接口故障时现场报工</td><td>报工不受影响，集成队列重试</td></tr>
+    <tr><td>T8</td><td>手工拖拽任务到机台（选任意机台）</td><td>系统按标准产能+班制+换模时间自动计算结束时间并即时显示</td></tr>
+    <tr><td>T9</td><td>拖拽紧急任务插单</td><td>后续任务自动顺延，输出受影响订单交期变化清单，可回滚</td></tr>
+    <tr><td>T10</td><td>点击"自动排"全量重排</td><td>OR-Tools 求解器返回建议排程（秒级），可整版接受或回退</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 12 数据指标体系 ===================== -->
+<section id="s12">
+  <h2><span class="no">12</span>数据指标体系</h2>
+  <table>
+    <tr><th>类别</th><th>指标</th><th>口径</th></tr>
+    <tr><td>订单</td><td>订单准时交付率 / 逾期订单数 / 平均交付周期</td><td>对比合同交期与发货日期</td></tr>
+    <tr><td>生产</td><td>机台利用率（计划工时占比）/ 换模次数 / 平均换模时长</td><td>看板+月报</td></tr>
+    <tr><td>执行</td><td>任务按期完成率 / 报工及时率 / 未报工任务数</td><td>红灯看板核心</td></tr>
+    <tr><td>质量</td><td>次品率 / 异常次数（停机/缺料）</td><td>异常台账</td></tr>
+    <tr><td>报价</td><td>报价周期 / 报价成交率 / 估价偏差（建议价 vs 成交价）</td><td>驱动 AI 模型迭代</td></tr>
+    <tr><td>模具</td><td>模具利用率 / 剩余寿命预警数 / 保养按时率</td><td>PLM 报表</td></tr>
+  </table>
+  <p class="muted">埋点：报价操作、排产操作、报工、发货等关键事件全记录，用于效率分析与模型训练。</p>
+</section>
+
+<!-- ===================== 13 运营与推行 ===================== -->
+<section id="s13">
+  <h2><span class="no">13</span>运营与推行方案</h2>
+  <h3>13.1 推行策略（对应"管理没强制推进"痛点）</h3>
+  <table>
+    <tr><th>阶段</th><th>动作</th></tr>
+    <tr><td>试点期（2 周）</td><td>选 1-2 个车间试点：排产+报工+看板真实运行；班组长手机报工替代纸质；每日复盘红灯项</td></tr>
+    <tr><td>推广期（2-4 周）</td><td>全面上线；老板/管理层每日看板会议，红灯项当场派责；数据真实性与执行力纳入班组考核</td></tr>
+    <tr><td>固化期</td><td>报工推进到工人扫码；报表常态化；AI 报价试点 1-2 个业务员</td></tr>
+  </table>
+  <h3>13.2 培训计划</h3>
+  <ul>
+    <li>计划员/车间主任：排产引擎操作（自动/手动/插单/重排）专项培训。</li>
+    <li>班组长：移动报工 30 分钟上手训练（重点：2 步完成报工）。</li>
+    <li>工程/工艺：PLM BOM/工艺/模具维护 + 发布流程。</li>
+    <li>业务员：进度查询 + 移动发货 + AI 报价（小程序端操作说明）。</li>
+  </ul>
+</section>
+
+<!-- ===================== 14 项目计划与风险 ===================== -->
+<section id="s14">
+  <h2><span class="no">14</span>项目计划与风险管理</h2>
+  <h3>14.1 里程碑规划（建议 4 个月首期上线）</h3>
+  <div class="gantt">
+    <div class="row"><span>M1 需求与设计</span><div class="bar" style="width:25%;background:#1a56db">PRD确认→详设→原型</div></div>
+    <div class="row"><span>M2 平台开发</span><div class="bar" style="width:25%;background:#2563eb">PLM+排产模块(手工甘特+OR-Tools)+报工+看板</div></div>
+    <div class="row"><span>M3 集成与联调</span><div class="bar" style="width:25%;background:#d97706">小程序+金蝶+AI报价联调</div></div>
+    <div class="row"><span>M4 试点与上线</span><div class="bar" style="width:25%;background:#047857">试点→培训→上线→迭代</div></div>
+  </div>
+  <h3>14.2 风险清单</h3>
+  <table>
+    <tr><th>风险</th><th>影响</th><th>应对</th></tr>
+    <tr><td>现场执行不到位，报工数据失真</td><td class="bad">高——排产/看板失去意义</td><td>上线即强推：红灯看板+班组考核绑定</td></tr>
+    <tr><td>排产算法参数不准（产能/换模时间）</td><td class="warn">中——排产结果偏差</td><td>上线前采集真实参数；试运行期人工+系统并行比对</td></tr>
+    <tr><td>金蝶接口授权/稳定性</td><td class="warn">中——发货/订单链</td><td>一期收敛核心 3 接口；队列重试+手动兜底</td></tr>
+    <tr><td>员工习惯迁移阻力</td><td class="warn">中</td><td>管理层强推 + 极简交互 + 班组长意见领袖试点</td></tr>
+    <tr><td>需求蔓延（一次想做太多）</td><td class="warn">中——影响首期交付</td><td>严格执行 P0 优先，P1/P2 进版本池</td></tr>
+  </table>
+</section>
+
+<!-- ===================== 15 待确认问题 ===================== -->
+<section id="s15">
+  <h2><span class="no">15</span>待确认问题清单（评审必答）</h2>
+  <p class="note red">以下为撰写本 PRD 时采用的<b>默认假设</b>，请逐条确认或修正：</p>
+  <table>
+    <tr><th>#</th><th>问题</th><th>默认假设</th><th>你的确认</th></tr>
+    <tr><td>1</td><td>生产规模：注塑/吹塑机台数量？使用人数？</td><td>——</td><td>✅ 已确认：注塑/吹塑机约 20 台，工人共约 60 名（2 班）</td></tr>
+    <tr><td>2</td><td>基地数量：单基地还是多基地共用平台？</td><td>——</td><td>✅ 已确认：单基地生产，销售团队异地（小程序/移动端为主要使用场景）</td></tr>
+    <tr><td>3</td><td>黑湖历史数据是否迁移？</td><td>——</td><td>✅ 已确认：不迁移，从新系统起记</td></tr>
+    <tr><td>4</td><td>订单链路：小程序录销售单 → 推金蝶销售订单 → 金蝶下推生产订单 → 新系统拉取排产？</td><td>——</td><td>✅ 已确认（2026-08-26）：金蝶生产订单为新系统排产依据，<b>不直接从小程序拉单</b></td></tr>
+    <tr><td>5</td><td>金蝶对接范围首期收敛为：销售订单、销售出库单、BOM 发布、物料同步？</td><td>——</td><td>✅ 已确认（调整后）：不做销售订单/销售出库单；需要 <b>生产订单、生产入库单、BOM 发布、物料同步</b>（详见 #16 链路确认）</td></tr>
+    <tr><td>6</td><td>AI 报价首期用"规则引擎 + LLM 辅助"（价格可解释、人工可控）？</td><td>——</td><td>✅ 已确认：按"规则引擎成本构成 + LLM（DeepSeek）辅助"方案</td></tr>
+    <tr><td>7</td><td>报工过渡：先班组长手机代报，再推工人扫码？</td><td>默认按此过渡</td><td>✅ 已确认（现状班组长登记）</td></tr>
+    <tr><td>8</td><td>技术栈：主栈 PHP Laravel 还是 Java Spring Boot？</td><td>——</td><td>✅ 已确认（2026-08-26）：<b>PHP 8 + Laravel</b> 主栈；排产/AI 独立 Python 微服务（OR-Tools + DeepSeek）；前端 Vue3 + Element Plus</td></tr>
+    <tr><td>9</td><td>产品是否需要正式命名？</td><td>——</td><td>✅ 已确认：<b>「虹越智造平台」</b></td></tr>
+    <tr><td>10</td><td>报价单是否需要推送到小程序给客户确认？</td><td>——</td><td>✅ 已确认：业务员线下给客户，系统留档（供历史数据沉淀）</td></tr>
+    <tr><td>11</td><td>报工数据是否用于二期核算工人工资？</td><td>默认二期：一期确保报工准确可审计（按人留痕），二期按报工×计件单价核算工资</td><td>✅ 已确认（放二期）</td></tr>
+    <tr><td>12</td><td>排产策略确认：一期手工排产为主（便捷性重点设计）+ 智能排产（借鉴 OR-Tools CP-SAT）辅助一键推荐？</td><td>默认按此：手工排产是铁保底，智能排产辅助，二期再深化算法</td><td>✅ 已确认（智能不行则手工必须好用）</td></tr>
+    <tr><td>13</td><td>排产周期：一次排多久（滚动几天）？</td><td>——</td><td>✅ 已确认：<b>动态周期</b>——小单多/交期紧时按日滚动排；大单/长周期订单按订单周期拉长；周期可配置</td></tr>
+    <tr><td>14</td><td>是否需要审批流？（排产结果确认 / 发货审批 / 报价审批）</td><td>——</td><td>✅ 已确认：一期不设审批流；排产计划员确认即生效，发货/报价直接执行</td></tr>
+    <tr><td>15</td><td>车间报工设备：员工自带手机（BYOD）还是公司配发平板/手机？</td><td>——</td><td>✅ 已确认：员工自带手机；登录方案＝<b>微信扫码/企微身份免密</b>（首次绑定工号后免密）</td></tr>
+    <tr><td>16</td><td>外部依赖：小程序 → 金蝶销售订单推送是否已实现/计划实现？</td><td>——</td><td>✅ 已确认（2026-08-26）：该链路<b>已完成</b>，新系统无需处理，仅依赖其产出的生产订单</td></tr>
+    <tr><td>17</td><td>生产入库方式：全部完工才入库，还是分批入库？</td><td>——</td><td>✅ 已确认：<b>分批入库</b>（报工完成即可入库，可入库量=完成−已入库；发货前校验金蝶库存防超发）</td></tr>
+    <tr><td>18</td><td>金蝶生产订单下推机制与拉取方式？</td><td>——</td><td>✅ 已确认：金蝶侧下推（人工/工作流），新系统<b>轮询 10min</b> 拉取 + 手动拉取按钮</td></tr>
+    <tr><td>19</td><td>BOM 发布是否需要审批流？</td><td>——</td><td>✅ 已确认：<b>无审批流</b>，工程自审后一键直发金蝶（操作留痕兜底）</td></tr>
+    <tr><td>20</td><td>巡检采纳项：模具-机台匹配+模穴数、报工实际作业人/冲减/合格口径、报价参数配置页、任务进度偏差列？</td><td>——</td><td>✅ 已确认采纳（已同步原型与 PRD 各章节）</td></tr>
+  </table>
+</section>
+
+<footer>生产管理系统 PRD v1.0（评审版）· 2026-08-26 · 由用户访谈成果整理 · 确认后进入详细设计</footer>
+</div>
+</body>
+</html>

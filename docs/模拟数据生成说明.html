@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="k7N4wQeAD0DcLgKgzPf5Jn">
+<head data-page-node-id="QJgiGaic4mKDAWtjk1xlZt">
+<meta charset="UTF-8" data-page-node-id="HAeg7Vv7Izshq3aOTWIpLJ">
+<title>虹越智造平台 · 模拟数据生成说明</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 32px auto; max-width: 960px; padding: 0 20px; color: #1f2937; background: #f8fafc; }
+  h1 { font-size: 24px; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+  h2 { font-size: 18px; margin-top: 28px; color: #1e40af; }
+  h3 { font-size: 15px; color: #374151; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; background: #fff; }
+  th, td { border: 1px solid #e5e7eb; padding: 7px 10px; text-align: left; }
+  th { background: #eff6ff; font-weight: 600; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  .ok { color: #059669; font-weight: 600; }
+  .badge { display: inline-block; padding: 2px 10px; border-radius: 10px; font-size: 12px; color: #fff; }
+  .b-pending { background: #9ca3af; } .b-sched { background: #f59e0b; } .b-prog { background: #2563eb; } .b-done { background: #059669; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+  .arrow { color: #2563eb; font-weight: 700; }
+</style>
+</head>
+<body data-page-node-id="xSxeOnAAJYweSIxWFTyCEE">
+<h1 data-page-node-id="oQTuKOCIgvwV3ExFBMNWST">虹越智造平台 · 业务模拟数据生成说明</h1>
+<p data-page-node-id="9KVos8n1Zdl8dUAzw3KZEK">生成器：<code data-page-node-id="VlQkIm1qQevKB3mGW8nBtr">hongyue/database/seeders/DemoBusinessSeeder.php</code>（走真实服务层，非裸 SQL）｜生成日期：2026-08-31</p>
+
+<h2 data-page-node-id="r00DiJnKJUd87rmfpZwO5w">一、数据规模</h2>
+<div class="card" data-page-node-id="4vgngDX99qkUYqIfIjGPKs">
+<table data-page-node-id="zWB2QX6qDGtbpsRR5OXHox">
+  <tr data-page-node-id="8pGLI7RssRNnsSZKa8m2F6"><th data-page-node-id="mmp9CMFqhIHtDrrxzvG04M">实体</th><th data-page-node-id="kYnCNEvUZ9GshwJZ7m1vOi">数量</th><th data-page-node-id="D6Jo4B6Sv1UfRqVJgAu2SV">说明</th></tr>
+  <tr data-page-node-id="FeGWHt5IAvo3dxqQyJvhGd"><td data-page-node-id="mBR8z8AVc8Z4LTU29BCP0s">订单 Order</td><td data-page-node-id="HOHm9krq89nGhMfTF7yeqx"><b data-page-node-id="qjH7pNMfnmQHimgM1fqDRO">12</b></td><td data-page-node-id="9wDk33bx2ESELregxg9aSu">2 待排产 / 2 已排产 / 5 生产中 / 3 已完成</td></tr>
+  <tr data-page-node-id="k5uKxn9HcjRupfVWBUvy5A"><td data-page-node-id="PMXSABeZNpUPhw1hXjzKSm">订单行 OrderLine</td><td data-page-node-id="68spIvIK4NwHIHd6zLIiwM"><b data-page-node-id="9BfMKB483b8ynGKs8Fh8IV">13</b></td><td data-page-node-id="B9K784OU0ZildH5FVYmD5y">全部显式绑定 <code data-page-node-id="MFd4HrDMg8B23GIaTRR4Bl">mold_id</code>（订单—模具关联）</td></tr>
+  <tr data-page-node-id="E4AbVYjtSpwkAggb4uM6Ok"><td data-page-node-id="Q5aYqAkr9pBDNOhGUZjh57">生产任务 ProdTask</td><td data-page-node-id="zscUqDFB5CO8QOg2HH1pRD"><b data-page-node-id="OOy7OcotW8G4QjLFgWiQgW">13</b></td><td data-page-node-id="SP9SDVm62Oi1eyLAQuKgUE">每订单行 1 任务（含 route_id / mold_id）</td></tr>
+  <tr data-page-node-id="uXqvLS2kwbU2kEoLVFRdZw"><td data-page-node-id="ywenEFPUFoDgBUIVxzEVN1">工序排程 TaskSchedule</td><td data-page-node-id="KyFFOT3A3Zk5pflUxW8iJw"><b data-page-node-id="2zR4pZnWHpskmk4drpVgyO">44</b></td><td data-page-node-id="6rcg6PKc1DFO00IoitbxBI">4 工序全链（成型→喷漆→效果→包装）× 排产任务</td></tr>
+  <tr data-page-node-id="VijRsgsZkIg5frNUMLobKJ"><td data-page-node-id="h3dsugrRFjiZ4mw4vLlZCp">报工 WorkReport</td><td data-page-node-id="N6w3EXgP8MDf8QP7H8AnH6"><b data-page-node-id="lzroPtjHq2zBX46B334snN">24</b></td><td data-page-node-id="eJGykCZcWtDX7qORW4ZIxP">已完成订单全量、生产中订单 50% 进度</td></tr>
+  <tr data-page-node-id="WWyHDg0tde5o1ihBRLXAUW"><td data-page-node-id="OKjastotaK2rTraLDM3oja">模具寿命日志 MoldLifeLog</td><td data-page-node-id="BD7mFqozEwHfHH6tKJUTbl"><b data-page-node-id="cmDaukhWWjVBQGQGAf3tGM">24</b></td><td data-page-node-id="uYqSVaFhJ6wkOHbiiKP6tX">与报工一一对应（开模次数留痕）</td></tr>
+</table>
+</div>
+
+<h2 data-page-node-id="DAAXJqgk6lhw84wQS3XD8g">二、各类数据生成逻辑</h2>
+
+<h3 data-page-node-id="K8oIR9UnTul31acypJcxzc">1. 订单（12 单，覆盖全状态）</h3>
+<table data-page-node-id="Eb7H4QuLBqZPjNQX8R7HgW">
+  <tr data-page-node-id="BeC57gDACADFVT43fI2G59"><th data-page-node-id="hq1LUmYSJsHrPvWKZvF05Q">状态</th><th data-page-node-id="4XBNm7X938sb9hFDStXnKX">订单数</th><th data-page-node-id="MHCft6kBMlbOvlkrQ8ph9o">代表客户/产品</th><th data-page-node-id="u5pqBksozZON25doGPBRMm">业务含义</th></tr>
+  <tr data-page-node-id="dhFMuNsaAt3pm6itTZcSZs"><td data-page-node-id="TLM8mBkQrPiV0BcPgrWeGb"><span class="badge b-pending" data-page-node-id="tzz7iXOg6QoCeDgMyUU3N5">pending</span></td><td data-page-node-id="KdGGzCll1eyRuafVbh9LqJ">2</td><td data-page-node-id="OjrDYnkUGgG4EFCXnszJri">日用品商超（P-0003）、家居百货（P-0004）</td><td data-page-node-id="kWfs6dG2GhKeN8U66sSO5e">已录单未排产 → <b data-page-node-id="GA23CDi1wR72WbrhKWH5Oy">红灯“未排产”</b>，刻意不建排程</td></tr>
+  <tr data-page-node-id="yYUj39ii9jTPFclCq15ycB"><td data-page-node-id="dN8nA3ZosHTlupYt8m9v0k"><span class="badge b-sched" data-page-node-id="WVuqnHnPWs6hPYNjE8Z1B0">scheduled</span></td><td data-page-node-id="SgmprzgRMf9cYMg92kHho7">2</td><td data-page-node-id="Rrsa9WRwEr6anEyvK2gsDt">连锁餐饮（P-0001）、老字号食品（P-0002）</td><td data-page-node-id="uFwGpcn04BtWfKcI6ZGYjx">已排产未开工（排程时间已排定）</td></tr>
+  <tr data-page-node-id="OeZTmN7TDEZN8YyMK1Xjnf"><td data-page-node-id="fiPId94WCQrViU2qDaxONs"><span class="badge b-prog" data-page-node-id="VDIxg34s1zkxQd347g1DAC">in_progress</span></td><td data-page-node-id="1uEvCDrRXTiUTeGiH5JafY">5</td><td data-page-node-id="oFmbq0HzCGsHUckLkERq5B">美妆电商、快消品、洗护、外贸（双行）、餐具厂</td><td data-page-node-id="oqg0uMQhowTO4w7fYccRIv">在产：排程 + 前两工序已报工（50% 进度）</td></tr>
+  <tr data-page-node-id="kyjBwrqffzvMifuT44RbEv"><td data-page-node-id="NnFGwz2zzKFnGGjlFLNwWM"><span class="badge b-done" data-page-node-id="zQqKADpHDddf9ENq2gO2GB">produced</span></td><td data-page-node-id="8kT6nYpMrIwZYdBrprFKIK">3</td><td data-page-node-id="oEVL2HoV0YgZfBaYwTZ5qL">饮料灌装、碳酸饮料、美妆品牌二</td><td data-page-node-id="pKV0siXs9nh3FOiMUF49gP">已完成：全工序报工满额 → 任务 done → 订单完结</td></tr>
+</table>
+
+<h3 data-page-node-id="ajGWkCh4sGpOo2KoS37Psp">2. 任务（13 个）</h3>
+<p data-page-node-id="TEde40VGHPN6dBYi5e33hI">由 <code data-page-node-id="UYRsoLczt00N1f1VXkGsdb">OrderService::createOrder</code> 自动创建：每订单行 1 任务，绑定产品的默认工艺（route_id）与默认模具（mold_id），初始状态 <code data-page-node-id="oBkBKHZOR7dlcKWmcytBqv">unscheduled</code>。</p>
+
+<h3 data-page-node-id="DgEm4zzSdQUaAQA4qRw1R4">3. 排程（44 段 = 11 任务 × 4 工序）</h3>
+<ul data-page-node-id="iIvUjo07uu8OGs93OWzq1j">
+  <li data-page-node-id="qAkptqYGGuQW0C7Nzn5AHh">入口：<code data-page-node-id="gxF5voPh3EWufr074DeHaH">ManualScheduleService::save</code> → 引擎 <code data-page-node-id="4ZI3PICg7jBDlC5d3N0JDk">buildChain</code> 按工艺路线自动拆 4 段全链（成型机台 + 喷漆/效果产线 P-01 + 包装产线 P-02），各段 qty = 任务量、时间依产能/班制推算</li>
+  <li data-page-node-id="h9RBYg6SFkWBdSxEwYgFrX">成型机台取自模具适用清单首台（如 M-005 → I-03）；三匹配（产品-模具-机台）由引擎强校验</li>
+  <li data-page-node-id="Nfvx0At2mVRybzRG3swk8i"><b data-page-node-id="Cplj9u5WEhR4NrDwHilDeB">时间网格</b>：全部排程起点按 5 天步长错开（产线链最长约 4.3 天），同机台/同产线零冲突（实测通过）</li>
+  <li data-page-node-id="v7lATWvghaV41WiQ4pYLfQ">排程后任务置 scheduled；订单状态由 <code data-page-node-id="nJHFKPlwXL72RGZBbGahGx">syncStatus</code> 按任务状态聚合派生</li>
+</ul>
+
+<h3 data-page-node-id="YdSqIcuWDGhAaMcpp56W98">4. 报工（24 条，车间强匹配）</h3>
+<table data-page-node-id="GXEYpdeXiRAi6liwG2ffKK">
+  <tr data-page-node-id="MAXaGQVA5Qj5gZKbVkgoa6"><th data-page-node-id="LkHrgUtvl5sS2AGE22LdUR">场景</th><th data-page-node-id="lKvCBPyAZ5qVuJw5ZHbf5Q">逻辑</th></tr>
+  <tr data-page-node-id="tv3dOTGNi5VYua6n837jEs"><td data-page-node-id="galc5HjYCv4zbRaNrAnICE">已完成（produced）</td><td data-page-node-id="JCWi3Qsg6NXx7lFZKQpYkJ">任务累计报工 = 任务量 × 100%，按工序段均分（余数归末段）；完成后任务 done</td></tr>
+  <tr data-page-node-id="qJMKFY2qAlj5WUBR8bDAGU"><td data-page-node-id="z2y4gOLQZ5WVKjcMCzVKZW">生产中（in_progress）</td><td data-page-node-id="kAgpvJ03qkewEM5ILRcOZ9">前两段合计 50%（成型 35%、第二段 15%），任务保持 in_progress</td></tr>
+  <tr data-page-node-id="D4rCDuBdWLhYcSprlZuMcW"><td data-page-node-id="L0QGcuXwgeulCtzcwUsEJQ">报工人</td><td data-page-node-id="Hed7QVbcjHE840ApbGyBn5">按资源车间匹配：成型段注塑车间（W001）/吹塑车间（W005 补充工人）、喷漆效果段（W003）、包装段（W004）</td></tr>
+  <tr data-page-node-id="2DN5KDNijlgekopnQTJnzy"><td data-page-node-id="45FVTsA9bNe7qx1kC0acAO">口径</td><td data-page-node-id="I2Q1cpmYBvAGpKdrIVGKzC">任务完成 = 跨段累计报工达任务量（服务端 <code data-page-node-id="vioiHH1ZTGWd0bEh6JHGT5">assertWithinAllowance</code> 防超报）</td></tr>
+</table>
+
+<h3 data-page-node-id="qcrqXwxxJaVHIQMbOeBPvc">5. 模具使用量（与订单/报工严格对账）</h3>
+<p data-page-node-id="mQW4xGEsixuNi2TsLgdkYZ">通过报工事件链自动联动，非手工写入：<code data-page-node-id="XYd0kJOQ0pfa8TCSStMXQo">报工 → ReportSaved 事件 → UpdateMoldLife → opened_count += 合格数 ÷ 模穴数（ceil）+ 写入寿命日志（含 task/report 引用）</code>。</p>
+<table data-page-node-id="LfG55lOQjjZGVOeDCR7QqK">
+  <tr data-page-node-id="L4dsRJ7DrdOyAF0gdkXH00"><th data-page-node-id="vxkDxxuLrZhGWj1TBGQVdC">模具</th><th data-page-node-id="r1i2gmEhCAndRiNFpf0MlJ">类型/模穴</th><th data-page-node-id="GHhzohiENgQw1LV9Y4ovSK">opened_count</th><th data-page-node-id="TkOtaWGHyg27WQMQysI2xb">支撑订单（客户）</th></tr>
+  <tr data-page-node-id="ab2VBVkzGUVcDkv7lrVV6U"><td data-page-node-id="qoUcH5zTKBq0ePFsJp0gkB">M-001 直口杯模</td><td data-page-node-id="eoJXEG9TPz4qD1zGv6dp0Z">注塑 / 4 腔</td><td data-page-node-id="pHxJQ8e1ubwFCsfGTWNBOo"><b data-page-node-id="8Lyh3KmZ9cNPbpleA3oQZf">2498</b></td><td data-page-node-id="Lf1Yadek1BRpBDL99gt7wS">连锁餐饮、快消品、外贸（行2）、餐具厂、饮料灌装（produced）</td></tr>
+  <tr data-page-node-id="Ul3ZAH3q47cAYwSYKs16Qo"><td data-page-node-id="g5f3enhWy9hwkvnbUcD8h3">M-002 圆瓶模</td><td data-page-node-id="Uc8Cwt4DqTshfvqqixbGV0">吹塑 / 2 腔</td><td data-page-node-id="S2C09MYvShdAkDSTNWa5gO"><b data-page-node-id="8Pc4YtCPuCRbAGjSAoDhzH">3750</b></td><td data-page-node-id="gAOSOXfzplb5hQr2E9tfy9">老字号食品、洗护、碳酸饮料（produced）</td></tr>
+  <tr data-page-node-id="g7MOd5EX8PAG1nKgGQpSHu"><td data-page-node-id="fPR6meB7MCJb5Tpd1s4Ft6">M-005 喷雾瓶模</td><td data-page-node-id="zCTPIDyEtN97P5RHE46v1h">注塑 / 6 腔</td><td data-page-node-id="WMc0gqNQE434SLnh3TBGpn"><b data-page-node-id="Dq8N66ZFITmqi5E7XZ52WC">1413</b></td><td data-page-node-id="sZA2TKIejnIi7Em3tJUULn">美妆电商、外贸（行1）、美妆品牌二（produced）</td></tr>
+  <tr data-page-node-id="mPmTGkq4m3uVAVTQPXUL2z"><td data-page-node-id="QD0XnVsjTqSQrOgorXwxn4">M-003 / M-004</td><td data-page-node-id="Wv8J1vWVNBpplaO4xd3Kuu">方盒 / 提手桶</td><td data-page-node-id="8vTklxx8uO21CrDMvD6lqO"><b data-page-node-id="j8PYPoEiWZbwWwABl9FZdg">0</b></td><td data-page-node-id="xH98pP4hBuQ0H58CxqpeiG">仅待排产订单（未生产，无使用量，符合逻辑）</td></tr>
+</table>
+
+<h2 data-page-node-id="2Q7OAxG2aBeJz1B1RZ3FN3">三、实体关联关系</h2>
+<div class="card" data-page-node-id="ljXBwpkpM1crgEjNlVcU58">
+<p data-page-node-id="BLiR5jcKrVtUnS6CUpg5pT"><code data-page-node-id="doJ7HmYJAKbULlA0DYwqXT">Order 订单</code> <span class="arrow" data-page-node-id="lfkfOIrxqa69I8bZKIhBGO">→</span> <code data-page-node-id="UomzGPV8hEuu1sF6rpvoLn">OrderLine 订单行(mold_id)</code> <span class="arrow" data-page-node-id="Iw2hrvtet34xQECZFmyzf1">→</span> <code data-page-node-id="PCLWG2LntIEswggZznq1aG">ProdTask 任务(route_id, mold_id)</code> <span class="arrow" data-page-node-id="2zyRiNnhDtO4T8Beho4kdR">→</span> <code data-page-node-id="3K1HXQIvKRwwb9uWox5z71">TaskSchedule 工序排程(机台/产线)</code> <span class="arrow" data-page-node-id="Lwxv5wA163OKo8r6nCUpsC">→</span> <code data-page-node-id="v2V18OqDGtV0ogNyUvioPp">WorkReport 报工(schedule_id, worker)</code></p>
+<p style="margin-top:8px" data-page-node-id="FoMXfIPmKaGJR3qQvFWE0A">模具侧：<code data-page-node-id="TlIOWsrcvm7rs6XYmobBri">Mold.opened_count = Σ MoldLifeLog.opening_count = Σ(报工合格数 ÷ 模穴数)</code>；每条寿命日志可追溯到 task/report → 订单。</p>
+<p style="margin-top:8px" data-page-node-id="QLb2GxWTjCyD7CT1rOpuEc">状态联动：任务状态（unscheduled → scheduled → in_progress → done）<span class="arrow" data-page-node-id="2w6Grbx87qzLbMwPwC6bAi">→</span> <code data-page-node-id="mufVnu09BWaOqaLaVFCK4N">syncStatus</code> 聚合出订单状态；报工自动刷新任务进度与模具寿命。</p>
+</div>
+
+<h2 data-page-node-id="yI90rXGHZkRgPWBOjQZSRA">四、一致性检查结果（全部通过）</h2>
+<table data-page-node-id="ILtHcyzzzYOz7czrvMFepe">
+  <tr data-page-node-id="IzQFRPcr7EJyoPFpUZfAeD"><th data-page-node-id="O5vCYvskpsHoLWQ6JAvMBd">检查项</th><th data-page-node-id="xZPoj0Du1H8KuSinvEnVVD">结果</th><th data-page-node-id="MfZB51D40lsbDNQtCV44GQ">数据</th></tr>
+  <tr data-page-node-id="n6HkcFl70f65Uz6uJoBA3K"><td data-page-node-id="LfKAVYPBvfR2mEgaWST0gT">模具三重对账（opened_count = Σ寿命日志 = Σ报工÷腔数）</td><td class="ok" data-page-node-id="CKd3oQBN44lOo9tVxKaicK">✅ 全等</td><td data-page-node-id="JAhJerNSXi8AfjFVN3wEjm">M-001: 2498=2498=2498；M-002: 3750 全等；M-005: 1413 全等</td></tr>
+  <tr data-page-node-id="E4r1KqBwQF3ZhBz5WLJsNA"><td data-page-node-id="kwUSmuMXxKEyawt5ytuc8o">有使用量的模具必有订单支撑（通过寿命日志→任务→订单追溯）</td><td class="ok" data-page-node-id="UFFpNgpo8wqYMwNzGDiGqu">✅</td><td data-page-node-id="dR7EZ19nY6PBl8pwIxbQ2y">M-001/002/005 均有 3-5 个关联订单；无使用量模具（M-003/4）无生产记录</td></tr>
+  <tr data-page-node-id="xgAzSv06nqwNaIPBkbWI7o"><td data-page-node-id="zI5QNm7HiA8tZ9PF7YdZ6q">订单行模具绑定</td><td class="ok" data-page-node-id="ux2FxtmafEh5oQUidh4e6O">✅</td><td data-page-node-id="HqZvFjOJxStz1hpEYTtzzF">13/13 行 <code data-page-node-id="cFRQlrQ2EC58BsbdtJAX3F">mold_id</code> 非空</td></tr>
+  <tr data-page-node-id="dyA7r3qyOhWRQpddgHJ9j8"><td data-page-node-id="cDEhwzeePiuSVY7c8T6lsB">在产/已排/已完订单排程全覆盖；pending 零排程</td><td class="ok" data-page-node-id="aGmJ3q1G9WJ1GBndMLWZAD">✅</td><td data-page-node-id="wDEhLczcL0DeFS0O4AFYRE">in_progress 6 任务全排程；scheduled 2/2；produced 3/3；pending 0（红灯场景）</td></tr>
+  <tr data-page-node-id="lijpfJUHdSc9dlaFFvEGq2"><td data-page-node-id="8hPRwFQPB3vynoF3w2Ns9n">排程资源冲突</td><td class="ok" data-page-node-id="VnAo7iLJ5ZQ4sANQlJcSW9">✅ 零冲突</td><td data-page-node-id="Po7viNcLUNrDZbmBcO8GkQ">全量 save 通过引擎冲突检测（未用 force）</td></tr>
+  <tr data-page-node-id="WEF56MqR09i9q7in7NBZbs"><td data-page-node-id="q5PsNyA1E3rxI9mbeQSOiV">任务 done_qty = Σ报工</td><td class="ok" data-page-node-id="iQGq7VfBY6bLicMS89rAHv">✅ 0 缺口</td><td data-page-node-id="HznF9QL0d6BW5SDPZWt9xV">13 任务全部一致</td></tr>
+  <tr data-page-node-id="r9UPODzXI8b6twq9gTMe1c"><td data-page-node-id="s4FPEOvhUVHtaeqCbPJbpF">订单状态 ↔ 任务状态一一匹配</td><td class="ok" data-page-node-id="VQNOMiJTB1DPbMBjo8LyWA">✅</td><td data-page-node-id="LkcPLbPYQn85Y8TB6EajvT">pending→unscheduled×2；scheduled→scheduled×2；in_progress→in_progress×6；produced→done×3</td></tr>
+  <tr data-page-node-id="2OzUobxcun6aHMzH0ks3Lq"><td data-page-node-id="DEgkSt9JkDyIVXf5g4PN7z">报工上限（任务量+100% 超报）</td><td class="ok" data-page-node-id="swepWel9hnTSWeXRu27Ii8">✅</td><td data-page-node-id="3TSLbJpW9L0fCDKsG0Oz4F">全程无超限报错</td></tr>
+</table>
+
+<h2 data-page-node-id="XLeFPyJjlzjSDBfkX1iepG">五、使用说明</h2>
+<div class="card" data-page-node-id="xPYW0lGnvwskKeOj7kt43Q">
+<ol data-page-node-id="4p5VyIsYvgfCk4GaHZBnJL">
+  <li data-page-node-id="55DDWIngJGwJ42e9DqjyDf">重跑：<code data-page-node-id="2Xr5xM5BiCv3gcwFeqmLTT">cd hongyue && php artisan db:seed --class=DemoBusinessSeeder --force</code>（幂等：先清订单域与模具计数，再重建；不会影响主数据）</li>
+  <li data-page-node-id="VktbJ4Xn9iGxjtcAL7SsNa">顺带修复的存量问题：<code data-page-node-id="w22MtGHrQDLFrLDlfC4SoA">task_schedules.op_type</code> 列宽不足（迁移 000008）；老库用户 <code data-page-node-id="03Y2YlhVshxAk2eQIHC9bM">workshop_id</code> 缺失（生成器内幂等兜底纠正）；<code data-page-node-id="xGEi5txp6qEMNZT0DF6Bhg">mold_machines</code> 关联错乱（已按类型语义重建）</li>
+  <li data-page-node-id="l8Tnl1meKMalgjdJ2zhZVi">登录演示账号（密码 123456）：W001 注塑工人 / W005 吹塑工人 / W003 喷漆 / W004 包装 / admin</li>
+</ol>
+</div>
+</body>
+</html>

@@ -1,0 +1,32 @@
+# 本地环境与可能包含密钥的配置
+**/.env
+**/.env.*
+!**/.env.example
+
+# Git 元数据：保留原四个子仓库，不纳入顶层快照
+**/.git
+
+# 本地依赖、构建产物与运行缓存
+**/node_modules/
+**/vendor/
+**/.venv/
+**/__pycache__/
+**/.pytest_cache/
+**/dist/
+**/coverage/
+**/*.tsbuildinfo
+**/bootstrap/cache/
+
+# 本机运行与自动化调试痕迹
+.devlogs/
+.playwright-mcp/
+.workbuddy/
+--port
+/*.png
+/login-snapshot.md
+**/vite.config.ts.timestamp-*.mjs
+
+# 编辑器与系统文件
+.DS_Store
+.idea/
+.vscode/

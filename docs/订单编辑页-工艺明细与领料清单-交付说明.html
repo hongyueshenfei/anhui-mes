@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN" data-page-node-id="9pmuXMkq5Yt5ATkl0egJJ4">
+<head data-page-node-id="xwybXhlPXJEn5EWW0ubgAF">
+<meta charset="UTF-8" data-page-node-id="AurfbiXHJ2ZnDRQH6JnHXu">
+<title>虹越智造平台 · 订单编辑页（工艺明细 + 领料清单）交付说明</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; margin: 32px auto; max-width: 980px; padding: 0 20px; color: #1f2937; background: #f8fafc; line-height: 1.7; }
+  h1 { font-size: 24px; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+  h2 { font-size: 18px; margin-top: 30px; color: #1e40af; }
+  h3 { font-size: 15px; color: #374151; margin-top: 20px; }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 13px; background: #fff; }
+  th, td { border: 1px solid #e5e7eb; padding: 7px 10px; text-align: left; vertical-align: top; }
+  th { background: #eff6ff; font-weight: 600; }
+  code { background: #f1f5f9; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+  pre { background: #0f172a; color: #e2e8f0; padding: 12px 16px; border-radius: 8px; font-size: 12px; overflow-x: auto; line-height: 1.6; }
+  .ok { color: #059669; font-weight: 600; }
+  .warn { color: #d97706; font-weight: 600; }
+  .card { background: #fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 14px 18px; margin: 14px 0; }
+  .card.alert { border-color: #fcd34d; background: #fffbeb; }
+  .card.bad { border-color: #fca5a5; background: #fef2f2; }
+  .ro { background: #f8fafc; color: #475569; padding: 2px 8px; border-radius: 4px; font-size: 12px; border: 1px solid #e2e8f0; }
+  .ed { background: #eff6ff; color: #1d4ed8; padding: 2px 8px; border-radius: 4px; font-size: 12px; border: 1px solid #bfdbfe; font-weight: 600; }
+  ul, ol { padding-left: 22px; }
+  li { margin: 4px 0; }
+  .kv { font-size: 13px; color: #64748b; }
+</style>
+</head>
+<body data-page-node-id="1ghjjnM6DeWU2AJ7ZBmNyA">
+
+<h1 data-page-node-id="hkMPm4JsQFrwHDdiMfMiyT">订单编辑页 · 工艺路线明细编辑 + BOM 领料清单</h1>
+<p class="kv" data-page-node-id="DR9aggYeBorb9AAMVZGrTM">交付日期：2026-08-31　|　后端仓库 <code data-page-node-id="AkRYht6yYdvgJahQ50uTGW">hongyue</code>　|　前端仓库 <code data-page-node-id="COOP0SYUwHWVqMH97xKh6R">frontend</code>　|　两个仓库均无 git remote，未推送</p>
+
+<h2 data-page-node-id="RpYRoxzcgurxcrkYZsp1Yy">一、需求与已确认的边界</h2>
+<div class="card" data-page-node-id="L2s4rO0OVQMWU11CYxwbSw">
+<table data-page-node-id="iJTlghrPqq5yldgktaWFw6">
+  <tr data-page-node-id="XOSx2Bd0gPHWWnqx474Vsf"><th style="width:130px" data-page-node-id="4dn6Jw1GG1kqWYU5deHXrj">决策点</th><th data-page-node-id="1qOKteJlBkZfqOQ6sxDlOj">结论</th></tr>
+  <tr data-page-node-id="9YBKsIoD3jkaApkE3XNWhZ">
+    <td data-page-node-id="JxtufwNCqkaizFrCEmIzgG">订单内改工序的作用范围</td>
+    <td data-page-node-id="3HFqkkA8wCABLenb0xXz87"><b data-page-node-id="Legv7uEuaXWFmrEtvkMpex">仅当前工单生效</b>。给生产任务存一份工序快照（<code data-page-node-id="ceBfrVuGdzHflQXbrE2HT0">prod_tasks.route_ops_override</code> JSON），<b data-page-node-id="SBmyRFE2TzYkzTNcLUvQY5">不回写工艺路线库</b>，其他工单引用同一路线不受影响。</td>
+  </tr>
+  <tr data-page-node-id="R3wrwAUXV9PeC4P0qbOiyd">
+    <td data-page-node-id="zBPDwGhHFnlp71OmCOV1L1">领料清单的数据来源</td>
+    <td data-page-node-id="iiAuhVhBRdCQGjW1RF4d4i"><b data-page-node-id="o982AXU2Ueo1DKzFQRdDaK"> only 按已发布 BOM 计算，不落库</b>。不建库存表、不建领料记录表。<code data-page-node-id="dzIDO4FYbL5tncPODTssFe">已领数量</code> 恒为 0，<code data-page-node-id="48ELUIIVNTSELIAPanBeup">仓库批次</code>/<code data-page-node-id="S0FrY89RFMm1RvNNxYZ1QD">库存可用量</code> 返回 null（前端显示 <code data-page-node-id="x8d8SlLNDILVNQOUvtWYsz">-</code>）。</td>
+  </tr>
+</table>
+</div>
+
+<h2 data-page-node-id="KCfmU94WVBJ72AU0yi5q2t">二、数据结构改动</h2>
+<table data-page-node-id="90DoDHAupoId5eIWgermVU">
+  <tr data-page-node-id="lC0EgAuCAb42ejg951iTQM"><th data-page-node-id="rAIYK86sWNk7DQ0Ui71Nsu">位置</th><th data-page-node-id="Zl2AMn933NUtNTkqJEwXcD">新增</th><th data-page-node-id="cEkKA5LLOf5TJ8NR1ovomF">说明</th></tr>
+  <tr data-page-node-id="lWWiBj4wDH9Ykt0qRItr7W"><td data-page-node-id="iA7vtzpCPr1Bh8HCzh6ppG"><code data-page-node-id="SFUfqeUHrSkLlHavdTmx4z">route_ops</code></td><td data-page-node-id="EaM76g2nyVMos4XCweqr77"><code data-page-node-id="xRrAlkYOPSQfH9myAVLGqH">std_hours</code> decimal(10,2)<br data-page-node-id="eihyiSnIbE24bpFvxYR8a8"><code data-page-node-id="P8TZNZV2GniAsXT0B5RWIl">owner_id</code> bigint → users<br data-page-node-id="CbvOY72izUsGPjS4hge0rT"><code data-page-node-id="NENdV2LTbBNvLDIgjC5DCK">remark</code> varchar(255)</td><td data-page-node-id="1jwYd5lMkx6tBWIxyHU9yS">标准工时（小时）/ 工序负责人 / 备注。原 <code data-page-node-id="iDVxz26X81OqmKHhDPLz0K">capacity_per_hour</code> 已被迁移 000009 删除，这三个字段是本次补齐。</td></tr>
+  <tr data-page-node-id="2pe1Voujb5154LBQ6XDc8t"><td data-page-node-id="f6WzpBM6MFvHh7THX7MV8F"><code data-page-node-id="KWbITiyo5u21XVWKSkXds0">prod_tasks</code></td><td data-page-node-id="fzQIpGxz97EhrK3RxYNEH0"><code data-page-node-id="kc74UcShmSr6aIEDNM2j3s">route_ops_override</code> json</td><td data-page-node-id="3tiVBmCOvB7rfS4coTTraH">订单级工序明细快照，NULL = 沿用工艺路线库</td></tr>
+</table>
+<p class="kv" data-page-node-id="MkODNDZD3Qxubfd0TpPN6p">迁移文件：<code data-page-node-id="VqdY689D37meSQYQDc1mEt">2026_08_31_000010_add_std_hours_owner_remark_to_route_ops.php</code>、<code data-page-node-id="psVpJl5XBGRj41gk0JsPJN">2026_08_31_000011_add_route_ops_override_to_prod_tasks.php</code></p>
+
+<h2 data-page-node-id="ZEuszyNN2TbiLndFdnnJ3j">三、后端接口</h2>
+<table data-page-node-id="uyMCfOGrc1XaGeBmxDAK11">
+  <tr data-page-node-id="kBcFDKaXoo1swztc2BXINH"><th style="width:230px" data-page-node-id="uxI54QJogSlacZdP8mizTx">接口</th><th data-page-node-id="CYfUNzUjNElLsduC3q7Klj">权限</th><th data-page-node-id="2As3nHAAW81E9KQx0zua70">说明</th></tr>
+  <tr data-page-node-id="UKUEJsKXH54EIt3gBb1Umu"><td data-page-node-id="Kz2C4DCk36pkW8YEGQ6AhI"><code data-page-node-id="AQ0AIG9L5QKCgnOWFsmYxU">GET /api/orders/{id}/route-ops</code></td><td data-page-node-id="9rR0uEnkDJCfLk2DOsTWsT">order.view</td><td data-page-node-id="71sdhz9NhAi4Ou74bF7GA2">按任务返回工艺明细；<code data-page-node-id="CqezrRhDId5mAtHLL86JmN">editable</code> = 订单处于 <code data-page-node-id="GacJRJWiKs342Xu6GmkIP5">route_confirm</code>/<code data-page-node-id="SZiCzFtib6uhDsHZZhsMIH">pending</code>；<code data-page-node-id="ij4De0INgFBQwmB63LyWzi">overridden</code> 标记是否被定制</td></tr>
+  <tr data-page-node-id="LP4sFhfHpr2GTGgjqxiazp"><td data-page-node-id="uUYqoOPsg5mPIzu1Q9Fvhf"><code data-page-node-id="UKzAKDHr0sE4gNqWonmFSW">PUT /api/orders/{id}/route-ops</code></td><td data-page-node-id="4YekSMH1VoE8FGns5FFzXX">order.manage</td><td data-page-node-id="F45CsJlElLfaKOJMd7koIJ">保存订单级工序明细；支持 <code data-page-node-id="yEYBtNerDzEtM9M6GhTV4M">restore_standard: true</code> 清除定制</td></tr>
+  <tr data-page-node-id="urJmyIGKIZXXgJD7y4eSSX"><td data-page-node-id="nJu0ewYHnwSlyJEbSTTY6E"><code data-page-node-id="jYj0nEVp71O0NbEyrb5qRW">GET /api/orders/{id}/pick-list</code></td><td data-page-node-id="wVGEI0juhHHy7OoH29UGSG">order.view</td><td data-page-node-id="d20P5axbu28gpR6MuazN1w">领料清单（只读计算）</td></tr>
+  <tr data-page-node-id="u0lxs81p3DDzv60olUKiXz"><td data-page-node-id="DS0Ewt5FvtB4KOBw8JlhbF"><code data-page-node-id="GNhhUwKsCZAu9TIrUmd9ko">GET /api/system/users/options</code></td><td data-page-node-id="BBAmYEEWHobcoPJqQBIuHj">order.manage 或 system.user.manage</td><td data-page-node-id="GKaFCGLUiHNcbVPDHqqlKJ">「负责人」下拉候选（在职用户）</td></tr>
+</table>
+
+<h3 data-page-node-id="ZWCzoRjAdVhzkGPCsHegxd">校验规则（PUT route-ops）</h3>
+<ul data-page-node-id="LQQZkE8iPkZTKtEhe8vEot">
+  <li data-page-node-id="EIAONOB7IUQK9VnBXa9RLX"><b data-page-node-id="5N8obAOjJVuXIUfWSBWUJ0">状态门禁</b>：仅 <code data-page-node-id="haNhkbobrvFD0fgnXMTjYF">route_confirm</code> / <code data-page-node-id="cnMbKIsfrsAWkB7HsLtiSl">pending</code> 可编辑，已排产及之后一律 422</li>
+  <li data-page-node-id="6KJT12F3K8iuXLBxavWJO6"><b data-page-node-id="d8LCzbiMLalzL9QwyE3KJz">逐工序必填</b>：<code data-page-node-id="NPrz6t77biGBFmpiQnMTAP">op_name</code>、<code data-page-node-id="1fSo5d2r2OAJ0bfjTHycLX">workshop_id</code>；成型工序（注塑/吹塑）必须选机台且 type 匹配；人工线工序必须选产线</li>
+  <li data-page-node-id="5ODGLylFs5oQWM5bCpzXqF"><b data-page-node-id="4OhYG4aYtLN5SdLDgYYqCh">seq 强制重排</b>：无论提交顺序如何，落库一律 <code data-page-node-id="1inGjWdY8A3fJieA8mZL4j">1..n</code></li>
+  <li data-page-node-id="rZA1hG4V3hdy2o5DM93TPK"><b data-page-node-id="I8k8s2Y9RPVgReZIW2RqDy">空工序拦截</b>：<code data-page-node-id="ulKXutSykwWO2yz30VJzAr">ops: []</code> 且未带 <code data-page-node-id="FhZ2adNMzeOqK0Dy7rUc4S">restore_standard</code> → 422（防止用户把工序删空还能保存）</li>
+</ul>
+
+<h2 data-page-node-id="p2AovU6Lvq1HKjhD8fC9VI">四、前端交互</h2>
+<div class="card" data-page-node-id="035GpJTehSLdy2tZoU2Crr">
+<p data-page-node-id="oz6Nrovm9a9nS39nC9rs7F">「编辑工单」弹窗改为 <b data-page-node-id="rgVj26K2LsLYxlcqhOyDuh">el-tabs 三页签</b>，宽度响应式：桌面 <code data-page-node-id="tWwqOYMIXzZ1B31wqPZi7b">960px</code> / 移动端 <code data-page-node-id="IxYztLIDwu7Lkkz1b1P4uO">96%</code>（<code data-page-node-id="93eCavqP5SMGotZoOKwsIH">matchMedia('(max-width: 768px)')</code>）。</p>
+
+<h3 data-page-node-id="JfPHa89ix3ZrmPGchlgVzf">Tab 2 · 工艺路线明细</h3>
+<ul data-page-node-id="RXM8ChP8WGTPmttDyhcAZk">
+  <li data-page-node-id="K4eXcCCrmSXzuqQagllFa0">按生产任务分组：任务号 + 产品 + 数量 + 工艺路线下拉；右侧 Tag 显示「已定制」/「沿用标准」，已定制时提供「恢复标准路线」</li>
+  <li data-page-node-id="i5z4HGkli2g6qihp4WQOCU">切换路线时若该任务已定制，二次确认后覆盖</li>
+  <li data-page-node-id="2GJ9ZF8Mjwk6NaisbbKLGa">行内编辑表格：<span class="ed" data-page-node-id="3lzrMltKPMLSym5uJZAryI">工序名称</span> <span class="ed" data-page-node-id="QAzOD373IlRAqTEIGiqeqq">工作中心设备</span> <span class="ed" data-page-node-id="IWIcF5kHowvBNgpLhARie7">标准工时</span> <span class="ed" data-page-node-id="EeQUwKVKZEjxtc5ecmjrwC">负责人</span> <span class="ed" data-page-node-id="Q0oDo3YgQjpk8sGt0sM59v">备注</span>，<span class="ro" data-page-node-id="Fu9fAWMBOMfSM7cIlB5PCO">序号</span> 只读并重排</li>
+  <li data-page-node-id="e4bBNFLNIdLP5fbDHVc3op">工作中心设备按当前行 op_type 过滤候选（注塑→注塑机、吹塑→吹塑机、喷漆/效果→喷漆线、包装→包装线），按车间分组</li>
+  <li data-page-node-id="gWXNSHEWsJJweHSyEX1Iu3">操作：上移 / 下移 / 删除 / + 添加工序；保存前校验必填并定位到具体行</li>
+  <li data-page-node-id="ujOzyEADWvGJK4tBpIhhMJ"><b data-page-node-id="PLxfoPYLoxnzDStw7F2hzr">取消不落库</b>：草稿只存本地 reactive 对象，点取消不调用任何写接口；再次打开重新拉取</li>
+</ul>
+
+<h3 data-page-node-id="6FW7zGKvslWlMS2LqBTn3P">Tab 3 · 领料清单</h3>
+<ul data-page-node-id="74u1zLswFQAz9wVePIQ1ix">
+  <li data-page-node-id="AdKhviB5gREY1OJKHkQ0Sk">按订单行分组，行头显示 行号 · 产品 · 订单数量 · BOM 版本；无已发布 BOM 时显示告警 Tag</li>
+  <li data-page-node-id="VQRrNFEqnqzfJNCys1Ps4Y"><span class="ro" data-page-node-id="QsC6xTeqYmCxeUhR52FXqP">物料编码</span> <span class="ro" data-page-node-id="GFkcBsaCP0VDYaertKKbWB">名称</span> <span class="ro" data-page-node-id="AMD31X8TRGQAMPJ1KscdJU">规格</span> <span class="ro" data-page-node-id="evoC5CNRQk2TdY09NA1J9G">单位</span> <span class="ro" data-page-node-id="fvfOGGpbLwqseHQFYSEmAq">订单需求量</span> <span class="ro" data-page-node-id="EZxYCjbc4K8jGxT1oE36fR">仓库批次</span> <span class="ro" data-page-node-id="GZZVzESvGQICJuLZjGKlSp">库存可用量</span> <span class="ro" data-page-node-id="1EjAR2M1SZUujHqUw6cPIh">已领数量</span> 均为只读（浅灰底 <code data-page-node-id="8NOMxQPpmov7PcXjxf77UN">.readonly-cell</code>）</li>
+  <li data-page-node-id="YFtzncQK09CABkpyArtwOC"><span class="ed" data-page-node-id="wcoNDG8pNnFkabzKpoYYR8">本次待领数量</span> 可编辑，上限 = 订单需求量，超出时夹到 max 并提示</li>
+  <li data-page-node-id="9jrWvmFhhObbvQC8Wl0e3N">顶部提示条说明「仓库批次与库存暂未接入，按已发布 BOM 计算」</li>
+</ul>
+</div>
+
+<h3 data-page-node-id="D6eqTUdRH72DlZT7RAWfO6">需求量算式</h3>
+<pre data-page-node-id="l8vM2DGLqxxhN9LkhAVKy2">required_qty = round(unit_qty × 订单行数量 × (1 + loss_rate/100), 4)
+本次待领默认带出 remain_qty（= required_qty − issued_qty，本 issued_qty 为 0）</pre>
+
+<h2 data-page-node-id="WP2QVY515PruCbdb8uFhNl">五、种子数据补充</h2>
+<table data-page-node-id="WJKvOKpjl5qm9YsWocHxXs">
+  <tr data-page-node-id="suNEQaXBZAHpDDVrW3OFYE"><th data-page-node-id="l6cH8PStjlxHegkuzMsJMn">项目</th><th data-page-node-id="X6RIjAlZOk6oI0d1kjYV0P">之前</th><th data-page-node-id="EItkUsFmyx2ie0VYYhNacn">现在</th><th data-page-node-id="rRDaRvuYavkxOtRrcOUXWe">说明</th></tr>
+  <tr data-page-node-id="pveqmBNLmK8jgIT8ecDbGb"><td data-page-node-id="y9NoUFfLVFimAKIMaaNkLw"><code data-page-node-id="hzUkiCdBQxEVouOhzJp1AH">materials</code></td><td class="warn" data-page-node-id="Ml7uz85dBsBbUAG9IPIMkP">0 行</td><td class="ok" data-page-node-id="V5K4gvXNzD9l211JnHTEDK">10 行</td><td data-page-node-id="TtsO3kdi8aboY1FR6hvd0U">新增 <code data-page-node-id="ydpZiDscVRAXabwsmdFKmS">MaterialSeeder</code>，code 与 BOM 的 item_code 对齐，用于回填「规格」</td></tr>
+  <tr data-page-node-id="5a4ZgaJZLBFOSomqxcAqiw"><td data-page-node-id="R8Ogp74iV2vCAPqBcOJbfs"><code data-page-node-id="bXk8fBQdrwRR6m5Y6i7Xr4">bom_lines</code></td><td class="warn" data-page-node-id="VHbo3GL6ntekPWwHD5WgFk">4 行（仅 2 个 BOM）</td><td class="ok" data-page-node-id="hYYWtkEkKilBQkOfERZMJA">27 行（6 个 BOM 全覆盖）</td><td data-page-node-id="obZd9aCNhON7jGfgSG9RHv"><code data-page-node-id="nHlJLSuKGCkcJYN3Ez1bDw">ProductSeeder</code> 补齐，按产品克重换算单件用量，幂等（已有则跳过）</td></tr>
+</table>
+
+<h2 data-page-node-id="l73nSe5BulW0ckQBbXyqXb">六、验证结果（独立复跑，未采信同事报告）</h2>
+<table data-page-node-id="TfulmJxHUIGBDml1g8UqI2">
+  <tr data-page-node-id="FblCYBr7CvpG3TC0QTZl48"><th style="width:150px" data-page-node-id="LWJpv4NwUUFHh9B02rFtrX">验证项</th><th data-page-node-id="jlS3kAP2dl5vLxU9fkwpJE">结果</th></tr>
+  <tr data-page-node-id="dOEuWZpFNq72tnSfp7dQ4K"><td data-page-node-id="KGoZX6lPkKbdfVF6umTOVo">后端全量测试</td><td class="ok" data-page-node-id="vfk4u1Ix2L8P1FCCoVzl8z">327 passed</td></tr>
+  <tr data-page-node-id="WTKFLVGntBxq2Wt3JG4sv7"><td data-page-node-id="a1X6ktwJfJEoCsC7OR6wtO">新增用例</td><td class="ok" data-page-node-id="fpTZs0sWmhMpWf4jENoArU">13 用例 / 124 断言</td></tr>
+  <tr data-page-node-id="iFPrz22HJC6ql2aajFSK4y"><td data-page-node-id="MtEhTfjrz8kEM8qlQcLIkz">前端类型检查</td><td class="ok" data-page-node-id="mBVtYD0NyKlJgerklD9gn8">vue-tsc 0 error（在 HEAD 上用 git worktree 独立验证）</td></tr>
+  <tr data-page-node-id="5rIttwflu1Op3Qx5rAxcS4"><td data-page-node-id="CpKPtuT05ArGFsRbe1If9Z">订单级改动不污染工艺路线库</td><td class="ok" data-page-node-id="6MHyssNcz4XjLlOKlmmwVg">通过 —— 订单改成 3 道后，route 8 仍为「注塑/喷漆/效果/包装」4 道</td></tr>
+  <tr data-page-node-id="bsvwEYm1NCny0LdSfRjwJU"><td data-page-node-id="aFJtLDu1R5McRExXOLGQZR">落库与回读</td><td class="ok" data-page-node-id="VfDxviIfIirdTdExvbN2Jk">通过 —— 工时 3.75、负责人、备注、重排后的工序全部正确回显</td></tr>
+  <tr data-page-node-id="EBTu20rRgChh4BzMM553kK"><td data-page-node-id="pQ5VBsAaTVfNYDinD4sAjl">必填校验</td><td class="ok" data-page-node-id="6ywMiOadaxnpEU5u4b4pXy">工序名空 → 422；成型缺机台 → 422；workshop 不存在 → 422</td></tr>
+  <tr data-page-node-id="JHBz6TlUVKjZ73HqSGerwx"><td data-page-node-id="XOYgNDhGHcp6MaCAyQR8fO">状态门禁</td><td class="ok" data-page-node-id="D9KpDBXQc39HtOddE9cRFH">已排产订单 PUT → 422「仅工艺确认/待排产状态可编辑」</td></tr>
+  <tr data-page-node-id="g67lKyc0FGtiBDuRDaRCuB"><td data-page-node-id="7Pi7ZXCw3OEkUGiGG3Z5Hn">恢复标准路线</td><td class="ok" data-page-node-id="lT6b6v1bmNsVN2JANR40nv">通过 —— 清空后回落到路线库 4 道标准工序</td></tr>
+  <tr data-page-node-id="iwofjYEGRr6g2k72I1qrN9"><td data-page-node-id="nyDA9K9HvBl0bTOgacb7YL">领料算式</td><td class="ok" data-page-node-id="8XpopCpFNXoSaaL0E7AF9L">独立复算一致：PP 112.2、彩盒 5025、色母 2.525、外箱 101、标签 5025</td></tr>
+</table>
+
+<h2 data-page-node-id="AMgVsUR96oB7unNMlhCigG">七、过程中修掉的两个缺陷</h2>
+
+<div class="card bad" data-page-node-id="KOgnyNlPDFE4FHLpEKYDCR">
+<h3 data-page-node-id="AVPp00DNuY3F3HVLAg3v2o">缺陷 1 · 前后端语义对不上（双方单测都覆盖不到）</h3>
+<p data-page-node-id="jDKmEOC3qLXkkOGK6ksQGl"><b data-page-node-id="OdZpa7FAKTwXj3lXSZd9NU">现象</b>：前端「恢复标准路线」提交 <code data-page-node-id="1UYqn5ZITA1SnA2HWCFty4">ops: []</code> 表示清空定制；后端 <code data-page-node-id="B8vQ6HY0xvPS2XmTtG9twS">OrderService</code> 把空 ops 判为非法输入直接 422 → 该功能点了必然报错。</p>
+<p data-page-node-id="kRYx6Ky4Qit79S1NFytG1Z"><b data-page-node-id="4ci1OaeLeqZxJTmRtxR97T">修法</b>：引入显式布尔 <code data-page-node-id="zJI5ytSyAJKN03hi4hca5I">restore_standard</code> 区分「清除定制」与「非法空工序」，<b data-page-node-id="lxyGcELkHXlmprPF4TneOx">不放松</b>空工序校验。</p>
+<p data-page-node-id="qxqqqUNXIshi3Ez96cRCDm"><b data-page-node-id="yTiRke9A2xQEpe6IDFn5KH">第二层（更隐蔽）</b>：控制器 <code data-page-node-id="LVvRmoIhzmnua2hjvDFt0o">'tasks.*.ops' =&gt; 'required|array|min:1'</code> 会在 validate 层就拦掉 <code data-page-node-id="0yGBb6PYMbhftqtPjibid0">ops: []</code>，service 里的分支根本走不到 —— 必须同步改成 <code data-page-node-id="VQagntmgcGASUHJuB1if71">required_unless:tasks.*.restore_standard,true</code>。<b data-page-node-id="BngMIDsQTY3zYPSJTUKMOc">只在 service 层改是不够的。</b></p>
+</div>
+
+<div class="card bad" data-page-node-id="bhDFJnixfjQnFD0hb1oxLq">
+<h3 data-page-node-id="UPBKBZSwGdGfETkfAyF4nd">缺陷 2 · 演示数据遗留值导致领料清单数值失真</h3>
+<p data-page-node-id="dPw8lVC3D1Piw7i3QrTyek">BOM 1/2 的 RAW-PP-001 是历史遗留值 <code data-page-node-id="EufHYBDbgfunwREzaQI4GB">1.02 kg/件</code>，5000 只杯子算出 <b data-page-node-id="SxDW9xBhLAdKDWcUHbCIBF">5202 公斤</b> PP，明显不合理。因 seeder 幂等跳过已有行而残留（全新安装走的是新口径 0.022）。</p>
+<p data-page-node-id="bTsSt04Bkf4WXu11tYAidz"><b data-page-node-id="8bOm4eaLFy8khAkxVl3T6l">处理</b>：已手动将开发库该值修正为 <code data-page-node-id="csQVmZ0mS7dyziCKh2rUYr">0.0220 kg/件</code> → 5000 只 = <b data-page-node-id="QrLn9MOjpiBKzJOAgkfmID">112.2 kg</b>，与新口径一致。</p>
+</div>
+
+<h2 data-page-node-id="pzl0Ungx7VFE8YsVpFv33r">八、已知问题与待办</h2>
+<div class="card alert" data-page-node-id="ds4516mNcONU2Y3xMsqCEe">
+<ol data-page-node-id="O1SZZGeW5gZ8zEu0DyUC5A">
+  <li data-page-node-id="2lWLDlGrmFy8Qd8hEXEamG"><b data-page-node-id="xQDCufLKAEx4wIBnMAdDBo">并行会话的改动被卷入本次提交</b>：前端 <code data-page-node-id="LHKZb7sevQ2Zt54RK5we77">d3f07d3</code> 误将并行同事的「工艺路线名称+版本唯一校验」与 <code data-page-node-id="mFAYZRE8zoRhbbWHMzLD28">pauseOrder/abortOrder/closeOrder</code> 三条 mock 路由一并提交。<b data-page-node-id="pc2SKVQqwjEaE4AUsD48vA">代码未丢失</b>（内容完整，已在 commit 中），但归属不准确。</li>
+  <li data-page-node-id="jF9Fmc17GqkVFFZyignEpk"><b data-page-node-id="k19DZO7jcjwSSehWpADDcY">由此导致 HEAD 一度编译不过</b>：mock 层的 paused/aborted/closed 已提交，但 <code data-page-node-id="pg9mD6941fhw9LfZJIbKxR">types/schedule.ts</code> / <code data-page-node-id="UMoFXVEw53jkhDEOHOk2QK">types/dashboard.ts</code> 的状态联合类型扩展还留在工作区 → HEAD 上 vue-tsc 报 3 个 TS2322。已补提 <code data-page-node-id="Rj7AfIhZKLoxtCs6Rcp8Oo">304c6b0</code>（仅 2 文件 4 行）修复，并验证 HEAD 恢复 0 error。</li>
+  <li data-page-node-id="MWUyEetHGFVimF0i7Q5YjU"><b data-page-node-id="ajcw593ROi6pG63eO9JoSm">仍在工作区未提交的并行改动</b>：后端 <code data-page-node-id="vvIbyKGKfZU0nzAcF15IP6">RouteService.php</code>（放开已发布/已禁用可编辑）、<code data-page-node-id="8DRjKg08U8NMcMK2BstvVK">000012_renumber_bom_line_seq</code> 迁移、工单 paused/aborted/closed 状态扩展；前端 <code data-page-node-id="ed9Zz9xRATvOO2eGI28x5b">OrderDetailView.vue</code> 44 行（日期格式化 + 列宽自适应）、<code data-page-node-id="2XlBVrYo4wtHMPnGm5HYKg">composables/</code>、<code data-page-node-id="aZxDOiuwtW4gbkA8Qr7aMl">utils/datetime.ts</code>。这些属于并行会话，需对方自行提交。</li>
+  <li data-page-node-id="5fEaePE2nRezwi7XS7ZJcU"><b data-page-node-id="f6FpCr01kpDEXEYSC7CNdc">两个仓库均无 git remote</b>，本次全部提交仅存在于本地。</li>
+</ol>
+</div>
+
+<h2 data-page-node-id="zZ7GrluAa12lLgZT0ZyXhm">九、提交清单</h2>
+<table data-page-node-id="wqWTFHrpVWmMftWIbpcy6L">
+  <tr data-page-node-id="QRCy9Z8gebnuYviSEHGaLP"><th data-page-node-id="gyIRRRYjDn472mXAAEXHxm">仓库</th><th data-page-node-id="qxXdyLs0rYWbBQ9rylOi2U">Commit</th><th data-page-node-id="oQnzS8rLbPSsiCRymHtrG7">说明</th></tr>
+  <tr data-page-node-id="p0bG6wNsSzicRLG4Dko7ZY"><td data-page-node-id="42EGllUlUcdBoCEAzIvTMo">hongyue</td><td data-page-node-id="VLyEg01GtuxzY4yRKb0iU8"><code data-page-node-id="7JXGfn1KqxaKTigNQe283u">7e33c84</code></td><td data-page-node-id="wibECUwLF7fmi4fK0lWe6y">feat(order): 订单级工艺明细编辑 + 领料清单（只读计算）</td></tr>
+  <tr data-page-node-id="lP8G3rMq0ZTgfnfbpMiclU"><td data-page-node-id="o2VHxdfMRqEYxXUwK9FKxp">hongyue</td><td data-page-node-id="Fx8ZHrhq0s0yaOV8kDKu4M"><code data-page-node-id="RO0ON6KFfJKY6DLXatxwm7">a3b53ef</code></td><td data-page-node-id="bkHvckK5GfYzWD9Y7ZPB1n">test(order): 订单级工艺明细/领料清单测试 + 报价断言适配新 BOM 口径</td></tr>
+  <tr data-page-node-id="ZztaMz9Utp7QtEVamyEPuC"><td data-page-node-id="pCQtrMToc5hZxJPZN0EDrY">hongyue</td><td data-page-node-id="vu6KHcBoJuL6PkJT1u9trI"><code data-page-node-id="aXEztZeJhgV41hpBFJjVUf">f46ae3f</code></td><td data-page-node-id="VjJ0twJFCIDPjMVhDsd5Zo">fix(order): 恢复标准工艺路线语义（restore_standard 清空订单级快照）</td></tr>
+  <tr data-page-node-id="8njwNULerwAknJBlajN4Mg"><td data-page-node-id="93y6GCRgIdhYNZAQw6hi9l">frontend</td><td data-page-node-id="89XGP3o2UuX57zmt9zEdaC"><code data-page-node-id="BoIQVjmH8acGnEQjogzQlY">d3f07d3</code></td><td data-page-node-id="e7rYuUIvhSmFO7G0rLZzu2">feat(order): 订单编辑弹窗重构（基础信息 + 工艺路线明细定制 + 领料清单核算）</td></tr>
+  <tr data-page-node-id="dEJWkjZ7e4JHe399VVDyl4"><td data-page-node-id="HommHpDAcfHpQOL7CC5uho">frontend</td><td data-page-node-id="DeJCRLNo7ilKhLeWwSLuBE"><code data-page-node-id="869BjMmEmU1wFVN3FAiEyB">24be890</code></td><td data-page-node-id="Kzy9J2WTdRGD5Da6DMDawg">fix(order): 恢复标准路线改用显式 restore_standard 标志提交</td></tr>
+  <tr data-page-node-id="rTceQusAPInWYFAq8cHlOC"><td data-page-node-id="XoS3RKxbRumMNSxAFju8rd">frontend</td><td data-page-node-id="zFarS0rKLo67HNSsMEppEs"><code data-page-node-id="oCp3uBBpLurgy9OJT8AFku">304c6b0</code></td><td data-page-node-id="xcWFzHctz1nHUp0Sss4IOl">fix(types): 补齐 Order/OrderProgress 状态联合类型（paused/aborted/closed）</td></tr>
+</table>
+
+</body>
+</html>

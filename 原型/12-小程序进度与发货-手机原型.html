@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>小程序 · 生产进度与发货 · 手机原型</title>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;font-family:"PingFang SC","Microsoft YaHei",sans-serif}
+  body{background:#dbe3ef;display:flex;justify-content:center;padding:20px 10px;font-size:14px}
+  .phone{width:390px;background:#fff;border-radius:32px;box-shadow:0 18px 50px rgba(15,30,61,.35);overflow:hidden;border:8px solid #0f1e3d;padding-bottom:62px}
+  .statusbar{background:#1a56db;color:#fff;padding:9px 16px 5px;font-size:11px;display:flex;justify-content:space-between}
+  .head{background:#1a56db;color:#fff;padding:14px 16px 26px}
+  .head .t1{font-size:18px;font-weight:800;margin-bottom:4px} 
+  .head .t2{font-size:11.5px;opacity:.85}
+  /* 分段 */
+  .tabs{display:flex;margin:0 14px;background:#fff;border-radius:12px;padding:5px;box-shadow:0 6px 18px rgba(15,30,61,.1);transform:translateY(-16px)}
+  .tabs div{flex:1;text-align:center;padding:8px 0;font-size:13px;font-weight:700;color:#64748b;border-radius:9px}
+  .tabs div.on{background:#1a56db;color:#fff}
+  .body{padding:0 14px}
+  /* 订单卡片 */
+  .ord{background:#fff;border:1px solid #e2e8f0;border-radius:12px;margin-bottom:10px;box-shadow:0 2px 8px rgba(15,30,61,.06)}
+  .ord .hd{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px dashed #e2e8f0}
+  .ord .no{font-weight:800;font-size:13.5px}
+  .ord .cus{font-size:11px;color:#64748b}
+  .st{font-size:11px;border-radius:8px;padding:2px 8px;font-weight:700}
+  .st.run{background:#ebf2ff;color:#1e429f}.st.done{background:#ecfdf5;color:#047857}.st.over{background:#fef2f2;color:#b91c1c}
+  .ord .li{display:flex;align-items:center;gap:10px;padding:9px 12px;font-size:12.5px}
+  .ord .li .nm{flex:1;font-weight:700}
+  .ord .li .pb{flex:1.2;height:7px;background:#e5eaf3;border-radius:5px;overflow:hidden}
+  .ord .li .pb i{display:block;height:100%;background:#1a56db}
+  .ord .li .pb i.grn{background:#0aa06e}.ord .li .pb i.red{background:#b91c1c}.ord .li .pb i.org{background:#e07b00}
+  .ord .li .pct{width:44px;text-align:right;font-weight:800;color:#1e429f}
+  .ord .ft{display:flex;justify-content:space-between;align-items:center;padding:7px 12px;background:#f8fafc;border-radius:0 0 12px 12px;font-size:11.5px;color:#64748b}
+  .ord .ft .btn{background:#1a56db;color:#fff;border:none;border-radius:8px;padding:5px 13px;font-size:12px;font-weight:700}
+  .ord .ft .btn.grn{background:#0aa06e}.ord .ft .btn.dis{background:#cbd5e1}
+  .note{font-size:11.5px;color:#64748b;background:#f8fafc;border-radius:8px;padding:8px 10px;margin:10px 0;line-height:1.6}
+  /* 发货 sheet */
+  .mask{position:fixed;inset:0;background:rgba(15,23,42,.5);display:none;align-items:flex-end;justify-content:center;z-index:30}
+  .sheet{background:#fff;width:390px;border-radius:18px 18px 0 0;padding:18px 18px 24px;animation:up .2s}
+  @keyframes up{from{transform:translateY(40px);opacity:0}}
+  .sheet h3{font-size:16px;margin-bottom:10px}
+  .ship{display:flex;align-items:center;gap:10px;padding:9px 0;font-size:13px;border-bottom:1px dashed #e2e8f0}
+  .ship input{width:70px;border:1.5px solid #c9d3e4;border-radius:8px;height:34px;text-align:center;font-weight:800}
+  .ship b{flex:1}
+  .field{margin:10px 0}
+  .field label{font-size:12px;color:#64748b;display:block;margin-bottom:4px}
+  .field input{width:100%;border:1.5px solid #c9d3e4;border-radius:9px;height:38px;padding:0 10px}
+  .photo{height:64px;border:1.5px dashed #c9d3e4;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:12px;margin:10px 0}
+  .submit{width:100%;border:none;border-radius:12px;padding:13px;font-size:16px;font-weight:800;color:#fff;background:#1a56db}
+  .toast{position:fixed;top:90px;left:50%;transform:translateX(-50%);background:#0f1e3d;color:#fff;border-radius:10px;padding:9px 16px;font-size:13px;z-index:40;opacity:0;transition:.25s}
+  .tabnav{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:390px;background:#fff;border-top:1px solid #e2e8f0;display:flex;padding-bottom:8px}
+  .tabnav div{flex:1;text-align:center;padding:8px 0;font-size:11px;color:#64748b}
+  .tabnav div b{display:block;font-size:17px}
+  .tabnav div.on{color:#1a56db;font-weight:800}
+</style>
+</head>
+<body>
+<div class="phone">
+  <div class="statusbar"><span>09:31</span><span>📶 🔋</span></div>
+  <div class="head">
+    <div class="t1">订单与发货</div>
+    <div class="t2">业务员 · 生产进度实时回写 · 移动发货联动金蝶(出库人工)</div>
+  </div>
+  <div class="tabs"><div class="on" id="tabP">🚚 生产进度</div><div id="tabS">🚛 我的发货</div></div>
+  <div class="body" id="tabBody">
+    <!-- 生产进度视图 -->
+    <div class="note">📡 进度由生产系统（MES）实时回写，非人工填报 · 插单/顺延自动同步</div>
+    <div class="ord">
+      <div class="hd"><div><div class="no">SO-240826-01</div><div class="cus">绿源园艺 · 交期 8/29</div></div><span class="st run">生产中</span></div>
+      <div class="li"><span class="nm">花盆 A-300</span><div class="pb"><i style="width:62%"></i></div><span class="pct">62%</span></div>
+      <div class="li"><span class="nm">花盆 A-300(蓝)</span><div class="pb"><i style="width:0%"></i></div><span class="pct">0%</span></div>
+      <div class="ft"><span>预计完成 8/28 22:00</span><button class="btn" onclick="ship()">🚚 发货</button></div>
+    </div>
+    <div class="ord">
+      <div class="hd"><div><div class="no">SO-240826-03</div><div class="cus">新绿资材 · 交期 8/28</div></div><span class="st over">⚠ 已逾期</span></div>
+      <div class="li"><span class="nm">托盘 C-60</span><div class="pb"><i class="red" style="width:0%"></i></div><span class="pct">0%</span></div>
+      <div class="ft"><span>未排产 · 已通知生产</span><button class="btn dis">待排产</button></div>
+    </div>
+    <div class="ord">
+      <div class="hd"><div><div class="no">SO-240826-02</div><div class="cus">禾木农业 · 交期 8/30</div></div><span class="st done">已完工</span></div>
+      <div class="li"><span class="nm">育苗盘 B-128</span><div class="pb"><i class="grn" style="width:100%"></i></div><span class="pct">100%</span></div>
+      <div class="ft"><span>已完成入库 8/28</span><button class="btn grn" onclick="ship()">🚚 发货</button></div>
+    </div>
+  </div>
+</div>
+
+<!-- 发货弹层 -->
+<div class="mask" id="mask">
+  <div class="sheet">
+    <h3>🚚 移动发货（联动金蝶）</h3>
+    <div class="ship"><b>花盆 A-300</b><span>已产 3,720</span><input id="q1" value="3720"></div>
+    <div class="ship"><b>花盆 A-300(蓝)</b><span>已产 0</span><input id="q2" value="0"></div>
+    <div class="field"><label>收货信息</label><input placeholder="客户收货地址 / 联系人（可选）"></div>
+    <div class="field"><label>物流单号</label><input placeholder="运单号（可选）"></div>
+    <div class="photo">📷 拍照上传（装车/发货照片，可选）</div>
+    <button class="submit" onclick="submit()">确认发货 · 生产入库已推金蝶</button>
+  </div>
+</div>
+<div class="tabnav"><div class="on"><b>📋</b>订单</div><div><b>🚚</b>发货</div><div><b>👤</b>我的</div></div>
+<div class="toast" id="toast"></div>
+
+<script>
+function ship(){ document.getElementById("mask").style.display="flex"; }
+function submit(){
+  document.getElementById("mask").style.display="none";
+  let tt; const t=document.getElementById("toast");
+  t.textContent="✅ 发货完成 · 状态已更新（金蝶出库一期由仓库人工处理）";
+  t.style.opacity=1; clearTimeout(tt); tt=setTimeout(()=>t.style.opacity=0,2400);
+}
+</script>
+</body>
+</html>

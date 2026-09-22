@@ -1,0 +1,24 @@
+{
+  "name": "hongyue-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "description": "虹越智造平台 · 车间移动端 H5（扫码报工，一期骨架）",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --port 5174",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "pinia": "^2.2.4",
+    "vant": "^4.9.8",
+    "vue": "^3.5.11",
+    "vue-router": "^4.4.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^5.1.4",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.8"
+  }
+}

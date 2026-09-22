@@ -1,0 +1,667 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>虹越智造平台 · 系统 UI 总览 · 交互原型</title>
+<style>
+  :root{
+    --pri:#1a56db; --pri-d:#1e429f; --pri-l:#ebf2ff;
+    --accent:#d97706; --warn:#b45309; --ok:#047857; --bad:#b91c1c;
+    --bg:#eef1f7; --card:#fff; --line:#d7deeb; --txt:#111827; --mut:#6b7280;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:"PingFang SC","Microsoft YaHei",sans-serif;background:var(--bg);color:var(--txt);font-size:13px}
+  .app{display:flex;height:100vh;overflow:hidden}
+  /* ===== 侧栏 ===== */
+  .side{width:216px;min-width:216px;background:#0f1e3d;color:#cdd7ea;display:flex;flex-direction:column}
+  .side .logo{padding:16px 16px 12px;color:#fff;font-weight:800;font-size:15px;letter-spacing:.5px;border-bottom:1px solid rgba(255,255,255,.08)}
+  .side .logo small{font-size:10px;font-weight:400;opacity:.65;display:block;margin-top:2px}
+  .side nav{flex:1;overflow-y:auto;padding:8px 6px}
+  .side .grp{font-size:10.5px;color:#7d8db0;padding:10px 10px 4px;font-weight:700;letter-spacing:1px}
+  .side .item{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:7px;cursor:pointer;font-size:12.8px;color:#cdd7ea;margin-bottom:1px;transition:.15s}
+  .side .item:hover{background:rgba(255,255,255,.07);color:#fff}
+  .side .item.on{background:var(--pri);color:#fff;font-weight:600}
+  .side .item .ic{width:18px;text-align:center}
+  .side .foot{padding:12px 14px;font-size:11px;color:#8192b5;border-top:1px solid rgba(255,255,255,.08)}
+  /* ===== 主区 ===== */
+  .main{flex:1;display:flex;flex-direction:column;min-width:0}
+  .topbar{height:50px;background:var(--card);border-bottom:1px solid var(--line);display:flex;align-items:center;padding:0 18px;gap:12px}
+  .topbar .crumb{font-size:13.5px;font-weight:600;color:var(--pri-d)}
+  .topbar .crumb span{color:var(--mut);font-weight:400}
+  .topbar .sp{flex:1}
+  .topbar .user{display:flex;align-items:center;gap:8px;font-size:12.5px}
+  .topbar .avatar{width:28px;height:28px;border-radius:50%;background:var(--pri);color:#fff;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700}
+  .tag{display:inline-block;font-size:11px;padding:1px 8px;border-radius:9px;font-weight:600;white-space:nowrap}
+  .t-ok{background:#ecfdf5;color:var(--ok)} .t-bad{background:#fef2f2;color:var(--bad)}
+  .t-warn{background:#fffbeb;color:var(--warn)} .t-blue{background:var(--pri-l);color:var(--pri-d)}
+  .t-gray{background:#f3f4f6;color:#6b7280}
+  .content{flex:1;overflow-y:auto;padding:16px 18px}
+  .page{display:none}
+  .page.on{display:block;animation:fadein .18s}
+  @keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1}}
+  h2{font-size:17px;color:var(--pri-d);margin-bottom:2px}
+  .desc{font-size:12px;color:var(--mut);margin-bottom:12px}
+  /* 卡片 */
+  .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(215px,1fr));gap:12px;margin-bottom:14px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:13px 15px}
+  .card .k{font-size:11.5px;color:var(--mut)}
+  .card .v{font-size:21px;font-weight:800;margin-top:2px}
+  .card .s{font-size:11px;color:var(--mut);margin-top:2px}
+  .card .v.red{color:var(--bad)} .card .v.grn{color:var(--ok)} .card .v.org{color:var(--accent)}
+  /* 面板 */
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+  .panel h3{font-size:13.5px;color:var(--pri-d);margin-bottom:10px;display:flex;align-items:center;gap:6px}
+  .panel h3 .more{margin-left:auto;font-size:11px;color:var(--pri);cursor:pointer;font-weight:500}
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th{background:#f6f8fd;color:#334155;text-align:left;padding:7px 10px;border:1px solid var(--line);font-weight:600;white-space:nowrap}
+  td{padding:7px 10px;border:1px solid var(--line);vertical-align:middle}
+  tr:hover td{background:#fafbfe}
+  .btn{background:var(--pri);color:#fff;border:none;border-radius:6px;padding:6px 13px;font-size:12.5px;font-weight:600;cursor:pointer}
+  .btn.ghost{background:#fff;color:var(--pri);border:1px solid var(--pri)}
+  .btn.grn{background:var(--ok)} .btn.wa{background:var(--accent)}
+  .btnline{display:flex;gap:8px;margin-bottom:12px;flex-wrap:wrap}
+  /* 进度条 */
+  .pb{height:7px;background:#e5eaf3;border-radius:5px;overflow:hidden;min-width:90px}
+  .pb i{display:block;height:100%;background:var(--pri);border-radius:5px}
+  .pb i.org{background:var(--accent)} .pb i.grn{background:var(--ok)} .pb i.red{background:var(--bad)}
+  .kv{display:flex;gap:20px;flex-wrap:wrap}
+  .kv .k{font-size:11.5px;color:var(--mut)} .kv .v{font-weight:700;font-size:13px}
+  /* 报价计算 */
+  .calc{background:#f8fafc;border:1.5px dashed #c9d3e4;border-radius:10px;padding:14px;margin-top:12px}
+  .calc .row{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px dashed #e2e8f0;font-size:12.5px}
+  .calc .row.total{border:none;font-weight:800;font-size:15px;color:var(--pri-d)}
+  .kban{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .kban .col{background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px}
+  .kban .col h4{font-size:11.5px;color:var(--pri-d);margin-bottom:6px;text-align:center}
+  .kban .tick{background:#fff;border:1px solid var(--line);border-radius:6px;padding:6px 8px;font-size:11.5px;margin-bottom:6px}
+  .kban .tick.done{background:#ecfdf5;border-color:#a7f3d0}
+  .kban .tick.hot{background:#fef2f2;border-color:#fecaca}
+  .heat td{padding:5px 8px;text-align:center}
+  .h0{background:#f1f5f9;color:#94a3b8} .h1{background:#dbeafe} .h2{background:#93c5fd}
+  .h3{background:#60a5fa;color:#fff} .h4{background:#2563eb;color:#fff} .h5{background:#b91c1c;color:#fff}
+  .redlist{display:flex;flex-direction:column;gap:8px}
+  .reditem{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 12px}
+  .reditem .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+  .reditem .dot.r{background:var(--bad)} .reditem .dot.y{background:var(--accent)}
+  .mini-bars{display:flex;align-items:flex-end;gap:8px;height:90px;padding-top:6px}
+  .mini-bars .bar{flex:1;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;gap:3px}
+  .mini-bars .bar i{width:100%;background:var(--pri);border-radius:4px 4px 0 0}
+  .mini-bars .bar small{font-size:10px;color:var(--mut)}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:12px}
+  .field label{display:block;font-size:11.5px;color:var(--mut);margin-bottom:4px}
+  .field input,.field select{width:100%;padding:7px 10px;border:1px solid #c9d3e4;border-radius:7px;font-size:13px;background:#fff}
+  .field input:focus,.field select:focus{outline:2px solid var(--pri-l);border-color:var(--pri)}
+  ::-webkit-scrollbar{width:9px;height:9px}::-webkit-scrollbar-thumb{background:#c3cde0;border-radius:5px}
+  .note{font-size:12px;color:var(--mut);background:#f8fafc;border-left:3px solid var(--pri);padding:8px 12px;border-radius:0 6px 6px 0;margin:10px 0}
+</style>
+</head>
+<body>
+<div class="app">
+  <!-- ============ 侧栏 ============ -->
+  <div class="side">
+    <div class="logo">虹越智造平台<small>PLM · MES · AI报价 · 看板（UI 总览原型）</small></div>
+    <nav id="nav">
+      <div class="grp">总览</div>
+      <div class="item on" data-p="p-home"><span class="ic">🏠</span>工作台</div>
+      <div class="grp">📦 PLM 产品数据</div>
+      <div class="item" data-p="p-prod"><span class="ic">📄</span>产品档案</div>
+      <div class="item" data-p="p-bom"><span class="ic">🧬</span>BOM 管理</div>
+      <div class="item" data-p="p-route"><span class="ic">🛤️</span>工艺路线</div>
+      <div class="item" data-p="p-mold"><span class="ic">🔩</span>模具台账</div>
+      <div class="item" data-p="p-dev"><span class="ic">🚀</span>新品开发</div>
+      <div class="grp">💰 报价中心</div>
+      <div class="item" data-p="p-quote"><span class="ic">🤖</span>AI 快速估价</div>
+      <div class="item" data-p="p-quotels"><span class="ic">📋</span>报价单管理</div>
+      <div class="item" data-p="p-pparam"><span class="ic">⚖️</span>报价参数配置</div>
+      <div class="grp">🏭 MES 生产执行</div>
+      <div class="item" data-p="p-sched"><span class="ic">📊</span>智能排产</div>
+      <div class="item" data-p="p-task"><span class="ic">✅</span>任务中心</div>
+      <div class="item" data-p="p-report"><span class="ic">🔎</span>现场报工</div>
+      <div class="item" data-p="p-err"><span class="ic">⚠️</span>异常管理</div>
+      <div class="grp">📈 管理看板</div>
+      <div class="item" data-p="p-orders"><span class="ic">🚚</span>订单进度总览</div>
+      <div class="item" data-p="p-load"><span class="ic">⚡</span>产能负荷</div>
+      <div class="item" data-p="p-red"><span class="ic">🔴</span>红灯管理</div>
+      <div class="item" data-p="p-rpt"><span class="ic">📑</span>报表中心</div>
+      <div class="grp">⚙️ 系统管理</div>
+      <div class="item" data-p="p-org"><span class="ic">👥</span>组织与用户</div>
+      <div class="item" data-p="p-mach"><span class="ic">🏭</span>机台与班制</div>
+      <div class="item" data-p="p-int"><span class="ic">🔗</span>集成配置</div>
+    </nav>
+    <div class="foot">管理员：沈飞 · 阿里云部署 · v0.1 UI 原型</div>
+  </div>
+
+  <!-- ============ 主区 ============ -->
+  <div class="main">
+    <div class="topbar">
+      <div class="crumb" id="crumb">工作台</div>
+      <div class="sp"></div>
+      <div class="user"><div class="avatar">沈</div>沈飞（管理员）</div>
+    </div>
+    <div class="content" id="content">
+
+      <!-- ========== 工作台 ========== -->
+      <div class="page on" id="p-home">
+        <h2>工作台</h2><div class="desc">生产运营一屏总览 · 数据为演示样例</div>
+        <div class="cards">
+          <div class="card"><div class="k">今日在产任务</div><div class="v">24 <span style="font-size:12px;color:var(--mut)">个</span></div><div class="s">其中进行中 18 · 待开工 6</div></div>
+          <div class="card"><div class="k">逾期/临期红灯</div><div class="v red">3</div><div class="s">逾期 1 · 临期 2（点红灯管理直达）</div></div>
+          <div class="card"><div class="k">机台综合稼动率</div><div class="v org">86%</div><div class="s">较上周 +4%</div></div>
+          <div class="card"><div class="k">本周订单准时交付率</div><div class="v grn">92%</div><div class="s">目标 ≥90%</div></div>
+        </div>
+        <div class="panel">
+          <h3>近 7 日产量（件）</h3>
+          <div class="mini-bars">
+            <div class="bar"><i style="height:45%"></i><small>周一</small></div>
+            <div class="bar"><i style="height:62%"></i><small>周二</small></div>
+            <div class="bar"><i style="height:55%"></i><small>周三</small></div>
+            <div class="bar"><i style="height:78%"></i><small>周四</small></div>
+            <div class="bar"><i style="height:70%"></i><small>周五</small></div>
+            <div class="bar"><i style="height:86%"></i><small>周六</small></div>
+            <div class="bar"><i style="height:58%"></i><small>今日</small></div>
+          </div>
+        </div>
+        <div class="panel"><h3>🔴 今日需处理红灯 <span class="more">查看全部 →</span></h3>
+          <div class="redlist">
+            <div class="reditem"><span class="dot r"></span><b>SO-240826-03 托盘 C-60（12000 件）</b><span>交期 8/28 已逾期 2h · 未排产</span><span class="tag t-bad">逾期</span><button class="btn wa" style="margin-left:auto">去排产</button></div>
+            <div class="reditem"><span class="dot y"></span><b>任务 ID-031（I-03 机台）</b><span>计划完成 8/28 10:00 · 尚未报工</span><span class="tag t-warn">未报工</span><button class="btn ghost" style="margin-left:auto">催办</button></div>
+            <div class="reditem"><span class="dot y"></span><b>模具 M-086 营养钵 D-16</b><span>剩余开模 3,200 次 · 已达寿命 78%</span><span class="tag t-warn">寿命预警</span><button class="btn ghost" style="margin-left:auto">查看</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 产品档案 ========== -->
+      <div class="page" id="p-prod">
+        <h2>产品档案</h2><div class="desc">工程/工艺维护产品主数据 · 编码与金蝶物料编码一致</div>
+        <div class="btnline"><button class="btn">+ 新增产品</button><button class="btn ghost">⬆ 导入</button><input style="padding:7px 12px;border:1px solid #c9d3e4;border-radius:7px;width:240px" placeholder="搜索编码/名称/规格"></div>
+        <div class="panel">
+          <table>
+            <tr><th>产品编码</th><th>名称</th><th>规格</th><th>单位</th><th>状态</th><th>默认模具</th><th>默认工艺路线</th><th>操作</th></tr>
+            <tr><td>HP-300-B</td><td>花盆 A-300</td><td>Ø300×H210</td><td>只</td><td><span class="tag t-ok">量产</span></td><td>M-032</td><td>R-001 标准注塑线</td><td><a>编辑</a> <a>BOM</a></td></tr>
+            <tr><td>YP-128-01</td><td>育苗盘 B-128</td><td>540×280</td><td>只</td><td><span class="tag t-ok">量产</span></td><td>M-045</td><td>R-002 标准注塑线</td><td><a>编辑</a> <a>BOM</a></td></tr>
+            <tr><td>TP-60-C</td><td>托盘 C-60</td><td>600×400×80</td><td>只</td><td><span class="tag t-ok">量产</span></td><td>M-058</td><td>R-003 加强注塑线</td><td><a>编辑</a> <a>BOM</a></td></tr>
+            <tr><td>YYB-12-D</td><td>营养钵 D-12（新品）</td><td>Ø120</td><td>只</td><td><span class="tag t-warn">试产</span></td><td>M-072</td><td>R-004 吹塑线</td><td><a>编辑</a> <a>BOM</a></td></tr>
+            <tr><td>HP-260-BL</td><td>花盆 B-260（蓝）</td><td>Ø260×H180</td><td>只</td><td><span class="tag t-blue">开发中</span></td><td>—</td><td>—</td><td><a>编辑</a></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== BOM ========== -->
+      <div class="page" id="p-bom">
+        <h2>BOM 管理</h2><div class="desc">PLM 为主维护 · 审核发布后自动推送金蝶（版本化）</div>
+        <div class="panel">
+          <div style="display:flex;gap:16px">
+            <div style="width:230px;min-width:230px;border-right:1px solid var(--line)">
+              <div style="font-weight:700;font-size:12.5px;margin-bottom:8px;color:var(--pri-d)">🌳 产品 BOM 树</div>
+              <div style="padding-left:6px;line-height:2;font-size:12.5px">
+                📦 花盆 A-300 <span class="tag t-ok" style="float:right">已发布 v5</span><br>
+                &nbsp;&nbsp;├ PP 原料(聚丙烯) 0.42kg · 损耗 2%<br>
+                &nbsp;&nbsp;├ 色母(蓝) 0.01kg · 损耗 1%<br>
+                &nbsp;&nbsp;├ 包装彩卡 1 张<br>
+                &nbsp;&nbsp;└ 内衬膜 0.2kg<br>
+                📦 育苗盘 B-128 <span class="tag t-warn" style="float:right">审稿 v3</span><br>
+                📦 托盘 C-60 <span class="tag t-ok" style="float:right">已发布 v2</span>
+              </div>
+            </div>
+            <div style="flex:1">
+              <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+                <b style="color:var(--pri-d)">花盆 A-300 · BOM v5（已发布）</b>
+                <div><button class="btn ghost">复制为新版</button> <button class="btn">📨 发布到金蝶</button></div>
+              </div>
+              <table>
+                <tr><th>层级</th><th>子项编码</th><th>名称</th><th>用量</th><th>单位</th><th>损耗率</th><th>来源</th></tr>
+                <tr><td>L1</td><td>RM-PP-01</td><td>PP 原料</td><td>0.42</td><td>kg</td><td>2%</td><td>采购</td></tr>
+                <tr><td>L1</td><td>RM-MB-BLU</td><td>色母（蓝）</td><td>0.010</td><td>kg</td><td>1%</td><td>采购</td></tr>
+                <tr><td>L1</td><td>PK-CARD-01</td><td>包装彩卡</td><td>1</td><td>张</td><td>0.5%</td><td>采购</td></tr>
+                <tr><td>L1</td><td>RM-FLM-IN</td><td>内衬膜</td><td>0.2</td><td>kg</td><td>1%</td><td>采购</td></tr>
+              </table>
+              <div class="note">💡 BOM 以 PLM 为权威：修改 → 生成新版本 → 工程自审 → <b>一键发布至金蝶（无审批流，操作留痕）</b>。存量 BOM 已从金蝶一次性导入。</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 工艺路线 ========== -->
+      <div class="page" id="p-route">
+        <h2>工艺路线</h2><div class="desc">配置便捷：标准工序模板 · 复制相似路线 · 机台侧默认产能 · Excel 批量导入</div>
+        <div class="btnline"><button class="btn">+ 新建路线</button><button class="btn ghost">从相似产品复制</button><button class="btn ghost">⬆ Excel 导入产能</button></div>
+        <div class="panel">
+          <table>
+            <tr><th>路线编码</th><th>产品</th><th>工序序列</th><th>机台/班组</th><th>标准产能</th><th>换模(成型)</th><th>操作</th></tr>
+            <tr><td>R-001</td><td>花盆 A-300</td><td>注塑成型 → 喷漆 → 效果 → 包装</td><td>注塑机类 / 喷漆班 / 效果班 / 包装班</td><td>300 件/h</td><td>45 min</td><td><a>编辑</a> <a>复制</a></td></tr>
+            <tr><td>R-002</td><td>育苗盘 B-128</td><td>注塑成型 → 包装</td><td>注塑机类 / 包装班</td><td>280 件/h</td><td>30 min</td><td><a>编辑</a> <a>复制</a></td></tr>
+            <tr><td>R-003</td><td>托盘 C-60</td><td>注塑成型 → 效果 → 包装</td><td>注塑机类 / 效果班 / 包装班</td><td>240 件/h</td><td>60 min</td><td><a>编辑</a> <a>复制</a></td></tr>
+            <tr><td>R-004</td><td>营养钵 D-12</td><td>吹塑成型 → 包装</td><td>吹塑机类 / 包装班</td><td>200 件/h</td><td>40 min</td><td><a>编辑</a> <a>复制</a></td></tr>
+          </table>
+        </div>
+        <div class="panel"><h3>工序标准模板</h3>
+          <table><tr><th>模板</th><th>适用</th><th>默认产能</th><th>说明</th></tr>
+          <tr><td>成型-注塑标准</td><td>注塑车间</td><td>300/h（可调）</td><td>含换模时间计入排产</td></tr>
+          <tr><td>成型-吹塑标准</td><td>吹塑车间</td><td>200/h（可调）</td><td>含换模时间计入排产</td></tr>
+          <tr><td>人工-喷漆线</td><td>喷漆班组</td><td>150/h（按班组工时池）</td><td>人工计数</td></tr></table>
+        </div>
+      </div>
+
+      <!-- ========== 模具台账 ========== -->
+      <div class="page" id="p-mold">
+        <h2>模具台账</h2><div class="desc">模具全生命周期：台账 / 寿命 / 保养 / 存放 / 维修</div>
+        <div class="btnline"><button class="btn">+ 新增模具</button><button class="btn ghost">⬆ 导入台账</button></div>
+        <div class="panel">
+          <table>
+            <tr><th>模具编码</th><th>类型</th><th>状态</th><th>关联产品</th><th>适用机台</th><th>模穴数</th><th>累计开模</th><th>设计寿命</th><th>剩余</th><th>上次保养</th><th>存放位置</th><th>操作</th></tr>
+            <tr><td>M-032</td><td>注塑模</td><td><span class="tag t-ok">在用</span></td><td>花盆 A-300</td><td>I-01~I-04</td><td>6</td><td>58,400</td><td>300,000</td><td>81%</td><td>8/12</td><td>A 区 03 架</td><td><a>保养</a> · <a>维修</a> · <a>报废</a></td></tr>
+            <tr><td>M-045</td><td>注塑模</td><td><span class="tag t-ok">在用</span></td><td>育苗盘 B-128</td><td>I-01~I-04</td><td>8</td><td>201,300</td><td>300,000</td><td><span class="tag t-warn">33%</span></td><td>7/30</td><td>A 区 05 架</td><td><a>保养</a> · <a>维修</a> · <a>报废</a></td></tr>
+            <tr><td>M-058</td><td>注塑模</td><td><span class="tag t-ok">在用</span></td><td>托盘 C-60</td><td>I-01~I-04</td><td>4</td><td>142,000</td><td>200,000</td><td>29%</td><td>8/18</td><td>B 区 01 架</td><td><a>保养</a> · <a>维修</a> · <a>报废</a></td></tr>
+            <tr><td>M-086</td><td>吹塑模</td><td><span class="tag t-warn">寿命预警</span></td><td>营养钵 D-16</td><td>B-01~B-02</td><td>10</td><td>156,800</td><td>200,000</td><td><span class="tag t-bad">22%</span></td><td>6/02</td><td>B 区 02 架</td><td><a>保养</a> · <a>维修</a> · <a>报废</a></td></tr>
+            <tr><td>M-072</td><td>吹塑模</td><td><span class="tag t-blue">试产</span></td><td>营养钵 D-12（新品）</td><td>B-01~B-02</td><td>12</td><td>3,200</td><td>200,000</td><td>98%</td><td>—</td><td>C 区 01 架</td><td><a>保养</a> · <a>维修</a> · <a>报废</a></td></tr>
+          </table>
+          <div class="note">🔍 排产校验链：产品 → 模具 → 机台 三者匹配（适用机台不符不可排）；寿命按「报工数 ÷ 模穴数」累加开模次数。</div>
+        </div>
+        <div class="panel"><h3>保养计划提醒</h3>
+          <div class="redlist">
+            <div class="reditem"><span class="dot y"></span><b>M-045 育苗盘 B-128</b><span>下次保养 8/30（周期 30 天）</span><button class="btn ghost" style="margin-left:auto">登记保养</button></div>
+            <div class="reditem"><span class="dot y"></span><b>M-032 花盆 A-300</b><span>下次保养 9/11（周期 30 天）</span><button class="btn ghost" style="margin-left:auto">登记保养</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 新品开发 ========== -->
+      <div class="page" id="p-dev">
+        <h2>新品开发流程</h2><div class="desc">询价 → 立项 → 设计 → 开模 → 试模 → 小批 → 量产 阶段看板</div>
+        <div class="kban">
+          <div class="col"><h4>询价</h4><div class="tick done">✅ 营养钵 D-12</div><div class="tick">花盆 B-260(蓝)</div></div>
+          <div class="col"><h4>立项</h4><div class="tick done">✅ 营养钵 D-12</div></div>
+          <div class="col"><h4>设计</h4><div class="tick done">✅ 营养钵 D-12</div></div>
+          <div class="col"><h4>开模</h4><div class="tick hot">🔴 营养钵 D-12（交付 8/29）</div></div>
+          <div class="col"><h4>试模</h4><div class="tick">—</div></div>
+          <div class="col"><h4>小批→量产</h4><div class="tick">—</div></div>
+        </div>
+        <div class="panel"><h3>流程节点说明</h3>
+          <table><tr><th>阶段</th><th>负责人</th><th>产出物</th><th>里程碑</th></tr>
+          <tr><td>询价</td><td>工程+业务</td><td>AI 估价单 / 客户确认</td><td>报价成交 → 转立项</td></tr>
+          <tr><td>开模</td><td>模具主管</td><td>模具到货/试产申请</td><td>模具入库 → 建档至模具台账</td></tr>
+          <tr><td>小批试产</td><td>车间主任</td><td>试产报告 / 合格率</td><td>量产确认 → 自动建正式产品档案并发布 BOM 至金蝶</td></tr></table>
+        </div>
+      </div>
+
+      <!-- ========== AI 快速估价 ========== -->
+      <div class="page" id="p-quote">
+        <h2>AI 快速估价（新品）</h2><div class="desc">填写规格与数量 → AI 结合材料/模具摊销/工时/毛利目标给建议价 + 交期（交期联动排产）</div>
+        <div class="panel">
+          <div class="form-grid" style="margin-bottom:12px">
+            <div class="field"><label>产品名称</label><input id="q-name" value="花盆 B-260（新品询价）"></div>
+            <div class="field"><label>规格（尺寸/重量）</label><input id="q-spec" value="Ø260×H180 / 178g"></div>
+            <div class="field"><label>预估数量（只）</label><input id="q-qty" type="number" value="5000"></div>
+            <div class="field"><label>近似老品（AI 参照）</label><select id="q-ref"><option>花盆 A-300</option><option>育苗盘 B-128</option><option selected>托盘 C-60</option></select></div>
+            <div class="field"><label>目标毛利率</label><select id="q-mg"><option selected>20%</option><option>25%</option><option>30%</option></select></div>
+            <div class="field"><label>模具费承担</label><select id="q-mold"><option selected>客户承担（另报价）</option><option>摊入单价</option></select></div>
+          </div>
+          <button class="btn" onclick="calcQuote()">🤖 AI 生成估价</button>
+          <div class="calc" id="q-result" style="display:none">
+            <div style="font-weight:700;color:var(--pri-d);margin-bottom:6px">AI 估价结果（规则引擎 + LLM 辅助）</div>
+            <div class="row"><span>材料成本（PP 原料 + 色母 + 包装）</span><b id="r-mat">¥0.86/只</b></div>
+            <div class="row"><span>加工成本（成型 22.5h 工时费率 + 喷漆/效果人工）</span><b id="r-proc">¥0.38/只</b></div>
+            <div class="row"><span>损耗（材料×2.5%）</span><b id="r-loss">¥0.02/只</b></div>
+            <div class="row"><span>模具摊销（¥28,000 ÷ 5,000 只）</span><b id="r-mold">¥5.60/只</b></div>
+            <div class="row total"><span>建议单价（含 20% 毛利）</span><span id="r-price">¥8.23/只</span></div>
+            <div class="row"><span>建议交期（按当前产能负荷测算）</span><b id="r-due">8/30 起排 · 预计 9/4 交付</b></div>
+            <div class="note" style="margin-top:8px">💡 单价含模具费时按订单量摊薄；AI 校验偏离历史成交价 ±30% 时提示。估价留档供历史数据训练。</div>
+            <div style="margin-top:6px"><button class="btn grn">✅ 采纳估价</button> <button class="btn ghost">调整后出正式报价单</button></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 报价参数配置 ========== -->
+      <div class="page" id="p-pparam">
+        <h2>报价参数配置</h2><div class="desc">AI 估价的数据底座：材料价 / 工序费率 / 模具造价摊销 / 损耗率 · 有人维护才估得准</div>
+        <div class="btnline"><button class="btn">+ 新增材料价</button><button class="btn ghost">批量导入（Excel）</button><button class="btn ghost">历史价查看</button></div>
+        <div class="panel"><h3>🧪 材料价格（生效日期驱动）</h3>
+          <table>
+            <tr><th>材料编码</th><th>材料</th><th>单价</th><th>单位</th><th>生效日期</th><th>来源</th><th>操作</th></tr>
+            <tr><td>RM-PP-01</td><td>PP 原料</td><td>¥8.60</td><td>kg</td><td>2026-08-01</td><td>采购价</td><td><a>编辑</a> · <a>历史</a></td></tr>
+            <tr><td>RM-MB-BLU</td><td>色母（蓝）</td><td>¥32.00</td><td>kg</td><td>2026-08-01</td><td>采购价</td><td><a>编辑</a> · <a>历史</a></td></tr>
+            <tr><td>PK-CARD-01</td><td>包装彩卡</td><td>¥0.18</td><td>张</td><td>2026-08-15</td><td>采购价</td><td><a>编辑</a> · <a>历史</a></td></tr>
+          </table>
+        </div>
+        <div class="panel"><h3>⏱ 工序费率 & 模具摊销 & 损耗率</h3>
+          <table>
+            <tr><th>配置项</th><th>当前值</th><th>说明</th><th>操作</th></tr>
+            <tr><td>注塑机台费率</td><td>¥120/h</td><td>含折旧+能耗+人工分摊</td><td><a>编辑</a></td></tr>
+            <tr><td>吹塑机台费率</td><td>¥95/h</td><td>—</td><td><a>编辑</a></td></tr>
+            <tr><td>喷漆人工费率</td><td>¥35/h</td><td>按班组工时</td><td><a>编辑</a></td></tr>
+            <tr><td>材料损耗率（默认）</td><td>2.5%</td><td>产品层可覆盖</td><td><a>编辑</a></td></tr>
+            <tr><td>模具造价-摊销规则</td><td>按订单量摊薄，上限=寿命</td><td>新款模具造价从模具台账取</td><td><a>编辑</a></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 报价单管理 ========== -->
+      <div class="page" id="p-quotels">
+        <h2>报价单管理</h2><div class="desc">业务员线下给客户 · 系统留档沉淀成交数据</div>
+        <div class="btnline"><button class="btn">+ 新建报价单（AI 估价导入）</button><button class="btn ghost">导出</button></div>
+        <div class="panel">
+          <table>
+            <tr><th>报价单号</th><th>客户</th><th>产品</th><th>数量</th><th>单价</th><th>状态</th><th>成交</th><th>估价偏差</th><th>操作</th></tr>
+            <tr><td>Q-240826-01</td><td>绿源园艺</td><td>花盆 A-300</td><td>6,000</td><td>¥6.80</td><td><span class="tag t-ok">已发</span></td><td><span class="tag t-ok">成交</span></td><td>+3%</td><td><a>查看</a> · <a>复制</a> · <a>作废</a></td></tr>
+            <tr><td>Q-240826-02</td><td>禾木农业</td><td>育苗盘 B-128</td><td>8,000</td><td>¥3.20</td><td><span class="tag t-ok">已发</span></td><td><span class="tag t-ok">成交</span></td><td>-5%</td><td><a>查看</a> · <a>复制</a> · <a>作废</a></td></tr>
+            <tr><td>Q-240825-09</td><td>新绿资材</td><td>托盘 C-60</td><td>12,000</td><td>¥7.90</td><td><span class="tag t-warn">待确认</span></td><td><span class="tag t-gray">跟进中</span></td><td>—</td><td><a>查看</a> · <a>复制</a> · <a>作废</a></td></tr>
+            <tr><td>Q-240825-11</td><td>青山园林</td><td>营养钵 D-16</td><td>10,000</td><td>¥1.95</td><td><span class="tag t-gray">已失效</span></td><td><span class="tag t-bad">未成交</span></td><td>+12%</td><td><a>查看</a> · <a>复制</a></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 智能排产 ========== -->
+      <div class="page" id="p-sched">
+        <h2>智能排产 · 排产结果</h2><div class="desc">手工排产铁保底 + 智能辅助（OR-Tools） · 排产结果以甘特 + 明细列表双视图展示</div>
+        <div class="cards">
+          <div class="card"><div class="k">待排任务</div><div class="v org">6</div><div class="s">已接收生产订单 24 单</div></div>
+          <div class="card"><div class="k">已排任务</div><div class="v">18</div><div class="s">覆盖率 75%</div></div>
+          <div class="card"><div class="k">交期对照</div><div class="v red">2 超期</div><div class="s">其中 1 单已触发红灯</div></div>
+          <div class="card"><div class="k">机台平均占用</div><div class="v grn">86%</div><div class="s">I-01 8/28 超载 ⚠</div></div>
+        </div>
+        <div class="btnline">
+          <button class="btn">⚡ 一键智能排产（OR-Tools）</button>
+          <button class="btn grn" onclick="openSched()">📊 打开交互甘特视图 →</button>
+          <button class="btn ghost">导出明细</button>
+          <button class="btn ghost">🔒 锁定排程</button>
+          <button class="btn ghost">↩ 回滚上一版</button>
+        </div>
+        <div class="panel"><h3>📋 排产结果明细（按计划开始时间排序）</h3>
+          <table>
+            <tr><th>任务</th><th>订单</th><th>产品</th><th>机台</th><th>数量</th><th>换模</th><th>计划开始</th><th>计划结束</th><th>交期</th><th>对照</th><th>状态</th><th>操作</th></tr>
+            <tr><td>TS-826-011</td><td>SO-240826-01</td><td>花盆 A-300</td><td>I-02 注塑机2号</td><td>6,000</td><td>45min</td><td>8/27 08:00</td><td>8/28 02:00</td><td>8/29</td><td><span class="tag t-ok">✓ 满足</span></td><td><span class="tag t-blue">进行中</span></td><td><a>详情</a> · <a>定位甘特</a></td></tr>
+            <tr><td>TS-826-012</td><td>SO-240826-01</td><td>花盆 A-300(蓝)</td><td>I-01 注塑机1号</td><td>4,000</td><td>45min</td><td>8/28 08:00</td><td>8/28 22:00</td><td>8/29</td><td><span class="tag t-ok">✓ 满足</span></td><td><span class="tag t-gray">待开工</span></td><td><a>详情</a> · <a>定位甘特</a></td></tr>
+            <tr><td>TS-826-013</td><td>SO-240826-03</td><td>托盘 C-60</td><td>I-01 注塑机1号</td><td>12,000</td><td>60min</td><td>8/27 08:00</td><td>8/28 01:40</td><td>8/28 09:00</td><td><span class="tag t-warn">⚠ 挤到 8/28 01:40</span></td><td><span class="tag t-warn">插单顺延</span></td><td><a>详情</a> · <a>定位甘特</a></td></tr>
+            <tr><td>TS-826-014</td><td>SO-240826-04</td><td>营养钵 D-12</td><td>B-01 吹塑机1号</td><td>15,000</td><td>40min</td><td>8/27 08:00</td><td>8/30 12:00</td><td>8/31</td><td><span class="tag t-ok">✓ 满足</span></td><td><span class="tag t-blue">进行中</span></td><td><a>详情</a> · <a>定位甘特</a></td></tr>
+            <tr><td>TS-826-015</td><td>SO-240826-05</td><td>花盆 A-300 喷漆</td><td>P-01 喷漆线</td><td>6,000</td><td>15min</td><td>8/28 08:00</td><td>8/29 05:00</td><td>8/30 18:00</td><td><span class="tag t-ok">✓ 满足</span></td><td><span class="tag t-gray">待开工</span></td><td><a>详情</a> · <a>定位甘特</a></td></tr>
+            <tr style="background:#fffbeb"><td>TS-826-016</td><td>SO-240826-06</td><td>花盆 B-260</td><td>I-04 注塑机4号</td><td>5,000</td><td>50min</td><td>8/29 08:00</td><td>8/29 23:30</td><td>9/1</td><td><span class="tag t-ok">✓ 满足</span></td><td><span class="tag t-warn">顺延</span></td><td><a>详情</a> · <a>定位甘特</a></td></tr>
+            <tr style="background:#fef2f2"><td>TS-826-017</td><td>SO-240826-03</td><td>托盘 C-60(加强)</td><td>I-03 注塑机3号</td><td>6,000</td><td>60min</td><td>8/29 12:00</td><td>8/30 03:00</td><td>8/28 18:00</td><td><span class="tag t-bad">✗ 超期</span></td><td><span class="tag t-bad">红灯</span></td><td><a>详情</a> · <a>调整排期</a></td></tr>
+          </table>
+          <div class="note">💡 视图关系：甘特 = 明细的可视化；本页明细按开始时间排序、支持导出；「插单/手排/智能排」任一操作后明细实时刷新；超期行自动标红并进入红灯管理。</div>
+        </div>
+      </div>
+
+      <!-- ========== 任务中心 ========== -->
+      <div class="page" id="p-task">
+        <h2>任务中心</h2><div class="desc">排产结果直达机台/班组 · 工人手机端可见"今日任务"</div>
+        <div class="btnline"><button class="btn ghost">🔍 高级筛选</button><button class="btn ghost">导出</button><button class="btn ghost">锁/解锁排程</button></div>
+        <div class="panel">
+          <table>
+            <tr><th>任务号</th><th>订单</th><th>产品</th><th>机台/班组</th><th>数量</th><th>已完</th><th>计划时段</th><th>进度</th><th>实际vs计划</th><th>状态</th><th>操作</th></tr>
+            <tr><td>TS-826-011</td><td>SO-240826-01</td><td>花盆 A-300</td><td>I-02 注塑机2号</td><td>6,000</td><td>3,720</td><td>8/27 08:00-8/28 02:00</td><td><div class="pb"><i style="width:62%"></i></div></td><td><span class="tag t-ok">+4% 提前</span></td><td><span class="tag t-blue">进行中</span></td><td><a>详情</a> · <a>调整</a> · <a>报工</a></td></tr>
+            <tr><td>TS-826-012</td><td>SO-240826-01</td><td>花盆 A-300(蓝)</td><td>I-01 注塑机1号</td><td>4,000</td><td>0</td><td>8/28 08:00-8/28 22:00</td><td><div class="pb"><i style="width:0%"></i></div></td><td>—</td><td><span class="tag t-gray">待开工</span></td><td><a>详情</a> · <a>调整</a></td></tr>
+            <tr><td>TS-826-013</td><td>SO-240826-04</td><td>营养钵 D-12</td><td>B-01 吹塑机1号</td><td>15,000</td><td>4,500</td><td>8/27 08:00-8/30 12:00</td><td><div class="pb"><i style="width:30%"></i></div></td><td><span class="tag t-bad">-15% 落后 ⚠</span></td><td><span class="tag t-blue">进行中</span></td><td><a>详情</a> · <a>调整</a> · <a>报工</a> · <a>建议重排</a></td></tr>
+            <tr><td>TS-826-014</td><td>SO-240826-06</td><td>花盆 B-260</td><td>喷漆班</td><td>5,000</td><td>0</td><td>8/29 08:00-8/30 18:00</td><td><div class="pb"><i style="width:0%"></i></div></td><td>—</td><td><span class="tag t-gray">待开工</span></td><td><a>详情</a> · <a>调整</a></td></tr>
+            <tr><td>TS-826-015</td><td>SO-240826-02</td><td>育苗盘 B-128</td><td>I-03 注塑机3号</td><td>8,000</td><td>8,000</td><td>8/26 08:00-8/27 10:00</td><td><div class="pb"><i class="grn" style="width:100%"></i></div></td><td><span class="tag t-ok">完成</span></td><td><span class="tag t-ok">已完成</span></td><td><a>详情</a> · <a>入库</a></td></tr>
+          </table>
+          <div class="note">📉 进度偏差自动计算（实际报工 vs 排产计划）；落后 >10% 标红并给出「建议重排」，呼应排产动态调整。</div>
+        </div>
+      </div>
+
+      <!-- ========== 现场报工 & 入库 ========== -->
+      <div class="page" id="p-report">
+        <h2>现场报工 · 生产入库</h2><div class="desc">报工 1-2 步极简 → 任务完工后进入「生产入库」（最后一步）→ 推金蝶生产入库单（含字段映射）</div>
+        <div class="panel" style="display:flex;gap:14px;flex-wrap:wrap">
+          <div style="flex:1;min-width:300px">
+            <h3>📱 工人端（手机，微信免密）</h3>
+            <div class="note">✅ 微信扫码/企微免密登录（首次绑定工号）→ 今日任务一键可见 → 扫码/点选报工 1-2 步完成；班组长可代报；每笔报工按人留痕（支撑二期计件工资）。</div>
+            <button class="btn" onclick="openPhone('11')">📱 打开工人报工手机原型 →</button>
+          </div>
+          <div style="flex:1;min-width:300px;border-left:1px solid var(--line);padding-left:14px">
+            <h3>🖥️ PC 补录（班组长/统计）</h3>
+            <div style="display:flex;gap:8px;margin-bottom:8px"><input style="flex:1;padding:7px;border:1px solid #c9d3e4;border-radius:7px" value="TS-826-011"><input style="width:110px;padding:7px;border:1px solid #c9d3e4;border-radius:7px" value="500"></div>
+            <button class="btn grn">提交补录</button>
+          </div>
+        </div>
+        <div class="panel"><h3>📋 报工明细台账（按人留痕 · 二期计件工资核算数据源）</h3>
+          <table>
+            <tr><th>报工时间</th><th>报工人</th><th>实际作业人</th><th>班组</th><th>任务</th><th>产品</th><th>机台</th><th>本次数量</th><th>累计/任务量</th><th>来源</th></tr>
+            <tr><td>08-26 14:30</td><td>张建国</td><td>张建国（本人）</td><td>注塑一班</td><td>TS-826-011</td><td>花盆 A-300</td><td>I-02</td><td>+500</td><td>2,780 / 6,000</td><td><span class="tag t-blue">扫码</span></td></tr>
+            <tr><td>08-26 13:15</td><td>张建国</td><td>张建国（本人）</td><td>注塑一班</td><td>TS-826-011</td><td>花盆 A-300</td><td>I-02</td><td>+1,000</td><td>2,280 / 6,000</td><td><span class="tag t-blue">扫码</span></td></tr>
+            <tr><td>08-26 12:00</td><td>李强（代报）</td><td><b>赵六（×800）</b></td><td>注塑一班</td><td>TS-826-013</td><td>托盘 C-60</td><td>I-01</td><td>+800</td><td>800 / 12,000</td><td><span class="tag t-warn">班组长代报</span></td></tr>
+            <tr><td>08-26 11:02</td><td>王芳</td><td>王芳（本人）</td><td>包装班</td><td>TS-826-020</td><td>育苗盘 B-128</td><td>P-01</td><td>+2,000</td><td>8,000 / 8,000</td><td><span class="tag t-blue">扫码</span></td></tr>
+            <tr><td>08-26 10:40</td><td>陈伟</td><td>陈伟（本人）</td><td>吹塑班</td><td>TS-826-016</td><td>营养钵 D-12</td><td>B-01</td><td>+1,500</td><td>4,500 / 15,000</td><td><span class="tag t-blue">扫码</span></td></tr>
+          </table>
+          <div class="note">🔒 台账只增不改（报错用「冲减」负数量更正，留痕）；<b>代报必须选实际作业人</b> → 二期计件工资按「实际作业人」核算；报工区分合格数/次品数，计件按合格数。</div>
+        </div>
+        <div class="panel"><h3>🏭 生产入库（报工最后一步 → 推送金蝶生产入库单）</h3>
+          <table>
+            <tr><th>任务</th><th>产品</th><th>报工完成量</th><th>累计已入库</th><th>本次可入库</th><th>状态</th><th>操作</th></tr>
+            <tr><td>TS-826-020</td><td>育苗盘 B-128</td><td>8,000 / 8,000</td><td>3,000</td><td>5,000</td><td><span class="tag t-warn">部分已入库</span></td><td><button class="btn grn">📨 入库 5,000 → 推金蝶</button></td></tr>
+            <tr><td>TS-826-011</td><td>花盆 A-300</td><td>2,780 / 6,000</td><td>0</td><td>2,780</td><td><span class="tag t-blue">进行中</span></td><td><button class="btn grn">📨 入库 2,780 → 推金蝶</button></td></tr>
+            <tr><td>TS-826-016</td><td>营养钵 D-12</td><td>4,500 / 15,000</td><td>0</td><td>4,500</td><td><span class="tag t-blue">进行中</span></td><td><button class="btn grn">📨 入库 4,500 → 推金蝶</button></td></tr>
+          </table>
+          <div class="note">🔁 <b>分批入库（已确认）</b>：报工完成即可分批入库，不必等全部完工——支撑"生产到一半就发货"；可入库量＝报工完成量 − 已入库量；每次入库独立生成金蝶生产入库单；发货前校验金蝶库存余量防超发。</div>
+          <h4 style="margin:12px 0 6px;color:var(--pri-d)">新系统 → 金蝶「生产入库单」字段映射</h4>
+          <table>
+            <tr><th>新系统字段</th><th>金蝶生产入库单字段</th><th>取值说明</th></tr>
+            <tr><td>产品编码</td><td>FEntity.FMaterialId（物料编码）</td><td>与金蝶物料编码一致（PLM 建档时对齐）</td></tr>
+            <tr><td>入库数量</td><td>FRealQty（实收数量）</td><td>该任务报工完成数量汇总（≈可入库数量）</td></tr>
+            <tr><td>来源生产订单</td><td>FEntity.FSrcBillNo（源单号）</td><td>拉生产订单时回传的金蝶单号，入库回写原单</td></tr>
+            <tr><td>仓库</td><td>FStockId（仓库）</td><td>默认成品仓（可配置多仓）</td></tr>
+            <tr><td>入库日期</td><td>FDate（日期）</td><td>确认入库当日</td></tr>
+            <tr><td>单据类型</td><td>FBillTypeId</td><td>生产入库单（PRD 类型）</td></tr>
+            <tr><td>经办人/制单人</td><td>FCreatorId</td><td>系统账号 ↔ 金蝶用户映射</td></tr>
+            <tr><td>备注（溯源）</td><td>FNote</td><td>「虹越智造平台任务号 TS-xxx」便于追溯</td></tr>
+          </table>
+          <div class="note">🔁 推送方式：确认入库 → 调金蝶 K3Cloud WebAPI 创建生产入库单 → 回执（单号/状态）写回本系统 → 定时对账兜底；失败进入重试队列、可人工补推。</div>
+        </div>
+      </div>
+
+      <!-- ========== 异常管理 ========== -->
+      <div class="page" id="p-err">
+        <h2>异常管理</h2><div class="desc">停机 / 换模 / 次品 / 缺料 · 异常影响排产重排提示</div>
+        <div class="btnline"><button class="btn">+ 登记异常</button><button class="btn ghost">统计报表</button></div>
+        <div class="panel">
+          <table>
+            <tr><th>类型</th><th>机台/班组</th><th>任务</th><th>说明</th><th>上报人</th><th>时间</th><th>状态</th><th>操作</th></tr>
+            <tr><td><span class="tag t-bad">停机</span></td><td>I-02 注塑机2号</td><td>花盆 A-300</td><td>油温过高停机 40min</td><td>张建国</td><td>14:20</td><td><span class="tag t-warn">处理中</span></td><td><a>登记换模</a></td></tr>
+            <tr><td><span class="tag t-warn">换模</span></td><td>I-01 注塑机1号</td><td>托盘 C-60</td><td>切换模具 M-058</td><td>李强</td><td>13:45</td><td><span class="tag t-ok">已完成</span></td><td>—</td></tr>
+            <tr><td><span class="tag t-warn">次品</span></td><td>B-01 吹塑机1号</td><td>营养钵 D-12</td><td>壁厚不均 300 件次品</td><td>王芳</td><td>11:02</td><td><span class="tag t-ok">已处理</span></td><td>—</td></tr>
+            <tr><td><span class="tag t-warn">缺料</span></td><td>包装班</td><td>育苗盘 B-128</td><td>彩卡缺料 2h</td><td>陈伟</td><td>09:30</td><td><span class="tag t-ok">已处理</span></td><td>—</td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 订单进度总览 ========== -->
+      <div class="page" id="p-orders">
+        <h2>订单进度总览</h2><div class="desc">生产进度由 MES 回写小程序 · 业务员/老板实时可视</div>
+        <div class="btnline"><button class="btn">🔄 手动拉取生产订单</button><button class="btn ghost">导出</button></div>
+        <div class="cards">
+          <div class="card"><div class="k">待排产</div><div class="v org">2</div></div>
+          <div class="card"><div class="k">在产</div><div class="v">14</div></div>
+          <div class="card"><div class="k">已完成(本月)</div><div class="v grn">38</div></div>
+          <div class="card"><div class="k">逾期</div><div class="v red">1</div></div>
+        </div>
+        <div class="panel">
+          <table>
+            <tr><th>订单号</th><th>客户</th><th>产品</th><th>交期</th><th>整体进度</th><th>状态</th><th>小程序进度</th></tr>
+            <tr><td>SO-240826-03</td><td>新绿资材</td><td>托盘 C-60（12000）</td><td>8/28</td><td><div class="pb"><i class="red" style="width:0%"></i></div></td><td><span class="tag t-bad">逾期·未排</span></td><td>业务员可见 🔴</td></tr>
+            <tr><td>SO-240826-01</td><td>绿源园艺</td><td>花盆 A-300 等 2 品</td><td>8/29</td><td><div class="pb"><i style="width:62%"></i></div></td><td><span class="tag t-blue">生产中</span></td><td>进度 62% ⏳</td></tr>
+            <tr><td>SO-240826-04</td><td>青山园林</td><td>营养钵 D-12/D-16</td><td>8/31</td><td><div class="pb"><i style="width:38%"></i></div></td><td><span class="tag t-blue">生产中</span></td><td>进度 38% ⏳</td></tr>
+            <tr><td>SO-240826-02</td><td>禾木农业</td><td>育苗盘 B-128（8000）</td><td>8/30</td><td><div class="pb"><i class="grn" style="width:100%"></i></div></td><td><span class="tag t-ok">已完工</span></td><td>可发货 🚚</td></tr>
+          </table>
+        </div>
+        <div class="panel"><h3>小程序端（业务员可见）<span class="more"><button class="btn" onclick="openPhone('12')">📱 打开小程序原型 →</button></span></h3>
+          <div class="note">✅ 业务员小程序实时看：订单级/产品级进度、预计完成时间、延期提示；移动发货（分批/拍照/物流）后状态同步；生产进度由 MES 回写、非人工填报。</div>
+        </div>
+      </div>
+
+      <!-- ========== 产能负荷 ========== -->
+      <div class="page" id="p-load">
+        <h2>产能负荷</h2><div class="desc">机台 × 日期负荷热力 · 识别瓶颈</div>
+        <div class="panel" style="overflow-x:auto">
+          <table class="heat">
+            <tr><th>机台</th><th>8/26</th><th>8/27</th><th>8/28</th><th>8/29</th><th>8/30</th></tr>
+            <tr><td>I-01 注塑机1号</td><td class="h3">72%</td><td class="h4">88%</td><td class="h5">102% ⚠</td><td class="h4">90%</td><td class="h2">56%</td></tr>
+            <tr><td>I-02 注塑机2号</td><td class="h4">85%</td><td class="h5">95%</td><td class="h4">91%</td><td class="h3">74%</td><td class="h2">48%</td></tr>
+            <tr><td>I-03 注塑机3号</td><td class="h2">52%</td><td class="h3">68%</td><td class="h3">70%</td><td class="h2">45%</td><td class="h1">30%</td></tr>
+            <tr><td>I-04 注塑机4号</td><td class="h1">28%</td><td class="h2">55%</td><td class="h3">66%</td><td class="h2">50%</td><td class="h1">22%</td></tr>
+            <tr><td>B-01 吹塑机1号</td><td class="h3">76%</td><td class="h4">82%</td><td class="h4">84%</td><td class="h3">71%</td><td class="h2">45%</td></tr>
+            <tr><td>P-01 喷漆线</td><td class="h2">58%</td><td class="h3">64%</td><td class="h4">89%</td><td class="h3">77%</td><td class="h2">52%</td></tr>
+          </table>
+          <div style="margin-top:8px;font-size:11.5px;color:var(--mut)">色阶：<span class="h1" style="padding:0 6px">低</span> <span class="h2" style="padding:0 6px">中</span> <span class="h3" style="padding:0 6px">较高</span> <span class="h4" style="padding:0 6px">高</span> <span class="h5" style="padding:0 6px">超载</span> · 负荷 &gt;85% 预警，&gt;100% 红灯</div>
+        </div>
+      </div>
+
+      <!-- ========== 红灯管理 ========== -->
+      <div class="page" id="p-red">
+        <h2>红灯管理（强制推进）</h2><div class="desc">未排产 / 未报工 / 逾期 自动暴露 · 直达责任人 · 配合企微/小程序提醒</div>
+        <div class="panel"><h3>🔴 未排产 / 逾期（1）</h3>
+          <div class="redlist">
+            <div class="reditem"><span class="dot r"></span><b>SO-240826-03 托盘 C-60</b><span>交期已过 · 未排产 · 责任人：计划员</span><button class="btn wa" style="margin-left:auto">去排产</button></div>
+          </div>
+        </div>
+        <div class="panel"><h3>🟡 未报工 / 临期（3）</h3>
+          <div class="redlist">
+            <div class="reditem"><span class="dot y"></span><b>I-01 花盆 A-300(蓝)</b><span>计划 8/28 完成 · 今日未报工 · 班组：注塑一班</span><button class="btn ghost" style="margin-left:auto">催办</button></div>
+            <div class="reditem"><span class="dot y"></span><b>P-01 花盆 A-300 喷漆</b><span>累计 11h 未报工 · 班组：喷漆班</span><button class="btn ghost" style="margin-left:auto">催办</button></div>
+            <div class="reditem"><span class="dot y"></span><b>模具 M-086</b><span>剩余寿命 22% · 需评估翻新/补订</span><button class="btn ghost" style="margin-left:auto">处理</button></div>
+          </div>
+        </div>
+        <div class="panel"><h3>规则</h3><div class="note">红灯自动生成：① 订单逾期且未排产；② 任务超时未报工；③ 排产交期晚于客户交期；④ 模具寿命低于阈值。红灯项持续置顶，处理关闭。</div></div>
+      </div>
+
+      <!-- ========== 报表中心 ========== -->
+      <div class="page" id="p-rpt">
+        <h2>报表中心</h2><div class="desc">产量 / 效率 / 交期达成 / 模具寿命 · 支撑经营复盘与二期工资核算</div>
+        <div class="cards">
+          <div class="card"><div class="k">本月产量</div><div class="v">312 万<span style="font-size:11px;color:var(--mut)">件</span></div><div class="s">机台利用率 86%</div></div>
+          <div class="card"><div class="k">交期达成率</div><div class="v grn">92%</div><div class="s">逾期 1 单</div></div>
+          <div class="card"><div class="k">换模次数 / 平均耗时</div><div class="v org">128 次 / 32min</div><div class="s">同类连续排产出效益</div></div>
+          <div class="card"><div class="k">报工及时率</div><div class="v grn">96%</div><div class="s">红灯看板驱动提升</div></div>
+        </div>
+        <div class="panel"><h3>重点报表（二期：计件工资核算）</h3>
+          <table><tr><th>报表</th><th>口径</th><th>一期</th></tr>
+          <tr><td>机台产量日报</td><td>按机台/班次/产品</td><td><span class="tag t-ok">有</span></td></tr>
+          <tr><td>班组长报工台账</td><td>谁报/哪机台/哪任务/何时</td><td><span class="tag t-ok">有（按人留痕）</span></td></tr>
+          <tr><td>计件工资核算</td><td>报工流水 × 计件单价</td><td><span class="tag t-gray">二期</span></td></tr>
+          <tr><td>模具寿命报表</td><td>开模次数/剩余寿命预警</td><td><span class="tag t-ok">有</span></td></tr></table>
+        </div>
+      </div>
+
+      <!-- ========== 组织与用户 ========== -->
+      <div class="page" id="p-org">
+        <h2>组织与用户</h2><div class="desc">车间 / 班组组织架构 · 用户与角色权限</div>
+        <div class="btnline"><button class="btn">+ 新增用户</button><button class="btn ghost">⬆ 批量导入（Excel）</button><button class="btn ghost">组织架构维护</button></div>
+        <div class="panel" style="display:flex;gap:18px;flex-wrap:wrap">
+          <div style="width:200px;min-width:200px;border-right:1px solid var(--line)">
+            <b style="color:var(--pri-d);font-size:12.5px">🏢 组织架构</b>
+            <div style="padding-left:8px;line-height:2.1;font-size:12.5px">
+              🏭 生产部<br>
+              &nbsp;&nbsp;├ 注塑车间（2 班）<br>
+              &nbsp;&nbsp;│&nbsp;&nbsp;└ 注塑一班 / 注塑二班<br>
+              &nbsp;&nbsp;├ 吹塑车间 → 吹塑班<br>
+              &nbsp;&nbsp;├ 喷漆车间 → 喷漆班<br>
+              &nbsp;&nbsp;└ 包装车间 → 包装班
+            </div>
+          </div>
+          <div style="flex:1">
+            <table>
+              <tr><th>工号</th><th>姓名</th><th>部门/班组</th><th>角色</th><th>微信绑定</th><th>状态</th><th>操作</th></tr>
+              <tr><td>HY0001</td><td>张建国</td><td>注塑一班</td><td>工人</td><td><span class="tag t-ok">已绑定</span></td><td><span class="tag t-ok">启用</span></td><td><a>编辑</a> · <a>重置密码</a> · <a>停用</a></td></tr>
+              <tr><td>HY0012</td><td>李强</td><td>注塑一班</td><td>班组长</td><td><span class="tag t-ok">已绑定</span></td><td><span class="tag t-ok">启用</span></td><td><a>编辑</a> · <a>重置密码</a> · <a>停用</a></td></tr>
+              <tr><td>HY0023</td><td>王芳</td><td>包装班</td><td>工人</td><td><span class="tag t-warn">未绑定</span></td><td><span class="tag t-ok">启用</span></td><td><a>编辑</a> · <a>重置密码</a> · <a>停用</a></td></tr>
+              <tr><td>HY0101</td><td>沈飞</td><td>生产部</td><td>管理员</td><td><span class="tag t-ok">已绑定</span></td><td><span class="tag t-ok">启用</span></td><td><a>编辑</a> · <a>停用</a></td></tr>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ========== 机台与班制（独立配置） ========== -->
+      <div class="page" id="p-mach">
+        <h2>机台与班制</h2><div class="desc">机台独立配置：标准产能 / 换模时间 / 班制 / 状态 · 排产引擎直接引用</div>
+        <div class="btnline"><button class="btn">+ 新增机台</button><button class="btn ghost">⬆ 批量导入产能（Excel）</button><button class="btn ghost">⚙ 班制模板配置</button></div>
+        <div class="panel"><h3>🏭 机台配置</h3>
+          <table>
+            <tr><th>机台编码</th><th>名称</th><th>车间</th><th>类型</th><th>标准产能</th><th>默认换模时间</th><th>班制</th><th>状态</th><th>操作</th></tr>
+            <tr><td>I-01</td><td>注塑机1号</td><td>注塑车间</td><td>注塑</td><td>300 件/h</td><td>45 min</td><td>2 班</td><td><span class="tag t-ok">运行</span></td><td><a>编辑</a> · <a>调产能</a> · <a>维修</a> · <a>停用</a></td></tr>
+            <tr><td>I-02</td><td>注塑机2号</td><td>注塑车间</td><td>注塑</td><td>300 件/h</td><td>45 min</td><td>2 班</td><td><span class="tag t-ok">运行</span></td><td><a>编辑</a> · <a>调产能</a> · <a>维修</a> · <a>停用</a></td></tr>
+            <tr><td>I-03</td><td>注塑机3号</td><td>注塑车间</td><td>注塑</td><td>250 件/h</td><td>60 min</td><td>2 班</td><td><span class="tag t-ok">运行</span></td><td><a>编辑</a> · <a>调产能</a> · <a>维修</a> · <a>停用</a></td></tr>
+            <tr><td>B-01</td><td>吹塑机1号</td><td>吹塑车间</td><td>吹塑</td><td>200 件/h</td><td>40 min</td><td>2 班</td><td><span class="tag t-ok">运行</span></td><td><a>编辑</a> · <a>调产能</a> · <a>维修</a> · <a>停用</a></td></tr>
+            <tr><td>B-02</td><td>吹塑机2号</td><td>吹塑车间</td><td>吹塑</td><td>180 件/h</td><td>40 min</td><td>2 班</td><td><span class="tag t-warn">维修中</span></td><td><a>编辑</a> · <a>调产能</a> · <a>恢复</a></td></tr>
+            <tr><td>P-01</td><td>喷漆线1号</td><td>喷漆车间</td><td>人工线</td><td>150 件/h</td><td>—</td><td>白班</td><td><span class="tag t-ok">运行</span></td><td><a>编辑</a> · <a>调产能</a> · <a>停用</a></td></tr>
+          </table>
+          <div class="note">💡 换模时间是排产关键参数（同类连续排减少换模）：每台机可配置「换模时间矩阵」（相近模具切换更快），二期深化。</div>
+        </div>
+        <div class="panel"><h3>⏰ 班制模板</h3>
+          <table>
+            <tr><th>模板</th><th>班次</th><th>时间</th><th>适用车间</th><th>操作</th></tr>
+            <tr><td>标准两班</td><td>白班 / 夜班</td><td>08:00-20:00 / 20:00-08:00</td><td>注塑、吹塑</td><td><a>编辑</a> · <a>复制</a></td></tr>
+            <tr><td>单白班</td><td>白班</td><td>08:00-17:30</td><td>喷漆、包装</td><td><a>编辑</a> · <a>复制</a></td></tr>
+          </table>
+        </div>
+      </div>
+
+      <!-- ========== 集成配置 ========== -->
+      <div class="page" id="p-int">
+        <h2>集成配置</h2><div class="desc">金蝶 / 小程序 / 企微 / AI 连接状态与参数 · 含字段映射与对账</div>
+        <div class="panel"><h3>🔗 金蝶云星空（K3Cloud WebAPI）</h3>
+          <table>
+            <tr><th>配置项</th><th>值</th><th>操作</th></tr>
+            <tr><td>服务器地址</td><td>https://k3.hongyue.com/K3Cloud</td><td><a>编辑</a></td></tr>
+            <tr><td>数据中心/账套</td><td>HongYue_Production</td><td><a>编辑</a></td></tr>
+            <tr><td>连接状态</td><td><span class="tag t-ok">正常</span>（16:02）</td><td><a>测试连接</a></td></tr>
+            <tr><td>生产订单拉取</td><td><b>轮询 10min</b>（金蝶侧下推后自动拉取）+ 页面上手动拉取</td><td><a>配置</a></td></tr>
+            <tr><td>生产入库单推送</td><td>报工完工确认后触发 · 带重试队列</td><td><a>查看字段映射</a></td></tr>
+            <tr><td>BOM 发布 / 物料同步</td><td>PLM 审核发布后推送</td><td><a>配置</a></td></tr>
+          </table>
+        </div>
+        <div class="panel"><h3>📱 小程序 / 企微 / AI</h3>
+          <table>
+            <tr><th>连接</th><th>状态</th><th>配置项</th><th>操作</th></tr>
+            <tr><td>小程序（进度回写/发货）</td><td><span class="tag t-ok">就绪</span></td><td>AppID / 接口地址 / 订阅消息模板</td><td><a>编辑</a></td></tr>
+            <tr><td>企业微信（消息/免登）</td><td><span class="tag t-ok">就绪</span></td><td>CorpID / AgentID / Secret</td><td><a>编辑</a></td></tr>
+            <tr><td>AI 报价（DeepSeek）</td><td><span class="tag t-ok">就绪</span></td><td>API Key / 模型 / 限额</td><td><a>编辑</a></td></tr>
+          </table>
+        </div>
+        <div class="panel"><h3>📨 集成日志 & 对账</h3>
+          <table>
+            <tr><th>时间</th><th>方向</th><th>单号</th><th>结果</th></tr>
+            <tr><td>16:05</td><td>→ 金蝶 生产入库单</td><td>PRD-0826-011</td><td><span class="tag t-ok">成功</span></td></tr>
+            <tr><td>15:58</td><td>← 金蝶 生产订单拉取</td><td>MO-240826-31</td><td><span class="tag t-ok">成功</span></td></tr>
+            <tr><td>15:30</td><td>→ 金蝶 生产入库单</td><td>PRD-0826-009</td><td><span class="tag t-bad">失败→重试成功</span></td></tr>
+          </table>
+          <div class="note">对账规则：双方单据每日比对一次，差异报警；失败进重试队列并支持人工补推。</div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<script>
+const pages={ "p-home":"工作台","p-prod":"产品档案","p-bom":"BOM 管理","p-route":"工艺路线","p-mold":"模具台账","p-dev":"新品开发",
+  "p-quote":"AI 快速估价","p-quotels":"报价单管理","p-pparam":"报价参数配置","p-sched":"智能排产","p-task":"任务中心","p-report":"现场报工&入库","p-err":"异常管理",
+  "p-orders":"订单进度总览","p-load":"产能负荷","p-red":"红灯管理","p-rpt":"报表中心","p-org":"组织与用户","p-mach":"机台与班制","p-int":"集成配置" };
+document.querySelectorAll("#nav .item").forEach(el=>{
+  el.addEventListener("click",()=>{
+    document.querySelectorAll("#nav .item").forEach(x=>x.classList.remove("on"));
+    el.classList.add("on");
+    const p=el.dataset.p;
+    document.querySelectorAll(".page").forEach(x=>x.classList.remove("on"));
+    document.getElementById(p).classList.add("on");
+    const name=el.textContent.trim();
+    document.getElementById("crumb").innerHTML = name.split("\u200b")[0];
+    document.getElementById("crumb").innerHTML=`<span>虹越智造平台</span> / ${name}`;
+  });
+});
+function calcQuote(){
+  const qty=+document.getElementById("q-qty").value||5000;
+  const mat=0.86,proc=0.38,loss=0.02,mold=28000/qty;
+  const cost=mat+proc+loss+mold;
+  const price=cost*1.2;
+  document.getElementById("r-mat").textContent="¥"+mat.toFixed(2)+"/只";
+  document.getElementById("r-proc").textContent="¥"+proc.toFixed(2)+"/只";
+  document.getElementById("r-loss").textContent="¥"+loss.toFixed(2)+"/只";
+  document.getElementById("r-mold").textContent="¥"+mold.toFixed(2)+"/只（¥28,000÷"+qty.toLocaleString()+"）";
+  document.getElementById("r-price").textContent="¥"+price.toFixed(2)+"/只";
+  document.getElementById("r-due").textContent="按当前产能负荷：8/30 起排 · 预计 "+(qty>10000?"9/6":"9/4")+" 交付";
+  document.getElementById("q-result").style.display="block";
+}
+function openSched(){ location.href="排产甘特页-交互原型-v0.2.html"; }
+function openPhone(id){ location.href=(id==="11"?"11-工人报工-手机原型.html":"12-小程序进度与发货-手机原型.html"); }
+</script>
+</body>
+</html>
