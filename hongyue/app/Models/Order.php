@@ -12,7 +12,7 @@ use Illuminate\Database\Eloquent\SoftDeletes;
  * - src: manual(手工)/excel(导入)/mini_program/k3(四期拉单)
  * - status: route_confirm(工艺确认)/pending(待排产)/scheduled(已排产)/in_progress(生产中)
  *          /paused(已停工)/produced(已入库)/aborted(已中止)/closed(已关闭)
- * - priority 1-5 越大越急
+ * - priority 0-5，数值越小越急（P0 最紧急）
  */
 class Order extends Model
 {

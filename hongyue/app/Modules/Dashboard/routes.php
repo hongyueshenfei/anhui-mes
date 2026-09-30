@@ -13,7 +13,8 @@ use Illuminate\Support\Facades\Route;
 */
 Route::prefix('dashboard')->middleware('auth.api')->group(function () {
     Route::get('/workbench', [DashboardController::class, 'workbench'])->middleware('check.permission:dashboard.view');
-    Route::get('/order-overview', [DashboardController::class, 'orderOverview'])->middleware('check.permission:dashboard.view');
+    // 订单履约汇总也供生产执行报表使用，报表查看权限可读取此只读接口。
+    Route::get('/order-overview', [DashboardController::class, 'orderOverview'])->middleware('check.permission:dashboard.view,report.view');
     Route::get('/task-board', [DashboardController::class, 'taskBoard'])->middleware('check.permission:dashboard.view');
     Route::get('/load-heatmap', [DashboardController::class, 'loadHeatmap'])->middleware('check.permission:dashboard.view');
     Route::get('/reports', [DashboardController::class, 'reports'])->middleware('check.permission:dashboard.view');

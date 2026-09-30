@@ -27,7 +27,7 @@ export const productionApi = {
     return request({ url: '/reports', method: 'get', params })
   },
 
-  /** 报工统计汇总：按实际作业日期 + 任务 + 工序 + 机台/产线聚合 */
+  /** 生产执行报表：按 dimension 切换明细、日班次、产品工序、交期客户、资源效率、质量冲减 */
   reportSummary(params?: Record<string, unknown>): Promise<ReportSummary> {
     return request({ url: '/reports/summary', method: 'get', params })
   },

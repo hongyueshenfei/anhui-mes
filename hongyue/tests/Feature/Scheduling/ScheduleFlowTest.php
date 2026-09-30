@@ -150,6 +150,55 @@ class ScheduleFlowTest extends TestCase
         $this->assertNotNull($item['actual_start']);
     }
 
+    public function test_timeline_hides_fully_corrected_report_segment(): void
+    {
+        $task = $this->createTask('P-0001', 1900);
+        $machine = Machine::where('code', 'I-01')->firstOrFail();
+        $planStart = now()->addDays(30)->startOfDay()->addHours(8);
+
+        $this->api($this->token)->postJson('/api/schedule/manual-save', [
+            'items' => [['task_id' => $task->id, 'machine_id' => $machine->id, 'plan_start' => $planStart->format('Y-m-d H:i:s')]],
+        ])->assertOk();
+
+        $schedule = $task->fresh()->schedules()->orderBy('seq')->firstOrFail();
+        $firstAt = now()->subDays(2)->setTime(9, 0);
+        $mistakenAt = now()->subDay()->setTime(11, 0);
+        $payload = [
+            'task_id' => $task->id,
+            'schedule_id' => $schedule->id,
+            'machine_id' => $schedule->machine_id,
+        ];
+        $this->api($this->token)->postJson('/api/reports', $payload + [
+            'qty' => 900,
+            'report_time' => $firstAt->format('Y-m-d H:i:s'),
+            'start_time' => $firstAt->format('Y-m-d H:i:s'),
+            'end_time' => $firstAt->copy()->addHour()->format('Y-m-d H:i:s'),
+        ])->assertStatus(201);
+        $this->api($this->token)->postJson('/api/reports', $payload + [
+            'qty' => 1000,
+            'report_time' => $mistakenAt->format('Y-m-d H:i:s'),
+            'start_time' => $mistakenAt->format('Y-m-d H:i:s'),
+            'end_time' => $mistakenAt->copy()->addHour()->format('Y-m-d H:i:s'),
+        ])->assertStatus(201);
+        $this->api($this->token)->postJson('/api/reports', $payload + [
+            'qty' => -1000,
+            'remark' => '误报更正',
+        ])->assertStatus(201);
+
+        $timeline = $this->api($this->token)->getJson('/api/schedule/timeline?'.http_build_query([
+            'start' => $firstAt->toDateString(),
+            'end' => $mistakenAt->copy()->addDay()->toDateString(),
+        ]))->assertOk()->json('data.machines');
+        $row = collect($timeline)->firstWhere('id', $machine->id);
+        $item = collect($row['schedules'])->firstWhere('id', $schedule->id);
+
+        $this->assertSame(900, $item['reported_qty']);
+        $this->assertTrue($item['has_report_history'], '报工冲减后仍应识别报工台账历史，不能误判为未开工');
+        $this->assertCount(1, $item['actual_segments']);
+        $this->assertSame($firstAt->format('Y-m-d H:i:s'), $item['actual_segments'][0]['start']);
+        $this->assertStringNotContainsString($mistakenAt->toDateString(), json_encode($item['actual_segments']));
+    }
+
     public function test_timeline_end_date_includes_the_whole_day(): void
     {
         $task = $this->createTask('P-0001', 400);
@@ -199,6 +248,41 @@ class ScheduleFlowTest extends TestCase
 
         $this->assertNotNull($row, '历史排程所在的停用机台仍应保留甘特行');
         $this->assertNotNull(collect($row['schedules'])->firstWhere('task_id', $task->id));
+    }
+
+    public function test_timeline_keeps_all_abnormal_machines_visible_without_schedule_in_window(): void
+    {
+        $expectedStates = [
+            ['code' => 'I-01', 'status' => Machine::STATUS_STOPPED, 'is_active' => 1, 'label' => '已停用'],
+            ['code' => 'I-02', 'status' => Machine::STATUS_MAINTENANCE, 'is_active' => 0, 'label' => '维修中'],
+            ['code' => 'I-03', 'status' => 'fault', 'is_active' => 1, 'label' => 'fault'],
+            ['code' => 'I-04', 'status' => Machine::STATUS_RUNNING, 'is_active' => 0, 'label' => '已停用'],
+        ];
+        $machinesUnderTest = collect($expectedStates)->map(function (array $state) {
+            $machine = Machine::where('code', $state['code'])->firstOrFail();
+            $machine->update([
+                'status' => $state['status'],
+                'is_active' => $state['is_active'],
+            ]);
+
+            return $machine;
+        });
+
+        $machines = $this->api($this->token)->getJson('/api/schedule/timeline?'.http_build_query([
+            'start' => now()->toDateString(),
+            'end' => now()->addDays(7)->toDateString(),
+        ]))->assertOk()->json('data.machines');
+
+        foreach ($expectedStates as $index => $state) {
+            $machine = $machinesUnderTest[$index];
+            $row = collect($machines)->firstWhere('id', $machine->id);
+
+            $this->assertNotNull($row, "{$state['code']} ({$state['status']}) 即使没有窗口内排程也应保留甘特资源行");
+            $this->assertSame($state['status'], $row['status']);
+            $this->assertSame($state['label'], $row['status_label']);
+            $this->assertSame((bool) $state['is_active'], $row['is_active']);
+            $this->assertSame([], $row['schedules']);
+        }
     }
 
     public function test_timeline_keeps_schedule_when_only_actual_report_is_in_window(): void

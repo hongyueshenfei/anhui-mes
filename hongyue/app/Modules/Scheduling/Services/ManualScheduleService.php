@@ -37,6 +37,7 @@ class ManualScheduleService
         private readonly VersionService $versionService,
         private readonly OrderService $orderService,
         private readonly BackwardScheduleService $backwardService,
+        private readonly SuggestionService $suggestionService,
     ) {
     }
 
@@ -209,6 +210,7 @@ class ManualScheduleService
             // 订单状态聚合
             $orderIds = array_values(array_unique(array_filter(array_map(fn ($info) => (int) ($info['task']->line->order_id ?? 0), $taskInfos))));
             $this->syncOrders($orderIds);
+            $this->suggestionService->refreshForTasks($affectedTaskIds);
 
             return [
                 'version' => $version->load('creator:id,name,employee_no'),
@@ -411,6 +413,7 @@ class ManualScheduleService
             if ($orderId > 0 && ($order = Order::find($orderId))) {
                 $this->orderService->syncStatus($order);
             }
+            $this->suggestionService->refreshForTasks([$task->id]);
 
             return [
                 'version' => $version->load('creator:id,name,employee_no'),

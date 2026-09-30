@@ -32,6 +32,7 @@ import {
   handleException,
   insertConfirm,
   insertPreview,
+  startOrder,
   pauseOrder,
   abortOrder,
   closeOrder,
@@ -49,9 +50,11 @@ import {
   refreshRedLights,
   recalculateAllSchedules,
   recalculateSchedulesForMachine,
+  refreshAllMockSuggestions,
   acceptSuggestion,
   dismissSuggestion,
   submitReport,
+  decorateReportLedger,
   dailyReportContext,
   availableQty,
   mockEstimate,
@@ -64,6 +67,7 @@ import {
 } from './store'
 import { clone } from './store'
 import type { TaskSchedule, Order, ProgressStage } from '@/types/schedule'
+import type { WorkReport } from '@/types/production'
 import type { MaterialPrice, ProcessRate, Quote, QuoteEstimate } from '@/types/quote'
 import { day as d, dayHour, dayTime, INS_NO, splitWorkingSegments } from './data'
 
@@ -88,13 +92,35 @@ function matchKeyword(text: string | null | undefined, kw: string): boolean {
   return (text ?? '').toLowerCase().includes(kw.toLowerCase())
 }
 
+/** 甘特图只展示冲减后的有效报工段；负记录自身的录入时间不作为作业时间。 */
+function effectivePositiveReports(reports: WorkReport[]): WorkReport[] {
+  const positiveReports = reports
+    .filter((report) => report.qty > 0)
+    .sort((a, b) => String(a.start_time ?? a.report_time).localeCompare(String(b.start_time ?? b.report_time)))
+    .map((report) => clone(report))
+  let correctionQty = Math.abs(reports.filter((report) => report.qty < 0).reduce((sum, report) => sum + report.qty, 0))
+
+  for (let index = positiveReports.length - 1; index >= 0 && correctionQty > 0; index -= 1) {
+    const report = positiveReports[index]
+    const deduct = Math.min(report.qty, correctionQty)
+    report.qty -= deduct
+    correctionQty -= deduct
+    if (report.qty <= 0) positiveReports.splice(index, 1)
+  }
+
+  return positiveReports
+}
+
 /** 报工统计汇总：沿用报工流水的实际作业日期和工序/机台关联。 */
-function buildReportSummary(filters: { date_from?: string; date_to?: string; keyword?: string; machine_keyword?: string } = {}) {
+function buildReportSummary(filters: { dimension?: string; date_from?: string; date_to?: string; keyword?: string; machine_keyword?: string } = {}) {
   const from = (filters.date_from ?? '').trim()
   const to = (filters.date_to ?? '').trim()
   const keyword = (filters.keyword ?? '').trim().toLowerCase()
   const machineKeyword = (filters.machine_keyword ?? '').trim().toLowerCase()
-  const rows = db.reports
+  const dimension = filters.dimension ?? 'detail'
+  // 与真实接口一致：历史冲减记录沿用原正报工的作业日期、班次和资源，
+  // 避免同一笔正负流水被汇总到两个时间分组。
+  const rows = decorateReportLedger(db.reports)
     .map((report) => {
       const task = db.tasks.find((item) => item.id === report.task_id)
       const schedule = report.schedule_id ? db.schedules.find((item) => item.id === report.schedule_id) : null
@@ -152,9 +178,119 @@ function buildReportSummary(filters: { date_from?: string; date_to?: string; key
     }
   }).sort((a, b) => `${b.work_date}|${b.last_report_time}|${b.task_no}`.localeCompare(`${a.work_date}|${a.last_report_time}|${a.task_no}`))
 
+  const resourceOf = (row: (typeof rows)[number]) => row.report.machine_id
+    ? db.machines.find((machine) => machine.id === row.report.machine_id) ?? null
+    : row.machine ? db.machines.find((machine) => machine.id === row.machine?.id) ?? null : null
+  const operationOf = (row: (typeof rows)[number]) => row.schedule
+    ? { seq: row.schedule.seq, name: row.schedule.op_name ?? row.schedule.op_type }
+    : null
+  const workshopOf = (row: (typeof rows)[number]) => {
+    const machine = resourceOf(row)
+    return machine ? { id: machine.workshop_id ?? 0, code: machine.workshop, name: machine.workshop_name ?? machine.workshop } : null
+  }
+  const lastReportOf = (group: (typeof rows)) => [...group].sort((a, b) => String(b.report.report_time).localeCompare(String(a.report.report_time)))[0]?.report.report_time ?? null
+  const commonAggregate = (group: (typeof rows)) => {
+    const qualifiedQty = group.reduce((sum, row) => sum + row.report.qty, 0)
+    const defectQty = group.reduce((sum, row) => sum + (row.report.defect_qty ?? 0), 0)
+    const correctionRows = group.filter((row) => row.report.sign === -1)
+    return {
+      work_date: group[0]?.workDate ?? null,
+      shift_code: group[0]?.report.shift_code ?? 'unknown',
+      operation: operationOf(group[0]),
+      machine: group[0]?.machine ?? null,
+      workshop: workshopOf(group[0]),
+      qualified_qty: qualifiedQty,
+      defect_qty: defectQty,
+      total_qty: qualifiedQty + defectQty,
+      report_count: group.length,
+      correction_count: correctionRows.length,
+      correction_qty: Math.abs(correctionRows.reduce((sum, row) => sum + row.report.qty + (row.report.defect_qty ?? 0), 0)),
+      task_count: new Set(group.map((row) => row.report.task_id)).size,
+      last_report_time: lastReportOf(group),
+    }
+  }
+  const groupsBy = (keyOf: (row: (typeof rows)[number]) => string) => {
+    const grouped = new Map<string, (typeof rows)>()
+    for (const row of rows) {
+      const key = keyOf(row)
+      grouped.set(key, [...(grouped.get(key) ?? []), row])
+    }
+    return [...grouped.values()]
+  }
+  let dimensionItems: unknown[] = items
+  if (dimension === 'daily') {
+    dimensionItems = groupsBy((row) => `${row.workDate}|${row.report.shift_code ?? 'unknown'}|${workshopOf(row)?.id ?? 'none'}|${row.schedule?.seq ?? 'task'}|${resourceOf(row)?.id ?? 'none'}`)
+      .map((group) => ({
+        ...commonAggregate(group),
+        valid_time_count: group.filter((row) => row.report.start_time && row.report.end_time && row.report.start_time !== row.report.end_time).length,
+        invalid_time_count: group.filter((row) => !row.report.start_time || !row.report.end_time || row.report.start_time === row.report.end_time).length,
+      }))
+  } else if (dimension === 'progress') {
+    dimensionItems = groupsBy((row) => `${row.task?.product_id ?? 'none'}|${row.schedule?.seq ?? 'task'}`).map((group) => {
+      const aggregate = commonAggregate(group)
+      const taskPlan = new Map<string, number>()
+      for (const row of group) taskPlan.set(`${row.report.task_id}|${row.report.schedule_id ?? 'task'}`, row.schedule?.qty ?? row.task?.qty ?? 0)
+      const plannedQty = [...taskPlan.values()].reduce((sum, value) => sum + value, 0)
+      return {
+        ...aggregate,
+        product: group[0]?.task?.product ? { id: group[0].task.product.id, code: group[0].task.product.code, name: group[0].task.product.name } : null,
+        planned_qty: plannedQty,
+        remaining_qty: Math.max(0, plannedQty - aggregate.qualified_qty),
+        over_qty: Math.max(0, aggregate.qualified_qty - plannedQty),
+        completion_pct: plannedQty > 0 ? Math.min(100, Math.max(0, Math.round(aggregate.qualified_qty / plannedQty * 1000) / 10)) : 0,
+        order_count: new Set(group.map((row) => row.order?.id).filter(Boolean)).size,
+      }
+    })
+  } else if (dimension === 'delivery') {
+    dimensionItems = groupsBy((row) => `${row.task?.delivery_date ?? row.order?.delivery_date ?? '未设置交期'}|${row.order?.customer_name ?? '未设置客户'}`).map((group) => {
+      const aggregate = commonAggregate(group)
+      const taskRows = new Map<number, (typeof rows)[number]>()
+      for (const row of group) taskRows.set(row.report.task_id, row)
+      const orderQty = [...taskRows.values()].reduce((sum, row) => sum + (row.task?.qty ?? 0), 0)
+      const finishedQty = group.filter(isFinishedReport).reduce((sum, row) => sum + row.report.qty, 0)
+      const remainingQty = Math.max(0, orderQty - finishedQty)
+      const due = group[0]?.task?.delivery_date ?? group[0]?.order?.delivery_date ?? null
+      const riskStatus = !due ? '未设置交期' : remainingQty === 0 ? '已完成' : due < dayjs().format('YYYY-MM-DD') ? '已逾期' : dayjs(due).diff(dayjs(), 'day') <= 3 ? '临近交期' : '正常'
+      return {
+        ...aggregate,
+        delivery_date: due,
+        customer_name: group[0]?.order?.customer_name ?? null,
+        order_count: new Set(group.map((row) => row.order?.id).filter(Boolean)).size,
+        product_count: new Set(group.map((row) => row.task?.product_id).filter(Boolean)).size,
+        order_qty: orderQty,
+        finished_qualified_qty: finishedQty,
+        remaining_qty: remainingQty,
+        risk_status: riskStatus,
+      }
+    })
+  } else if (dimension === 'resource') {
+    dimensionItems = groupsBy((row) => `${workshopOf(row)?.id ?? 'none'}|${resourceOf(row)?.id ?? 'none'}|${row.schedule?.seq ?? 'task'}|${row.report.shift_code ?? 'unknown'}`).map((group) => {
+      const aggregate = commonAggregate(group)
+      const validRows = group.filter((row) => row.report.start_time && row.report.end_time && row.report.start_time !== row.report.end_time)
+      const actualHours = validRows.reduce((sum, row) => sum + Math.max(0, dayjs(row.report.end_time).diff(dayjs(row.report.start_time), 'minute') / 60) * (row.report.sign === -1 ? -1 : 1), 0)
+      const capacity = resourceOf(group[0])?.capacity_per_hour ?? 0
+      const capacityQty = Math.max(0, actualHours) * capacity
+      return {
+        ...aggregate,
+        actual_hours: Math.round(actualHours * 100) / 100,
+        capacity_qty: Math.round(capacityQty * 10) / 10,
+        utilization_pct: capacityQty > 0 ? Math.round(Math.max(0, aggregate.qualified_qty) / capacityQty * 1000) / 10 : null,
+        valid_time_count: validRows.length,
+        invalid_time_count: group.length - validRows.length,
+        time_quality: validRows.length === group.length ? '有效时间完整' : '含单点/缺失时间',
+      }
+    })
+  } else if (dimension === 'quality') {
+    dimensionItems = groupsBy((row) => `${row.workDate}|${workshopOf(row)?.id ?? 'none'}|${row.schedule?.seq ?? 'task'}`).map((group) => {
+      const aggregate = commonAggregate(group)
+      return { ...aggregate, defect_rate: aggregate.total_qty > 0 ? Math.round(aggregate.defect_qty / aggregate.total_qty * 1000) / 10 : 0 }
+    })
+  }
+
   return {
+    dimension,
     totals: {
-      row_count: items.length,
+      row_count: dimensionItems.length,
       task_count: new Set(rows.map((row) => row.report.task_id)).size,
       report_count: rows.length,
       qualified_qty: rows.reduce((sum, row) => sum + row.report.qty, 0),
@@ -164,7 +300,7 @@ function buildReportSummary(filters: { date_from?: string; date_to?: string; key
       finished_defect_qty: rows.filter(isFinishedReport).reduce((sum, row) => sum + (row.report.defect_qty ?? 0), 0),
       correction_count: rows.filter((row) => row.report.sign === -1).length,
     },
-    items,
+    items: dimensionItems,
   }
 }
 
@@ -213,19 +349,32 @@ function buildTimeline(start: string, end: string) {
     workshop: m.workshop,
     capacity_per_hour: m.capacity_per_hour,
     shift_mode: m.shift_mode,
+    status: m.status,
+    status_label: m.is_active === 0 && m.status === 'running'
+      ? '已停用'
+      : m.status === 'maintenance' ? '维修中' : m.status === 'stopped' ? '已停用' : '运行中',
+    is_active: m.is_active === 1,
     schedules: db.schedules
       .filter((sch) => sch.machine_id === m.id && inWindow(sch))
-      .map((sch) => ({
-        ...clone(sch),
-        actual_segments: db.reports
-          .filter((report) => {
-            const lastScheduleId = db.schedules
-              .filter((item) => item.task_id === sch.task_id)
-              .sort((a, b) => b.seq - a.seq)[0]?.id
-            return (report.schedule_id === sch.id || (report.schedule_id == null && sch.id === lastScheduleId)) && report.qty > 0
-          })
-          .sort((a, b) => String(a.start_time ?? a.report_time).localeCompare(String(b.start_time ?? b.report_time)))
-          .flatMap((report) => splitWorkingSegments(
+      .map((sch) => {
+        const lastScheduleId = db.schedules
+          .filter((item) => item.task_id === sch.task_id)
+          .sort((a, b) => b.seq - a.seq)[0]?.id
+        const reportRows = db.reports.filter((report) =>
+          report.schedule_id === sch.id || (report.schedule_id == null && sch.id === lastScheduleId),
+        )
+        const effectiveReports = effectivePositiveReports(reportRows)
+        const scheduleSnapshot = clone(sch)
+        const snapshotDoneQty = scheduleSnapshot.done_qty ?? 0
+        scheduleSnapshot.has_report_history = db.reports.some((report) => report.task_id === sch.task_id)
+        scheduleSnapshot.actual_start = effectiveReports[0]?.start_time ?? effectiveReports[0]?.report_time
+          ?? (reportRows.length ? null : scheduleSnapshot.actual_start)
+        scheduleSnapshot.actual_end = effectiveReports.length && snapshotDoneQty >= scheduleSnapshot.qty
+          ? effectiveReports[effectiveReports.length - 1]?.end_time ?? effectiveReports[effectiveReports.length - 1]?.report_time ?? null
+          : null
+        return {
+          ...scheduleSnapshot,
+          actual_segments: effectiveReports.flatMap((report) => splitWorkingSegments(
             report.start_time ?? report.report_time,
             report.end_time ?? report.report_time,
             db.machines.find((item) => item.id === (report.machine_id ?? sch.machine_id))?.shift_mode ?? 'day',
@@ -233,7 +382,8 @@ function buildTimeline(start: string, end: string) {
             ...piece,
             qty: index === 0 ? report.qty : 0,
           }))),
-      })),
+        }
+      }),
   }))
   return {
     start,
@@ -285,10 +435,10 @@ function buildDetail(taskId: number) {
       const lastScheduleId = scheds.slice().sort((a, b) => b.seq - a.seq)[0]?.id
       const scheduleReports = db.reports
         .filter((report) => {
-          return (report.schedule_id === s.id || (report.schedule_id == null && s.id === lastScheduleId)) && report.qty > 0
+          return report.schedule_id === s.id || (report.schedule_id == null && s.id === lastScheduleId)
         })
         .sort((a, b) => String(a.start_time ?? a.report_time).localeCompare(String(b.start_time ?? b.report_time)))
-      const actualSegments = scheduleReports
+      const actualSegments = effectivePositiveReports(scheduleReports)
         .flatMap((report) => splitWorkingSegments(
           report.start_time ?? report.report_time,
           report.end_time ?? report.report_time,
@@ -1039,6 +1189,10 @@ export function dispatch(config: AxiosRequestConfig): unknown {
   if (orderRouteConfirm && method === 'post') {
     return confirmOrderRoute(Number(orderRouteConfirm[1]))
   }
+  const orderStart = path.match(/^\/orders\/(\d+)\/start$/)
+  if (orderStart && method === 'post') {
+    return startOrder(Number(orderStart[1]))
+  }
   const orderPause = path.match(/^\/orders\/(\d+)\/pause$/)
   if (orderPause && method === 'post') {
     return pauseOrder(Number(orderPause[1]))
@@ -1194,6 +1348,9 @@ export function dispatch(config: AxiosRequestConfig): unknown {
     const items = status === 'all' ? db.suggestions : db.suggestions.filter((s) => s.status === status)
     return clone([...items].sort((a, b) => b.id - a.id))
   }
+  if (method === 'post' && path === '/schedule/suggestions/refresh') {
+    return refreshAllMockSuggestions()
+  }
   const suggestionAccept = path.match(/^\/schedule\/suggestions\/(\d+)\/accept$/)
   if (suggestionAccept && method === 'post') {
     return acceptSuggestion(Number(suggestionAccept[1]))
@@ -1266,7 +1423,7 @@ export function dispatch(config: AxiosRequestConfig): unknown {
         machine: m ? { id: m.id, code: m.code, name: m.name } : (r.machine ?? null),
       }
     })
-    return paginate(items, params)
+    return paginate(decorateReportLedger(items), params)
   }
   if (method === 'get' && path === '/reports/daily-context') {
     return dailyReportContext(String(param(params, 'work_date') || dayjs().format('YYYY-MM-DD')), {
@@ -1278,6 +1435,7 @@ export function dispatch(config: AxiosRequestConfig): unknown {
   }
   if (method === 'get' && path === '/reports/summary') {
     return buildReportSummary({
+      dimension: String(param(params, 'dimension') || 'detail'),
       date_from: String(param(params, 'date_from') || ''),
       date_to: String(param(params, 'date_to') || ''),
       keyword: String(param(params, 'keyword') || ''),
@@ -1425,10 +1583,52 @@ export function dispatch(config: AxiosRequestConfig): unknown {
     const model = clone(db.orderOverview)
     const kw = String(param(params, 'keyword') ?? '').trim()
     const due = String(param(params, 'due_flag') ?? '').trim()
+    const fulfillmentStatus = String(param(params, 'fulfillment_status') ?? '').trim()
     let items = model.items
-    if (kw) items = items.filter((i) => matchKeyword(`${i.order_no} ${i.customer_name}`, kw))
+    if (kw) items = items.filter((i) => matchKeyword(`${i.order_no} ${i.customer_name} ${i.k3_bill_no ?? ''}`, kw))
     if (due) items = items.filter((i) => i.due_flag === due)
-    return { ...model, items }
+    if (fulfillmentStatus) items = items.filter((i) => i.fulfillment_status === fulfillmentStatus)
+    const totalQty = items.reduce((sum, item) => sum + item.total_qty, 0)
+    const doneQty = items.reduce((sum, item) => sum + item.done_qty, 0)
+    const processPlanQty = items.reduce((sum, item) => sum + item.process_plan_qty, 0)
+    const processDoneQty = items.reduce((sum, item) => sum + item.process_done_qty, 0)
+    const stockedQty = items.reduce((sum, item) => sum + (item.stocked_qty ?? 0), 0)
+    const completed = items.filter((item) => item.fulfillment_status?.startsWith('completed'))
+    const completedWithDelivery = completed.filter((item) => item.delivery_date)
+    const isInProgress = (item: typeof items[number]) => item.fulfillment_status === 'scheduled' || item.fulfillment_status === 'in_progress'
+    const sumBy = (predicate: (item: typeof items[number]) => boolean) => items.filter(predicate).reduce((sum, item) => sum + item.total_qty, 0)
+    return {
+      ...model,
+      summary: {
+        total_orders: items.length,
+        production_completed: completed.length,
+        on_time_completed: items.filter((item) => item.fulfillment_status === 'completed_on_time').length,
+        late_completed: items.filter((item) => item.fulfillment_status === 'completed_late').length,
+        in_progress: items.filter(isInProgress).length,
+        forecast_late: items.filter((item) => item.fulfillment_status === 'forecast_late').length,
+        overdue: items.filter((item) => item.fulfillment_status === 'overdue').length,
+        not_started: items.filter((item) => item.fulfillment_status === 'not_started').length,
+        paused: items.filter((item) => item.fulfillment_status === 'paused').length,
+        total_qty: totalQty,
+        done_qty: doneQty,
+        process_plan_qty: processPlanQty,
+        process_done_qty: processDoneQty,
+        process_progress_pct: processPlanQty > 0 ? Math.min(100, Math.round(processDoneQty / processPlanQty * 1000) / 10) : 0,
+        stocked_qty: stockedQty,
+        production_completion_pct: totalQty > 0 ? Math.round(doneQty / totalQty * 1000) / 10 : 0,
+        stock_completion_pct: totalQty > 0 ? Math.round(stockedQty / totalQty * 1000) / 10 : 0,
+        on_time_rate: completedWithDelivery.length > 0
+          ? Math.round(completedWithDelivery.filter((item) => item.fulfillment_status === 'completed_on_time').length / completedWithDelivery.length * 1000) / 10
+          : null,
+      },
+      groups: {
+        pending: { count: items.filter((item) => item.fulfillment_status === 'not_started').length, qty: sumBy((item) => item.fulfillment_status === 'not_started') },
+        in_progress: { count: items.filter(isInProgress).length, qty: sumBy(isInProgress) },
+        overdue: { count: items.filter((item) => item.due_flag === 'overdue').length, qty: sumBy((item) => item.due_flag === 'overdue') },
+        done: { count: completed.length, qty: sumBy((item) => item.fulfillment_status?.startsWith('completed') === true) },
+      },
+      items,
+    }
   }
   if (method === 'get' && path === '/dashboard/load-heatmap') {
     return clone(db.heatmap)

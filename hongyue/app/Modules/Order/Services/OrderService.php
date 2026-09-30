@@ -984,9 +984,24 @@ class OrderService
             // 停工后开工恢复：暂停任务恢复为生产中
             $taskIds = $order->lines()->with('tasks:id,order_line_id')->get()->flatMap(fn ($l) => $l->tasks->pluck('id'))->all();
             if ($taskIds !== []) {
-                ProdTask::whereIn('id', $taskIds)
-                    ->where('status', ProdTask::STATUS_PAUSED)
-                    ->update(['status' => ProdTask::STATUS_IN_PROGRESS]);
+                DB::transaction(function () use ($order, $taskIds) {
+                    ProdTask::whereIn('id', $taskIds)
+                        ->where('status', ProdTask::STATUS_PAUSED)
+                        ->update(['status' => ProdTask::STATUS_IN_PROGRESS]);
+
+                    // 恢复时重新按报工事实决定甘特状态：有已报工量的段回到进行中，
+                    // 尚未报工的段回到待执行；已完成/打断留档段不被覆盖。
+                    TaskSchedule::whereIn('task_id', $taskIds)
+                        ->where('status', TaskSchedule::STATUS_PAUSED)
+                        ->where('is_interrupted', 0)
+                        ->where('done_qty', '>', 0)
+                        ->update(['status' => TaskSchedule::STATUS_RUNNING]);
+                    TaskSchedule::whereIn('task_id', $taskIds)
+                        ->where('status', TaskSchedule::STATUS_PAUSED)
+                        ->where('is_interrupted', 0)
+                        ->where('done_qty', '<=', 0)
+                        ->update(['status' => TaskSchedule::STATUS_PENDING]);
+                });
             }
         }
         $order->update(['status' => Order::STATUS_IN_PROGRESS, 'started_at' => now()]);
@@ -1065,9 +1080,19 @@ class OrderService
         DB::transaction(function () use ($order) {
             $taskIds = $order->lines()->with('tasks:id,order_line_id')->get()->flatMap(fn ($l) => $l->tasks->pluck('id'))->all();
             if ($taskIds !== []) {
-                ProdTask::whereIn('id', $taskIds)
+                $activeTaskIds = ProdTask::whereIn('id', $taskIds)
                     ->where('status', ProdTask::STATUS_IN_PROGRESS)
+                    ->pluck('id');
+
+                ProdTask::whereIn('id', $activeTaskIds)
                     ->update(['status' => ProdTask::STATUS_PAUSED]);
+
+                // 订单停工必须同步到甘特图数据源；已完成段和插单打断留档段保留事实，
+                // 仅暂停当前生产任务尚未完成的正式排程行。
+                TaskSchedule::whereIn('task_id', $activeTaskIds)
+                    ->where('status', '!=', TaskSchedule::STATUS_DONE)
+                    ->where('is_interrupted', 0)
+                    ->update(['status' => TaskSchedule::STATUS_PAUSED]);
             }
             $order->update(['status' => Order::STATUS_PAUSED]);
         });

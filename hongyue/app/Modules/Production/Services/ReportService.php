@@ -10,6 +10,8 @@ use App\Modules\Production\Exceptions\ReportException;
 use App\Modules\Scheduling\Exceptions\ScheduleException;
 use App\Modules\System\Services\ConfigService;
 use Carbon\Carbon;
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 
@@ -48,7 +50,14 @@ class ReportService
         $qty = (int) ($data['qty'] ?? 0);
         $defectQty = (int) ($data['defect_qty'] ?? 0);
         $source = $data['source'] ?? WorkReport::SOURCE_CLICK;
+        $correctionOfReportId = isset($data['correction_of_report_id'])
+            ? (int) $data['correction_of_report_id']
+            : null;
         $workerId = isset($data['worker_id']) && $data['worker_id'] !== null ? (int) $data['worker_id'] : null;
+        $scheduleId = isset($data['schedule_id']) ? (int) $data['schedule_id'] : null;
+        $machineId = isset($data['machine_id']) && $data['machine_id'] !== null
+            ? (int) $data['machine_id']
+            : null;
         $startTime = ! empty($data['start_time']) ? Carbon::parse($data['start_time']) : null;
         $endTime = ! empty($data['end_time']) ? Carbon::parse($data['end_time']) : null;
         if ($startTime !== null && $endTime !== null && $endTime->lt($startTime)) {
@@ -65,20 +74,6 @@ class ReportService
             ? Carbon::createFromFormat('Y-m-d', (string) $data['work_date'])->startOfDay()
             : $startTime->copy()->startOfDay();
         $clientRequestId = isset($data['client_request_id']) ? trim((string) $data['client_request_id']) : null;
-
-        // 实际报工不能落在当前时刻之后；离线补传只允许提交历史作业时间。
-        if ($reportTime->isAfter(now())) {
-            throw new ReportException('报工时间不能晚于当前时间', 'future_report_time');
-        }
-        if ($startTime->isAfter(now())) {
-            throw new ReportException('实际作业开始时间不能晚于当前时间', 'future_report_start_time');
-        }
-        if ($endTime->isAfter(now())) {
-            throw new ReportException('实际作业结束时间不能晚于当前时间', 'future_report_end_time');
-        }
-        if ($workDate->isAfter(now()->startOfDay())) {
-            throw new ReportException('实际作业日期不能晚于今天', 'future_work_date');
-        }
 
         if ($qty === 0 && $defectQty === 0) {
             throw new ReportException('报工数量不能为 0', 'zero_qty');
@@ -113,21 +108,42 @@ class ReportService
             throw new ReportException('冲减必须填写原因', 'correction_remark_required');
         }
 
+        // 新冲减必须明确对应一条正报工。服务端以原记录为准复制作业字段，
+        // 防止前端修改日期、工序、机台后形成“看起来不是同一条”的负记录。
+        $correctionSource = null;
+        if ($isCorrection && $correctionOfReportId !== null) {
+            $correctionSource = WorkReport::query()
+                ->whereKey($correctionOfReportId)
+                ->where('task_id', $task->id)
+                ->where('qty', '>', 0)
+                ->first();
+            if (! $correctionSource) {
+                throw new ReportException('原报工记录不存在或不是正报工，无法冲减', 'correction_source_not_found');
+            }
+
+            $scheduleId = $correctionSource->schedule_id;
+            $machineId = $correctionSource->machine_id;
+            $reportTime = $correctionSource->report_time?->copy() ?? $reportTime;
+            $startTime = $correctionSource->start_time?->copy() ?? $reportTime->copy();
+            $endTime = $correctionSource->end_time?->copy() ?? $reportTime->copy();
+            $workDate = $correctionSource->work_date?->copy() ?? $startTime->copy()->startOfDay();
+            $data['shift_code'] = $correctionSource->shift_code;
+            $source = (string) $correctionSource->source;
+        }
+
         // 当前阶段统一由班组长/统计员填报，不写入个人作业人归属。
         $this->assertReportOperator($operator, $workerId);
 
         // 现场只能报机台扫码后选定的工序，防止把数量挂到同工单的其他工序或其他机台。
         $this->assertScheduleMatch(
             $task,
-            isset($data['schedule_id']) ? (int) $data['schedule_id'] : null,
-            isset($data['machine_id']) ? (int) $data['machine_id'] : null,
+            $scheduleId,
+            $machineId,
             $isCorrection,
         );
         if ($sign === 1) {
             // 任务级成品报工最终归入末道工序，也必须继承末道资源的班制校验。
-            $shiftScheduleId = isset($data['schedule_id'])
-                ? (int) $data['schedule_id']
-                : (int) ($task->schedules()
+            $shiftScheduleId = $scheduleId ?? (int) ($task->schedules()
                     ->where('is_interrupted', 0)
                     ->orderByDesc('seq')
                     ->orderByDesc('id')
@@ -138,8 +154,18 @@ class ReportService
         }
 
         // 工序链校验（2026-08-31 业务确认）：下道工序完工量 ≤ 上道工序完工量
-        if ($sign === 1 && isset($data['schedule_id'])) {
-            $this->assertProcessChain($task, (int) $data['schedule_id'], $qty);
+        if ($sign === 1 && $scheduleId !== null) {
+            $this->assertProcessChain($task, $scheduleId, $qty);
+        }
+
+        if ($isCorrection) {
+            $this->assertCorrectionWithinBalance(
+                $task->id,
+                $scheduleId,
+                $qty,
+                $defectQty,
+                $correctionSource?->id,
+            );
         }
 
         // 超量校验（C4 可配置）：冲减不设上限。
@@ -149,12 +175,11 @@ class ReportService
         // 库存一致性联动（QA P1）在事务内执行（见下方闭包首行），保证报工与回冲原子
         $stockInCorrection = null;
 
-        // 机台/产线：默认带出排产机台；支持手动报工指定（前端可修改）
-        $machineId = isset($data['machine_id']) && $data['machine_id'] !== null
-            ? (int) $data['machine_id']
-            : $task->schedules()->whereNotNull('machine_id')->value('machine_id');
+        // 机台/产线：默认带出排产机台；冲减指定原报工时已在上方复制原机台。
+        $machineId ??= $task->schedules()->whereNotNull('machine_id')->value('machine_id');
 
-        $report = DB::transaction(function () use ($data, $task, $qty, $defectQty, $sign, $source, $workerId, $machineId, $operator, $isCorrection, $reportTime, $startTime, $endTime, $workDate, $clientRequestId, &$stockInCorrection) {
+        $shiftCode = isset($data['shift_code']) ? trim((string) $data['shift_code']) : null;
+        $report = DB::transaction(function () use ($data, $task, $qty, $defectQty, $sign, $source, $workerId, $machineId, $scheduleId, $operator, $isCorrection, $reportTime, $startTime, $endTime, $workDate, $shiftCode, $clientRequestId, $correctionOfReportId, &$stockInCorrection) {
             // 冲减 × 已入库联动（QA P1）：事务内执行，报工与红字回冲原子提交
             if ($qty < 0) {
                 $stockInCorrection = $this->assertStockInConsistencyAfterCorrection(
@@ -162,18 +187,19 @@ class ReportService
                     $qty,
                     $operator,
                     (string) ($data['remark'] ?? ''),
-                    isset($data['schedule_id']) ? (int) $data['schedule_id'] : null,
+                    $scheduleId,
                 );
             }
 
             $report = WorkReport::create([
                 'task_id' => $task->id,
-                'schedule_id' => isset($data['schedule_id']) ? (int) $data['schedule_id'] : null,
+                'schedule_id' => $scheduleId,
                 'product_id' => $task->product_id,
                 'machine_id' => $machineId,
                 'qty' => $qty,
                 'defect_qty' => $defectQty,
                 'sign' => $sign,
+                'correction_of_report_id' => $correctionOfReportId,
                 'report_by' => $operator->id,
                 // 暂不细分到个人；report_by 保留实际填报操作人用于审计。
                 'worker_id' => null,
@@ -181,7 +207,7 @@ class ReportService
                 'start_time' => $startTime,
                 'end_time' => $endTime,
                 'work_date' => $workDate->toDateString(),
-                'shift_code' => isset($data['shift_code']) ? trim((string) $data['shift_code']) : null,
+                'shift_code' => $shiftCode,
                 'client_request_id' => $clientRequestId,
                 'source' => $source,
                 'offline_flag' => (int) ($data['offline_flag'] ?? 0),
@@ -334,7 +360,7 @@ class ReportService
      */
     public function index(array $filters = [], int $perPage = 15)
     {
-        return WorkReport::query()
+        $paginator = WorkReport::query()
             // 任务机台在 task_schedules，prod_tasks 无 machine_id（历史残留字段已移除）
             ->with(['task:id,task_no,product_id,qty,status', 'task.product:id,code,name', 'schedule:id,task_id,seq,op_type,op_name', 'machine:id,code,name', 'worker:id,name,employee_no,workshop_id', 'worker.workshop:id,name', 'operator:id,name,employee_no'])
             ->when($filters['task_id'] ?? null, fn ($q, $v) => $q->where('task_id', (int) $v))
@@ -346,25 +372,217 @@ class ReportService
             ->when($filters['date_to'] ?? null, fn ($q, $v) => $q->where('report_time', '<=', Carbon::parse($v)->endOfDay()))
             ->orderByDesc('report_time')
             ->paginate(min($perPage, 100));
+
+        // 冲减入口不能只看当前分页的正负合计：原正报工可能在下一页，
+        // 因此按当前页任务补查完整流水，并给正记录计算“剩余可冲减量”。
+        $this->decorateLedgerPage($paginator);
+
+        return $paginator;
     }
 
     /**
-     * 报工统计汇总：按实际作业日期 + 任务 + 工序 + 机台/产线聚合。
+     * 补充报工台账的冲减状态，并兼容没有 correction_of_report_id 的历史负流水。
+     *
+     * @return void
+     */
+    private function decorateLedgerPage(LengthAwarePaginator $paginator): void
+    {
+        /** @var Collection<int, WorkReport> $pageReports */
+        $pageReports = $paginator->getCollection();
+        $taskIds = $pageReports->pluck('task_id')->filter()->unique()->values();
+        if ($taskIds->isEmpty()) {
+            return;
+        }
+
+        $contextReports = WorkReport::query()
+            ->with([
+                'schedule:id,task_id,seq,op_type,op_name',
+                'machine:id,code,name',
+            ])
+            ->whereIn('task_id', $taskIds)
+            ->get([
+                'id', 'task_id', 'schedule_id', 'product_id', 'machine_id',
+                'qty', 'defect_qty', 'sign', 'correction_of_report_id',
+                'report_time', 'start_time', 'end_time', 'work_date', 'shift_code', 'source',
+            ]);
+        $metadata = $this->correctionMetadata($contextReports);
+        $contextById = $contextReports->keyBy('id');
+
+        $pageReports->each(function (WorkReport $report) use ($metadata, $contextById): void {
+            $report->setAttribute('correctable_qty', (int) ($metadata['remaining'][$report->id] ?? 0));
+
+            if ((int) $report->qty >= 0) {
+                return;
+            }
+
+            $targetId = $metadata['target_by_negative'][$report->id]
+                ?? $report->correction_of_report_id;
+            $target = $targetId ? $contextById->get($targetId) : null;
+            if (! $target) {
+                return;
+            }
+
+            // 历史负流水没有原报工关系时，仅在返回层复制原记录的作业字段，
+            // 不修改数据库流水；报工人和冲减原因仍保留真实操作审计信息。
+            foreach (['schedule_id', 'product_id', 'machine_id', 'report_time', 'start_time', 'end_time', 'work_date', 'shift_code', 'source'] as $field) {
+                $report->setAttribute($field, $target->{$field});
+            }
+            $report->setAttribute('correction_of_report_id', $target->id);
+            $report->setAttribute('correction_target_id', $target->id);
+            if ($target->relationLoaded('schedule')) {
+                $report->setRelation('schedule', $target->schedule);
+            }
+            if ($target->relationLoaded('machine')) {
+                $report->setRelation('machine', $target->machine);
+            }
+        });
+
+        $paginator->setCollection($pageReports);
+    }
+
+    /**
+     * 按任务/工序/机台计算正报工的剩余可冲减量。
+     * 冲减优先抵扣最近一条正报工，和甘特图的实际段抵扣口径一致。
+     *
+     * @param Collection<int, WorkReport> $reports
+     * @return array{remaining: array<int, int>, target_by_negative: array<int, int>}
+     */
+    private function correctionMetadata(Collection $reports): array
+    {
+        $remaining = [];
+        $targetByNegative = [];
+
+        $reports->groupBy(fn (WorkReport $report): string => implode('|', [
+            $report->task_id,
+            $report->schedule_id ?? 'task',
+            $report->machine_id ?? 'none',
+        ]))->each(function (Collection $group) use (&$remaining, &$targetByNegative): void {
+            $positiveReports = $group
+                ->filter(fn (WorkReport $report): bool => (int) $report->qty > 0)
+                ->sortBy(fn (WorkReport $report): string => $this->reportTimelineKey($report))
+                ->values();
+            $positiveIds = $positiveReports->pluck('id')->map(fn ($id): int => (int) $id)->all();
+            foreach ($positiveReports as $positive) {
+                $remaining[(int) $positive->id] = (int) $positive->qty;
+            }
+
+            $group
+                ->filter(fn (WorkReport $report): bool => (int) $report->qty < 0)
+                ->sortBy(fn (WorkReport $report): string => $this->reportTimelineKey($report))
+                ->each(function (WorkReport $negative) use (&$remaining, &$targetByNegative, $positiveIds): void {
+                    $amount = abs((int) $negative->qty);
+                    $firstTargetId = $negative->correction_of_report_id !== null
+                        ? (int) $negative->correction_of_report_id
+                        : null;
+
+                    // 指定了原报工时优先抵扣指定记录；历史流水没有关系时按最近正报工抵扣。
+                    if ($firstTargetId !== null && isset($remaining[$firstTargetId]) && $remaining[$firstTargetId] > 0) {
+                        $deduct = min($remaining[$firstTargetId], $amount);
+                        $remaining[$firstTargetId] -= $deduct;
+                        $amount -= $deduct;
+                        $targetByNegative[(int) $negative->id] = $firstTargetId;
+                    }
+
+                    for ($index = count($positiveIds) - 1; $index >= 0 && $amount > 0; $index--) {
+                        $targetId = $positiveIds[$index];
+                        if (($remaining[$targetId] ?? 0) <= 0) {
+                            continue;
+                        }
+                        $deduct = min($remaining[$targetId], $amount);
+                        $remaining[$targetId] -= $deduct;
+                        $amount -= $deduct;
+                        $targetByNegative[(int) $negative->id] ??= $targetId;
+                    }
+
+                    // 超出正报工总量的历史异常冲减不再继续消耗别的正单，
+                    // 但仍保留负流水和原因，避免台账被静默改写。
+                });
+        });
+
+        return ['remaining' => $remaining, 'target_by_negative' => $targetByNegative];
+    }
+
+    private function reportTimelineKey(WorkReport $report): string
+    {
+        $time = $report->start_time ?? $report->report_time;
+
+        return ($time?->format('Y-m-d H:i:s') ?? '9999-12-31 23:59:59').sprintf('|%012d', (int) $report->id);
+    }
+
+    /**
+     * 指定原正报工时，冲减数量不得超过该正报工的剩余量。
+     * 未指定原流水的旧调用继续走原有任务净量/入库联动口径，保证历史移动端调用兼容。
+     */
+    private function assertCorrectionWithinBalance(
+        int $taskId,
+        ?int $scheduleId,
+        int $qty,
+        int $defectQty,
+        ?int $targetReportId = null,
+    ): void {
+        // 旧版现场/测试调用没有携带原报工 ID，继续交给原有的任务净量和入库联动校验；
+        // 新版 PC 冲减入口始终携带目标 ID，按“单条正报工剩余量”严格限制。
+        if ($targetReportId === null || ($qty >= 0 && $defectQty >= 0)) {
+            return;
+        }
+
+        $scopeReports = WorkReport::query()
+            ->where('task_id', $taskId)
+            ->when($scheduleId === null, fn ($query) => $query->whereNull('schedule_id'))
+            ->when($scheduleId !== null, fn ($query) => $query->where('schedule_id', $scheduleId))
+            ->get([
+                'id', 'task_id', 'schedule_id', 'machine_id', 'qty', 'defect_qty', 'sign',
+                'correction_of_report_id', 'report_time', 'start_time', 'end_time',
+            ]);
+
+        $metadata = $this->correctionMetadata($scopeReports);
+        $availableQty = (int) ($metadata['remaining'][$targetReportId] ?? 0);
+        if ($qty < 0 && abs($qty) > $availableQty) {
+            throw new ReportException(
+                "本条正报工剩余可冲减 {$availableQty} 件，不能超过剩余数量",
+                'correction_exceeds_balance',
+                ['available_qty' => $availableQty, 'target_report_id' => $targetReportId],
+            );
+        }
+
+        if ($defectQty < 0) {
+            $availableDefectQty = max(0, (int) $scopeReports->sum('defect_qty'));
+            if (abs($defectQty) > $availableDefectQty) {
+                throw new ReportException(
+                    "当前工序剩余可冲减次品数 {$availableDefectQty} 件，不能超过剩余数量",
+                    'correction_defect_exceeds_balance',
+                    ['available_defect_qty' => $availableDefectQty, 'target_report_id' => $targetReportId],
+                );
+            }
+        }
+    }
+
+    /**
+     * 报工统计汇总：明细、日班次、产品工序、交期客户、资源效率、质量冲减六种视图共用一套台账口径。
      *
      * 报工流水只增不改，因此统计直接对 work_reports.qty/defect_qty 求和，
      * 冲减记录以负数抵扣；不读取任务冗余完成量，避免统计口径与台账脱节。
      *
-     * @return array{totals: array<string, int>, items: list<array>}
+     * @return array{dimension: string, totals: array<string, int>, items: list<array>}
      */
     public function summary(array $filters = []): array
     {
+        $dimension = (string) ($filters['dimension'] ?? 'detail');
+        $dimensions = ['detail', 'daily', 'progress', 'delivery', 'resource', 'quality'];
+        if (! in_array($dimension, $dimensions, true)) {
+            $dimension = 'detail';
+        }
+
         $reports = WorkReport::query()
             ->with([
-                'task:id,task_no,order_line_id,product_id,qty',
+                'task:id,task_no,order_line_id,product_id,qty,delivery_date',
                 'task.product:id,code,name',
-                'task.line.order:id,order_no',
+                'task.line.order',
+                'task.line',
                 'schedule:id,task_id,seq,op_type,op_name,machine_id,qty,plan_start,plan_end',
-                'machine:id,code,name',
+                'schedule.machine.workshop',
+                'machine:id,code,name,workshop_id,capacity_per_hour,shift_mode',
+                'machine.workshop:id,code,name',
             ])
             // 统计按实际作业日期（日结归属）筛选，不按录入时间筛选。
             ->when($filters['date_from'] ?? null, fn ($q, $date) => $q->whereDate('work_date', '>=', $date))
@@ -391,81 +609,262 @@ class ReportService
             ->selectRaw('task_id, MAX(seq) AS last_seq')
             ->groupBy('task_id')
             ->pluck('last_seq', 'task_id');
-        $finishedReports = $reports->filter(function (WorkReport $report) use ($lastSeqByTask): bool {
-            // 任务级报工属于成品口径；指定工序时只认该任务最后一道工序。
-            return $report->schedule_id === null
-                || (int) $report->schedule?->seq === (int) $lastSeqByTask->get($report->task_id);
-        });
 
-        $groups = $reports->groupBy(fn (WorkReport $report) => implode('|', [
-            $report->work_date?->format('Y-m-d') ?? '-',
-            $report->task_id,
-            $report->schedule_id ?? 'task',
-            $report->machine_id ?? 'none',
-        ]));
-
-        $items = $groups->map(function ($group): array {
-            /** @var WorkReport $first */
-            $first = $group->first();
-            $task = $first->task;
-            $schedule = $first->schedule;
-            $machine = $first->machine;
-            $qualifiedQty = (int) $group->sum('qty');
-            $defectQty = (int) $group->sum('defect_qty');
-            $plannedQty = (int) ($schedule?->qty ?? $task?->qty ?? 0);
-            $lastReport = $group->sortByDesc('report_time')->first();
+        $rows = $reports->map(function (WorkReport $report) use ($lastSeqByTask): array {
+            $task = $report->task;
+            $schedule = $report->schedule;
+            $machine = $report->machine ?? $schedule?->machine;
+            $order = $task?->line?->order;
+            $workshop = $machine?->workshop;
+            $start = $report->start_time;
+            $end = $report->end_time;
+            $validTime = $start !== null && $end !== null && $end->gt($start);
+            $durationHours = $validTime
+                ? round($start->diffInSeconds($end) / 3600, 4) * ((int) $report->sign === -1 ? -1 : 1)
+                : 0.0;
+            $operation = $schedule ? [
+                'seq' => (int) $schedule->seq,
+                'name' => $schedule->op_name ?? $schedule->op_type,
+            ] : null;
 
             return [
-                'work_date' => $first->work_date?->format('Y-m-d'),
-                'task_id' => (int) $first->task_id,
-                'task_no' => $task?->task_no,
-                'order_no' => $task?->line?->order?->order_no,
-                'product' => $task?->product ? [
-                    'id' => $task->product->id,
-                    'code' => $task->product->code,
-                    'name' => $task->product->name,
-                ] : null,
-                'operation' => $schedule ? [
-                    'seq' => (int) $schedule->seq,
-                    'name' => $schedule->op_name ?? $schedule->op_type,
-                ] : null,
-                'machine' => $machine ? [
-                    'id' => $machine->id,
-                    'code' => $machine->code,
-                    'name' => $machine->name,
-                ] : null,
-                'planned_qty' => $plannedQty,
+                'report' => $report,
+                'task' => $task,
+                'schedule' => $schedule,
+                'order' => $order,
+                'machine' => $machine,
+                'workshop' => $workshop,
+                'work_date' => $report->work_date?->format('Y-m-d'),
+                'shift_code' => $report->shift_code ?: 'unknown',
+                'delivery_date' => $task?->delivery_date?->format('Y-m-d')
+                    ?? $task?->line?->delivery_date?->format('Y-m-d')
+                    ?? $order?->delivery_date?->format('Y-m-d'),
+                'operation' => $operation,
+                'planned_qty' => (int) ($schedule?->qty ?? $task?->qty ?? 0),
+                'valid_time' => $validTime,
+                'duration_hours' => $durationHours,
+                // 任务级报工属于成品口径；指定工序时只认该任务最后一道工序。
+                'is_finished' => $report->schedule_id === null
+                    || (int) $schedule?->seq === (int) $lastSeqByTask->get($report->task_id),
+            ];
+        })->values();
+
+        $detailItems = $this->buildReportDetailItems($rows);
+        $items = $this->buildReportDimensionItems($dimension, $rows, $detailItems);
+        $totals = $this->buildReportSummaryTotals($rows, count($items));
+
+        return [
+            'dimension' => $dimension,
+            'totals' => $totals,
+            'items' => $items,
+        ];
+    }
+
+    /** @param Collection<int, array> $rows @return list<array> */
+    private function buildReportDetailItems(Collection $rows): array
+    {
+        return $rows->groupBy(fn (array $row) => implode('|', [
+            $row['work_date'] ?? '-',
+            $row['report']->task_id,
+            $row['report']->schedule_id ?? 'task',
+            $row['machine']?->id ?? 'none',
+        ]))->map(fn (Collection $group): array => $this->buildReportDetailItem($group))
+            ->sortByDesc(fn (array $item) => implode('|', [
+                $item['work_date'] ?? '-',
+                $item['last_report_time'] ?? '-',
+                $item['task_no'] ?? '-',
+            ]))->values()->all();
+    }
+
+    /** @param Collection<int, array> $group */
+    private function buildReportDetailItem(Collection $group): array
+    {
+        $first = $group->first();
+        $task = $first['task'];
+        $qualifiedQty = (int) $group->sum(fn (array $row): int => (int) $row['report']->qty);
+        $defectQty = (int) $group->sum(fn (array $row): int => (int) $row['report']->defect_qty);
+        $plannedQty = (int) $first['planned_qty'];
+        $lastReport = $group->sortByDesc(fn (array $row) => $row['report']->report_time)->first();
+
+        return [
+            'work_date' => $first['work_date'],
+            'shift_code' => $first['shift_code'],
+            'task_id' => (int) $first['report']->task_id,
+            'task_no' => $task?->task_no,
+            'order_no' => $first['order']?->order_no,
+            'customer_name' => $first['order']?->customer_name,
+            'delivery_date' => $first['delivery_date'],
+            'product' => $this->summaryProduct($task?->product),
+            'operation' => $first['operation'],
+            'machine' => $this->summaryMachine($first['machine']),
+            'workshop' => $this->summaryWorkshop($first['workshop']),
+            'planned_qty' => $plannedQty,
+            'qualified_qty' => $qualifiedQty,
+            'defect_qty' => $defectQty,
+            'total_qty' => $qualifiedQty + $defectQty,
+            'remaining_qty' => max(0, $plannedQty - $qualifiedQty),
+            'completion_pct' => $plannedQty > 0
+                ? min(100, max(0, round($qualifiedQty / $plannedQty * 100, 1)))
+                : 0,
+            'report_count' => $group->count(),
+            'normal_count' => $group->where(fn (array $row): bool => (int) $row['report']->sign === 1)->count(),
+            'correction_count' => $group->where(fn (array $row): bool => (int) $row['report']->sign === -1)->count(),
+            'correction_qty' => abs((int) $group->filter(fn (array $row): bool => (int) $row['report']->sign === -1)
+                ->sum(fn (array $row): int => (int) $row['report']->qty + (int) $row['report']->defect_qty)),
+            'last_report_time' => $lastReport['report']->report_time?->format('Y-m-d H:i:s'),
+        ];
+    }
+
+    /** @param Collection<int, array> $rows @param list<array> $detailItems @return list<array> */
+    private function buildReportDimensionItems(string $dimension, Collection $rows, array $detailItems): array
+    {
+        if ($dimension === 'detail') {
+            return $detailItems;
+        }
+
+        $key = match ($dimension) {
+            'daily' => fn (array $row): string => implode('|', [
+                $row['work_date'] ?? '-', $row['shift_code'], $row['workshop']?->id ?? 'none',
+                $row['operation']['seq'] ?? 'task', $row['machine']?->id ?? 'none',
+            ]),
+            'progress' => fn (array $row): string => implode('|', [
+                $row['task']?->product_id ?? 'none', $row['operation']['seq'] ?? 'task',
+            ]),
+            'delivery' => fn (array $row): string => implode('|', [
+                $row['delivery_date'] ?? '未设置交期', $row['order']?->customer_name ?? '未设置客户',
+            ]),
+            'resource' => fn (array $row): string => implode('|', [
+                $row['workshop']?->id ?? 'none', $row['machine']?->id ?? 'none',
+                $row['operation']['seq'] ?? 'task', $row['shift_code'],
+            ]),
+            default => fn (array $row): string => implode('|', [
+                $row['work_date'] ?? '-', $row['workshop']?->id ?? 'none', $row['operation']['seq'] ?? 'task',
+            ]),
+        };
+
+        return $rows->groupBy($key)->map(function (Collection $group) use ($dimension): array {
+            $first = $group->first();
+            $qualifiedQty = (int) $group->sum(fn (array $row): int => (int) $row['report']->qty);
+            $defectQty = (int) $group->sum(fn (array $row): int => (int) $row['report']->defect_qty);
+            $lastReport = $group->sortByDesc(fn (array $row) => $row['report']->report_time)->first();
+            $taskCount = $group->pluck('report.task_id')->unique()->count();
+            $correctionRows = $group->filter(fn (array $row): bool => (int) $row['report']->sign === -1);
+            $common = [
+                'work_date' => $first['work_date'],
+                'shift_code' => $first['shift_code'],
+                'operation' => $first['operation'],
+                'machine' => $this->summaryMachine($first['machine']),
+                'workshop' => $this->summaryWorkshop($first['workshop']),
                 'qualified_qty' => $qualifiedQty,
                 'defect_qty' => $defectQty,
                 'total_qty' => $qualifiedQty + $defectQty,
-                'completion_pct' => $plannedQty > 0
-                    ? min(100, max(0, round($qualifiedQty / $plannedQty * 100, 1)))
-                    : 0,
                 'report_count' => $group->count(),
-                'normal_count' => $group->where('sign', 1)->count(),
-                'correction_count' => $group->where('sign', -1)->count(),
-                'last_report_time' => $lastReport?->report_time?->format('Y-m-d H:i:s'),
+                'correction_count' => $correctionRows->count(),
+                'correction_qty' => abs((int) $correctionRows->sum(fn (array $row): int => (int) $row['report']->qty + (int) $row['report']->defect_qty)),
+                'task_count' => $taskCount,
+                'last_report_time' => $lastReport['report']->report_time?->format('Y-m-d H:i:s'),
+            ];
+
+            if ($dimension === 'daily') {
+                return $common + [
+                    'valid_time_count' => $group->where('valid_time', true)->count(),
+                    'invalid_time_count' => $group->where('valid_time', false)->count(),
+                ];
+            }
+
+            if ($dimension === 'progress') {
+                $plannedQty = (int) $group->groupBy(fn (array $row): string => $row['report']->task_id.'|'.($row['report']->schedule_id ?? 'task'))
+                    ->sum(fn (Collection $rows): int => (int) $rows->first()['planned_qty']);
+                return $common + [
+                    'product' => $this->summaryProduct($first['task']?->product),
+                    'planned_qty' => $plannedQty,
+                    'remaining_qty' => max(0, $plannedQty - $qualifiedQty),
+                    'over_qty' => max(0, $qualifiedQty - $plannedQty),
+                    'completion_pct' => $plannedQty > 0 ? min(100, max(0, round($qualifiedQty / $plannedQty * 100, 1))) : 0,
+                    'order_count' => $group->pluck('order.id')->filter()->unique()->count(),
+                ];
+            }
+
+            if ($dimension === 'delivery') {
+                $tasks = $group->groupBy(fn (array $row): int => (int) $row['report']->task_id)->map(fn (Collection $rows): array => $rows->first());
+                $orderQty = (int) $tasks->sum(fn (array $row): int => (int) ($row['task']?->qty ?? 0));
+                $finishedQty = (int) $group->filter(fn (array $row): bool => $row['is_finished'])
+                    ->sum(fn (array $row): int => (int) $row['report']->qty);
+                $remainingQty = max(0, $orderQty - $finishedQty);
+                $due = $first['delivery_date'];
+                $risk = $due === null ? '未设置交期' : ($remainingQty === 0 ? '已完成' : ($due < today()->toDateString() ? '已逾期' : (today()->diffInDays(Carbon::parse($due), false) <= 3 ? '临近交期' : '正常')));
+                return $common + [
+                    'delivery_date' => $due,
+                    'customer_name' => $first['order']?->customer_name,
+                    'order_count' => $group->pluck('order.id')->filter()->unique()->count(),
+                    'product_count' => $group->pluck('task.product_id')->unique()->count(),
+                    'order_qty' => $orderQty,
+                    'finished_qualified_qty' => $finishedQty,
+                    'remaining_qty' => $remainingQty,
+                    'risk_status' => $risk,
+                ];
+            }
+
+            if ($dimension === 'resource') {
+                $actualHours = round((float) $group->sum('duration_hours'), 2);
+                $capacityPerHour = (float) ($first['machine']?->capacity_per_hour ?? 0);
+                $capacityQty = round(max(0, $actualHours) * $capacityPerHour, 1);
+                return $common + [
+                    'actual_hours' => $actualHours,
+                    'capacity_qty' => $capacityQty,
+                    'utilization_pct' => $capacityQty > 0 ? round(max(0, $qualifiedQty) / $capacityQty * 100, 1) : null,
+                    'valid_time_count' => $group->where('valid_time', true)->count(),
+                    'invalid_time_count' => $group->where('valid_time', false)->count(),
+                    'time_quality' => $group->where('valid_time', false)->isEmpty() ? '有效时间完整' : '含单点/缺失时间',
+                ];
+            }
+
+            $totalQty = $qualifiedQty + $defectQty;
+            return $common + [
+                'defect_rate' => $totalQty > 0 ? round($defectQty / $totalQty * 100, 1) : 0,
             ];
         })->sortByDesc(fn (array $item) => implode('|', [
-            $item['work_date'] ?? '-',
-            $item['last_report_time'] ?? '-',
-            $item['task_no'] ?? '-',
+            $item['work_date'] ?? $item['delivery_date'] ?? '-',
+            $item['qualified_qty'] ?? 0,
         ]))->values()->all();
+    }
 
+    /** @param Collection<int, array> $rows */
+    private function buildReportSummaryTotals(Collection $rows, int $rowCount): array
+    {
+        $finished = $rows->where('is_finished', true);
         return [
-            'totals' => [
-                'row_count' => count($items),
-                'task_count' => $reports->pluck('task_id')->unique()->count(),
-                'report_count' => $reports->count(),
-                'qualified_qty' => (int) $reports->sum('qty'),
-                'defect_qty' => (int) $reports->sum('defect_qty'),
-                'total_qty' => (int) $reports->sum(fn (WorkReport $report) => (int) $report->qty + (int) $report->defect_qty),
-                'finished_qualified_qty' => (int) $finishedReports->sum('qty'),
-                'finished_defect_qty' => (int) $finishedReports->sum('defect_qty'),
-                'correction_count' => $reports->where('sign', -1)->count(),
-            ],
-            'items' => $items,
+            'row_count' => $rowCount,
+            'task_count' => $rows->pluck('report.task_id')->unique()->count(),
+            'report_count' => $rows->count(),
+            'qualified_qty' => (int) $rows->sum(fn (array $row): int => (int) $row['report']->qty),
+            'defect_qty' => (int) $rows->sum(fn (array $row): int => (int) $row['report']->defect_qty),
+            'total_qty' => (int) $rows->sum(fn (array $row): int => (int) $row['report']->qty + (int) $row['report']->defect_qty),
+            'finished_qualified_qty' => (int) $finished->sum(fn (array $row): int => (int) $row['report']->qty),
+            'finished_defect_qty' => (int) $finished->sum(fn (array $row): int => (int) $row['report']->defect_qty),
+            'correction_count' => $rows->where(fn (array $row): bool => (int) $row['report']->sign === -1)->count(),
         ];
+    }
+
+    private function summaryProduct(?object $product): ?array
+    {
+        return $product ? ['id' => $product->id, 'code' => $product->code, 'name' => $product->name] : null;
+    }
+
+    private function summaryMachine(?object $machine): ?array
+    {
+        return $machine ? [
+            'id' => $machine->id,
+            'code' => $machine->code,
+            'name' => $machine->name,
+            'capacity_per_hour' => (float) ($machine->capacity_per_hour ?? 0),
+            'shift_mode' => $machine->shift_mode,
+        ] : null;
+    }
+
+    private function summaryWorkshop(?object $workshop): ?array
+    {
+        return $workshop ? ['id' => $workshop->id, 'code' => $workshop->code, 'name' => $workshop->name] : null;
     }
 
     /**

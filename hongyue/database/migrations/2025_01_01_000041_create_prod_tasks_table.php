@@ -28,7 +28,7 @@ return new class extends Migration
             $table->integer('qty')->comment('任务数量');
             $table->integer('done_qty')->default(0)->comment('累计合格完成（报工汇总冗余，可对账）');
             $table->string('status', 16)->default('unscheduled')->index()->comment('unscheduled/scheduled/in_progress/paused/done');
-            $table->unsignedTinyInteger('priority')->default(3)->comment('1-5 越大越急');
+            $table->unsignedTinyInteger('priority')->default(3)->comment('0-5，数值越小越急，P0最紧急');
             $table->date('delivery_date')->nullable()->index()->comment('交期（冗余自订单行，可单任务改）');
             $table->decimal('deviation_pct', 5, 2)->default(0)->comment('进度偏差%');
             $table->dateTime('plan_start')->nullable()->comment('任务级计划开始（第一工序）');

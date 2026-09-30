@@ -15,6 +15,9 @@ export interface GanttRow {
   /** 所属车间（中文名或键值，用于甘特行按车间分组） */
   workshop: string
   shiftMode: string
+  resourceStatus: 'running' | 'stopped' | 'maintenance' | string
+  resourceStatusLabel: string
+  isActive: boolean
   /** 当前甘特窗口内的计划负荷（按班制折算的有效工作分钟） */
   loadPct: number
   loadStatus: 'low' | 'normal' | 'high'
@@ -37,6 +40,7 @@ export interface GanttBar {
   qty: number
   /** 该工序净报工数量，用于甘特进度展示 */
   reportedQty: number
+  hasReportHistory: boolean
   /** 该工序按计划量计算的报工进度 */
   progressPct: number
   start: string
@@ -63,18 +67,27 @@ export interface GanttBar {
 export function toRows(timeline: TimelineData): GanttRow[] {
   const windowStart = timelineBoundary(timeline.start, false)
   const windowEnd = timelineBoundary(timeline.end, true)
-  const machineRows: GanttRow[] = (timeline.machines ?? []).map((m) => ({
-    key: `machine:${m.id}`,
-    kind: 'machine',
-    id: m.id,
-    resourceType: m.type,
-    label: `${m.code} ${m.name}`,
-    sub: `${machineTypeLabel(m.type)} · ${m.capacity_per_hour || '-'}件/h`,
-    workshop: m.workshop ?? '',
-    shiftMode: m.shift_mode,
-    ...loadOf(m.schedules ?? [], m.shift_mode, windowStart, windowEnd),
-    bars: (m.schedules ?? []).map(toBar),
-  }))
+  const machineRows: GanttRow[] = (timeline.machines ?? []).map((m) => {
+    const isActive = m.is_active ?? true
+    const resourceStatus = m.status ?? (isActive ? 'running' : 'stopped')
+    return {
+      key: `machine:${m.id}`,
+      kind: 'machine',
+      id: m.id,
+      resourceType: m.type,
+      label: `${m.code} ${m.name}`,
+      sub: `${machineTypeLabel(m.type)} · ${m.capacity_per_hour || '-'}件/h`,
+      workshop: m.workshop ?? '',
+      shiftMode: m.shift_mode,
+      resourceStatus,
+      resourceStatusLabel: !isActive && resourceStatus === 'running'
+        ? '已停用'
+        : m.status_label ?? (resourceStatus === 'maintenance' ? '维修中' : resourceStatus === 'stopped' ? '停机' : isActive ? '运行中' : '已停用'),
+      isActive,
+      ...loadOf(m.schedules ?? [], m.shift_mode, windowStart, windowEnd),
+      bars: (m.schedules ?? []).map(toBar),
+    }
+  })
 
   // 前端补充后端冲突标记，口径与后端一致：
   // 同机台/产线严格重叠或切换间隔不足 30 分钟；同模具并发也算冲突。
@@ -113,6 +126,16 @@ export function toRows(timeline: TimelineData): GanttRow[] {
   machineRows.sort((a, b) => (resourceOrder[a.resourceType] ?? 99) - (resourceOrder[b.resourceType] ?? 99) || a.id - b.id)
 
   return machineRows
+}
+
+/** 非运行或已停用资源均作为异常资源保留在甘特图中。 */
+export function isAbnormalResource(row: Pick<GanttRow, 'resourceStatus' | 'isActive'>): boolean {
+  return !row.isActive || row.resourceStatus !== 'running'
+}
+
+export function ganttResourceStatusLabel(row: Pick<GanttRow, 'resourceStatus' | 'resourceStatusLabel' | 'isActive'>): string {
+  if (!row.isActive && row.resourceStatus === 'running') return '已停用'
+  return row.resourceStatusLabel || (row.resourceStatus === 'running' ? '运行中' : row.resourceStatus)
 }
 
 /** 时间线边界按本地日期处理，避免 YYYY-MM-DD 被浏览器当成 UTC 导致负荷跨天偏移。 */
@@ -187,6 +210,7 @@ export function toBar(s: TaskSchedule): GanttBar {
     moldCode: s.mold_code ?? '',
     qty: s.qty,
     reportedQty: Math.max(0, Number(s.reported_qty ?? s.done_qty ?? 0)),
+    hasReportHistory: Boolean(s.has_report_history),
     progressPct: Math.max(0, Math.min(100, Number(s.progress_pct ?? (s.qty > 0 ? ((s.reported_qty ?? s.done_qty ?? 0) / s.qty * 100) : 0)))),
     start: s.plan_start,
     end: s.plan_end,

@@ -22,13 +22,13 @@ class OrderRequest extends FormRequest
         return [
             'customer_name' => ['required', 'string', 'max:128'],
             'delivery_date' => ['nullable', 'date'],
-            'priority' => ['nullable', 'integer', 'between:1,5'],
+            'priority' => ['nullable', 'integer', 'between:0,5'],
             'remark' => ['nullable', 'string', 'max:255'],
             'lines' => ['required', 'array', 'min:1', 'max:200'],
             'lines.*.product_code' => ['required', 'string', 'exists:products,code'],
             'lines.*.qty' => ['required', 'integer', 'min:1', 'max:10000000'],
             'lines.*.delivery_date' => ['nullable', 'date'],
-            'lines.*.priority' => ['nullable', 'integer', 'between:1,5'],
+            'lines.*.priority' => ['nullable', 'integer', 'between:0,5'],
             'lines.*.mold_id' => ['nullable', 'integer', 'exists:molds,id'],
         ];
     }

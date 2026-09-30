@@ -20,6 +20,7 @@ class ReportRequest extends FormRequest
             'task_id' => ['required', 'integer', 'exists:prod_tasks,id'],
             'qty' => ['required', 'integer', 'not_in:0'],
             'defect_qty' => ['nullable', 'integer'],
+            'correction_of_report_id' => ['nullable', 'integer', 'exists:work_reports,id'],
             'worker_id' => ['nullable', 'integer', 'exists:users,id'],
             'schedule_id' => ['nullable', 'integer', 'exists:task_schedules,id'],
             'machine_id' => ['nullable', 'integer', 'exists:machines,id'],

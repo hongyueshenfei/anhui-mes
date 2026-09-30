@@ -17,6 +17,11 @@ export interface WorkReport {
   qty: number
   defect_qty: number
   sign: number
+  /** 正报工尚可冲减的数量；冲完后为 0，前端隐藏冲减入口 */
+  correctable_qty?: number
+  /** 冲减对应的原正报工；历史负流水由后端兼容推断 */
+  correction_of_report_id?: number | null
+  correction_target_id?: number | null
   report_by: number
   operator?: { id: number; name: string; employee_no: string } | null
   worker_id: number | null
@@ -83,6 +88,7 @@ export interface ReportPayload {
   task_id: number
   qty: number
   defect_qty?: number
+  correction_of_report_id?: number | null
   worker_id?: number | null
   schedule_id?: number | null
   machine_id?: number | null
@@ -104,7 +110,9 @@ export interface DailyReportRow {
   order_no?: string | null
   product: { id: number; code: string; name: string } | null
   operation: { seq: number; name: string }
-  machine: { id: number; code: string; name: string; workshop_id?: number | null; workshop_name?: string | null } | null
+  /** 同一工单可切换的未打断工序排程；提交时以 selected_schedule_id 为准 */
+  operation_options?: DailyReportOperationOption[]
+  machine: { id: number; code: string; name: string; workshop_id?: number | null; workshop_name?: string | null; shift_mode?: 'day' | 'two_shift' | string | null } | null
   plan_start: string
   plan_end: string
   planned_qty: number
@@ -119,36 +127,72 @@ export interface DailyReportRow {
   input_defect_qty: number | null
   input_start_time: string | null
   input_end_time: string | null
+  selected_schedule_id?: number
   shift_code: 'day' | 'night'
   remark: string
 }
 
+export interface DailyReportOperationOption {
+  schedule_id: number
+  operation: { seq: number; name: string }
+  machine: { id: number; code: string; name: string; workshop_id?: number | null; workshop_name?: string | null; shift_mode?: 'day' | 'two_shift' | string | null } | null
+  plan_start: string
+  plan_end: string
+  planned_qty: number
+  reported_qty: number
+  remaining_qty: number
+  schedule_status: string
+}
+
 export interface DailyReportContext {
   work_date: string
-  rows: Omit<DailyReportRow, 'input_qty' | 'input_defect_qty' | 'input_start_time' | 'input_end_time' | 'shift_code' | 'remark'>[]
+  rows: Omit<DailyReportRow, 'input_qty' | 'input_defect_qty' | 'input_start_time' | 'input_end_time' | 'selected_schedule_id' | 'shift_code' | 'remark'>[]
   summary: { row_count: number; planned_qty: number; reported_qty: number; remaining_qty: number }
 }
 
+export type ReportSummaryDimension = 'detail' | 'daily' | 'progress' | 'delivery' | 'resource' | 'quality'
+
 export interface ReportSummaryItem {
   work_date: string | null
-  task_id: number
-  task_no: string | null
-  order_no: string | null
-  product: { id: number; code: string; name: string } | null
-  operation: { seq: number; name: string } | null
-  machine: { id: number; code: string; name: string } | null
-  planned_qty: number
+  shift_code?: 'day' | 'night' | 'unknown' | string | null
+  task_id?: number
+  task_no?: string | null
+  order_no?: string | null
+  customer_name?: string | null
+  delivery_date?: string | null
+  product?: { id: number; code: string; name: string } | null
+  operation?: { seq: number; name: string } | null
+  machine?: { id: number; code: string; name: string; capacity_per_hour?: number; shift_mode?: string | null } | null
+  workshop?: { id: number; code: string; name: string } | null
+  planned_qty?: number
+  order_qty?: number
   qualified_qty: number
+  finished_qualified_qty?: number
+  remaining_qty?: number
+  over_qty?: number
   defect_qty: number
   total_qty: number
-  completion_pct: number
+  completion_pct?: number
+  defect_rate?: number
   report_count: number
-  normal_count: number
+  normal_count?: number
   correction_count: number
+  correction_qty?: number
+  task_count?: number
+  order_count?: number
+  product_count?: number
+  valid_time_count?: number
+  invalid_time_count?: number
+  actual_hours?: number
+  capacity_qty?: number
+  utilization_pct?: number | null
+  time_quality?: string | null
+  risk_status?: string | null
   last_report_time: string | null
 }
 
 export interface ReportSummary {
+  dimension: ReportSummaryDimension
   totals: {
     row_count: number
     task_count: number

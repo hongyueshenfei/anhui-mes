@@ -155,6 +155,8 @@ export interface TaskSchedule {
   done_qty?: number
   /** 该工序报工累计完工量（任务详情接口带出，手动报工展示/校验） */
   reported_qty?: number
+  /** 工单是否存在任何报工流水（包括已冲减记录），用于保护只增不改的报工台账 */
+  has_report_history?: boolean
   /** 按工序计划量计算的累计完工百分比 */
   progress_pct?: number
   status: 'pending' | 'running' | 'paused' | 'done'
@@ -232,6 +234,9 @@ export interface TimelineData {
     workshop: string
     capacity_per_hour: number
     shift_mode: string
+    status: 'running' | 'stopped' | 'maintenance' | string
+    status_label: string
+    is_active: boolean
     schedules: TaskSchedule[]
   }>
   day_labels: string[]
@@ -395,7 +400,7 @@ export interface ScheduleSuggestion {
     forecast_end: string | null
   }>
   reason: string
-  status: 'pending' | 'accepted' | 'dismissed'
+  status: 'pending' | 'accepted' | 'dismissed' | 'expired'
   processed_by?: number | null
   processed_at?: string | null
   created_at?: string

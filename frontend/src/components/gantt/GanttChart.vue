@@ -10,10 +10,19 @@
           v-for="row in rows"
           :key="row.key"
           class="gantt-label-row"
+          :class="{
+            'is-abnormal': isAbnormalResource(row),
+            'is-unavailable': !row.isActive || row.resourceStatus === 'stopped',
+          }"
         >
           <div class="label-main">
             <span class="label-title">{{ row.label }}</span>
             <span class="label-count">{{ row.bars.length }}</span>
+            <span
+              v-if="isAbnormalResource(row)"
+              class="resource-status-badge"
+              :class="{ 'is-unavailable': !row.isActive || row.resourceStatus === 'stopped' }"
+            >{{ ganttResourceStatusLabel(row) }}</span>
           </div>
           <div class="label-sub">
             <span>{{ row.sub }}</span>
@@ -79,7 +88,13 @@
             :y="rowY(ri)"
             :width="timeWidth"
             :height="rowHeight"
-            :class="ri % 2 === 1 ? 'gantt-row-bg gantt-row-bg-alt' : 'gantt-row-bg'"
+            :class="[
+              ri % 2 === 1 ? 'gantt-row-bg gantt-row-bg-alt' : 'gantt-row-bg',
+              {
+                'gantt-row-bg-abnormal': isAbnormalResource(row),
+                'gantt-row-bg-unavailable': !row.isActive || row.resourceStatus === 'stopped',
+              },
+            ]"
           />
           <template v-for="day in dayList" :key="'bgd-' + row.key + '-' + day.getTime()">
             <rect
@@ -227,7 +242,7 @@
               v-if="barWidth(bar) > 70"
               :x="xIso(bar.start) + (showsLock(bar) ? 22 : 6)"
               :y="rowY(ri) + 20"
-              class="gantt-bar-text"
+              :class="['gantt-bar-text', bar.status === 'paused' ? 'is-paused-text' : '']"
             >
               {{ barTitle(bar) }}
             </text>
@@ -292,7 +307,7 @@
             rx="3"
             class="gantt-preview-rect"
           />
-          <text v-if="!dropPreview.allowed" :x="dropPreview.x + 6" :y="dropPreview.y + 20" class="gantt-preview-invalid-text">资源类型不匹配</text>
+          <text v-if="!dropPreview.allowed" :x="dropPreview.x + 6" :y="dropPreview.y + 20" class="gantt-preview-invalid-text">{{ dropPreview.reason }}</text>
           <line :x1="dropPreview.x" :y1="0" :x2="dropPreview.x" :y2="bodyHeight" class="gantt-preview-line" />
         </g>
       </svg>
@@ -304,7 +319,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { PoolTask } from '@/types/schedule'
 import type { GanttBar, GanttRow } from '@/utils/ScheduleAdapter'
-import { toDate, toIso } from '@/utils/ScheduleAdapter'
+import { ganttResourceStatusLabel, isAbnormalResource, toDate, toIso } from '@/utils/ScheduleAdapter'
 
 const props = defineProps<{
   rows: GanttRow[]
@@ -506,6 +521,7 @@ function barClass(bar: GanttBar): string {
   const cls = ['gantt-bar']
   if (bar.isConflict || bar.isOverlap) cls.push('is-conflict')
   else if (bar.isInterrupted) cls.push('is-interrupted')
+  else if (bar.status === 'paused') cls.push('is-paused')
   else if (isOverdue(bar)) cls.push('is-overdue')
   else if (bar.status === 'done') cls.push('is-done')
   else if (bar.status === 'running') cls.push('is-running')
@@ -534,7 +550,7 @@ function barTip(bar: GanttBar): string {
     `工序：${bar.opName} · 数量 ${bar.qty}件`,
     `进度：已报工 ${bar.reportedQty}/${bar.qty}件（${bar.progressPct}%）`,
     `计划：${bar.start} ~ ${bar.end}`,
-    `状态：${statusLabel(bar.status)}${showsLock(bar) ? ' · 三日锁定（请先点击上方解锁）' : ''}${bar.isInterrupted ? ' · 打断留档' : ''}${isOverdue(bar) ? ' · ⚠已超期' : ''}`,
+    `状态：${statusLabel(bar.status)}${bar.status === 'paused' ? ' · 原计划仅作参考，已释放资源占用' : ''}${showsLock(bar) ? ' · 三日锁定（请先点击上方解锁）' : ''}${bar.isInterrupted ? ' · 打断留档' : ''}${isOverdue(bar) ? ' · ⚠已超期' : ''}`,
   ]
   if (bar.actualStart && bar.actualEnd) lines.push(`实际：${bar.actualStart} ~ ${bar.actualEnd}`)
   else if (bar.actualStart) lines.push(`实际已开工：${bar.actualStart}（尚未完工）`)
@@ -571,7 +587,7 @@ function actualTimeRange(bar: GanttBar): string {
 }
 
 /** 当前滚动下悬停/插入点（拖拽预览） */
-const dropPreview = ref<{ x: number; y: number; width: number; allowed: boolean } | null>(null)
+const dropPreview = ref<{ x: number; y: number; width: number; allowed: boolean; reason: string } | null>(null)
 const dropRowIndex = ref(-1)
 const dropDate = ref<Date | null>(null)
 /** 原生拖拽事件中同步读取的资源类型，作为任务池选中状态的兜底。 */
@@ -695,7 +711,13 @@ function requiredResourceType(): string | null {
 
 function canDropOn(row: GanttRow): boolean {
   const required = requiredResourceType()
-  return Boolean(required && row.resourceType === required)
+  return row.resourceStatus === 'running' && row.isActive && Boolean(required && row.resourceType === required)
+}
+
+function unavailableReason(row: GanttRow): string {
+  if (!row.isActive) return '资源已停用，不能排入'
+  if (row.resourceStatus !== 'running') return `资源${row.resourceStatusLabel}，不能排入`
+  return '资源类型不匹配'
 }
 
 /** 鼠标移动显示插入点预览（绑定在 scroll div 上） */
@@ -727,13 +749,17 @@ function updateDropPreview(event: MouseEvent, widthMinutes = 8 * 60): void {
   const snapped = Math.round(minutes / snapMinutes.value) * snapMinutes.value
   const absMs = props.startDate.getTime() + snapped * 60000
   const row = props.rows[index]
+  const allowed = draggingBar.value
+    ? row.resourceStatus === 'running' && row.isActive
+    : canDropOn(row)
   dropRowIndex.value = index
   dropDate.value = new Date(absMs)
   dropPreview.value = {
     x: snapped * pxPerMin.value,
     y: rowY(index),
     width: Math.min(widthMinutes * pxPerMin.value, timeWidth.value - snapped * pxPerMin.value),
-    allowed: !props.draggingTask || canDropOn(row),
+    allowed,
+    reason: unavailableReason(row),
   }
 }
 
@@ -940,6 +966,7 @@ function onNativeDragOver(event: DragEvent): void {
     y: rowY(index),
     width: Math.min(8 * 60 * pxPerMin.value, timeWidth.value - snapped * pxPerMin.value),
     allowed: canDropOn(row),
+    reason: unavailableReason(row),
   }
 }
 
@@ -1017,6 +1044,15 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   border-bottom: 1px solid #f1f5f9;
   box-sizing: border-box;
 }
+.gantt-label-row.is-abnormal {
+  padding-left: 9px;
+  border-left: 3px solid #e59a32;
+  background: #fff8eb;
+}
+.gantt-label-row.is-unavailable {
+  border-left-color: #dc2626;
+  background: #fff5f5;
+}
 .label-main {
   display: flex;
   align-items: center;
@@ -1042,6 +1078,22 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   font-weight: 700;
   line-height: 18px;
   text-align: center;
+}
+.resource-status-badge {
+  flex: 0 0 auto;
+  padding: 1px 6px;
+  border: 1px solid #f2c078;
+  border-radius: 10px;
+  background: #fff1d6;
+  color: #a85b08;
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 15px;
+}
+.resource-status-badge.is-unavailable {
+  border-color: #f3a6a6;
+  background: #feecec;
+  color: #b42318;
 }
 .label-sub {
   display: flex;
@@ -1095,6 +1147,12 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 }
 .gantt-row-bg-alt {
   fill: #f8fafc;
+}
+.gantt-row-bg-abnormal {
+  fill: #fff8eb;
+}
+.gantt-row-bg-unavailable {
+  fill: #fff5f5;
 }
 .gantt-weekend-bg {
   fill: #f1f5f9;
@@ -1240,6 +1298,13 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   stroke: #64748b;
   stroke-dasharray: 3 2;
 }
+.gantt-bar.is-paused {
+  /* 订单停工后的排程保留原计划位置，用琥珀色虚线明确表示不可继续执行。 */
+  fill: #fef3c7;
+  stroke: #b45309;
+  stroke-width: 2;
+  stroke-dasharray: 5 3;
+}
 .gantt-bar.is-overdue {
   fill: #fee2e2;
   stroke: #dc2626;
@@ -1273,6 +1338,10 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   stroke-linejoin: round;
   pointer-events: none;
 }
+.gantt-bar-text.is-paused-text {
+  fill: #78350f;
+  stroke: rgba(255, 255, 255, 0.9);
+}
 .gantt-bar-sub {
   font-size: 10px;
   fill: #ffffff;
@@ -1295,11 +1364,11 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 .gantt-bar-group.is-bar-selected {
   cursor: grab;
 }
-.gantt-bar-group.is-selected .gantt-bar:not(.is-conflict):not(.is-overlap):not(.is-overdue) {
-  /* 选中态使用深蓝粗边框 + 细白色外轮廓，和普通计划蓝块明确区分。 */
+.gantt-bar-group.is-selected .gantt-bar {
+  /* 选中态使用中性深灰外框，避免白色融入浅色背景，也不干扰红/蓝状态色。 */
   stroke-width: 4;
-  stroke: #0f3d91;
-  filter: drop-shadow(0 0 0.75px rgba(255, 255, 255, 0.95));
+  stroke: #334155;
+  filter: none;
 }
 .gantt-bar-group.is-selected .gantt-actual-rect {
   stroke: #047857;

@@ -6,10 +6,10 @@
  */
 import dayjs from 'dayjs'
 import type { Machine, Mold, Product, RouteOp } from '@/types'
-import type { AutoScheduleException, Order, OrderLine, ProdTask, ProgressStage, ScheduleVersion, TaskSchedule } from '@/types/schedule'
+import type { AutoScheduleException, Order, OrderLine, ProdTask, ProgressStage, ScheduleSuggestion, ScheduleVersion, TaskSchedule } from '@/types/schedule'
 import type { RedLight } from '@/types/dashboard'
 import type { DevelopStageKey, DevelopTask } from '@/types/develop'
-import type { ProductionException } from '@/types/production'
+import type { ProductionException, WorkReport } from '@/types/production'
 import type { MaterialPrice, ProcessRate, Quote, QuoteEstimate, QuoteLine, QuoteRuleItem } from '@/types/quote'
 import type { OrderPickListPayload, OrderRouteOpDraft, OrderRouteOpsPayload, OrderRouteOpView } from '@/types/orderEdit'
 import { buildMockDb, poolResourceForOp, type MockDb } from './data'
@@ -117,6 +117,8 @@ function normalizeLineScheduleGaps(preserveBefore?: dayjs.Dayjs): void {
     for (const row of rows) {
       const start = dayjs(row.plan_start)
       const end = dayjs(row.plan_end)
+      // 已暂停排程保留原计划用于甘特参考，但释放机台/产线占用，不推动后续任务顺延。
+      if (row.status === 'paused') continue
       if (row.status !== 'done' && preserveBefore && start.isBefore(preserveBefore)) {
         cursor = end.add(TASK_SWITCH_GAP_MIN, 'minute')
         continue
@@ -135,10 +137,10 @@ function normalizeLineScheduleGaps(preserveBefore?: dayjs.Dayjs): void {
   const overlapIds = new Set<number>()
   for (let i = 0; i < db.schedules.length; i += 1) {
     const a = db.schedules[i]
-    if (a.machine_id === null) continue
+    if (a.machine_id === null || a.status === 'paused') continue
     for (let j = i + 1; j < db.schedules.length; j += 1) {
       const b = db.schedules[j]
-      if (b.machine_id !== a.machine_id || a.task_id === b.task_id) continue
+      if (b.machine_id !== a.machine_id || a.task_id === b.task_id || b.status === 'paused') continue
       if (dayjs(a.plan_start).isBefore(dayjs(b.plan_end)) && dayjs(b.plan_start).isBefore(dayjs(a.plan_end))) {
         overlapIds.add(a.id)
         overlapIds.add(b.id)
@@ -158,17 +160,110 @@ function normalizeLineScheduleGaps(preserveBefore?: dayjs.Dayjs): void {
   }
 }
 
-/** 实际发生时间不能超出当前系统时间，计划/预计时间不受影响。 */
-function sanitizeFutureActuals(): void {
-  const now = dayjs()
-  db.reports = db.reports.filter((report) => !report.report_time || !dayjs(report.report_time).isAfter(now))
-  for (const task of db.tasks) {
-    if (task.actual_start && dayjs(task.actual_start).isAfter(now)) task.actual_start = null
-    if (task.actual_end && dayjs(task.actual_end).isAfter(now)) task.actual_end = null
+/**
+ * 演示模式同步 APS 建议层：正式排程变化后重算当前任务的延期条件，
+ * 不自动修改计划；条件消失时把旧 pending 建议标记为已自动失效。
+ */
+function refreshMockSuggestions(taskIds: number[]): void {
+  const ids = Array.from(new Set(taskIds.filter((id) => Number(id) > 0)))
+  let nextSuggestionId = Math.max(0, ...db.suggestions.map((item) => item.id)) + 1
+
+  for (const taskId of ids) {
+    const task = db.tasks.find((item) => item.id === taskId)
+    if (!task) continue
+
+    const rows = db.schedules
+      .filter((row) => row.task_id === taskId && !row.is_interrupted)
+      .sort((a, b) => a.seq - b.seq)
+    const pending = db.suggestions.find((item) => item.task_id === taskId && item.type === 'postpone' && item.status === 'pending')
+
+    if (rows.length === 0) {
+      if (pending) {
+        pending.status = 'expired'
+        pending.reason = '系统自动失效：当前排程调整后已不再满足顺延条件'
+        pending.processed_at = dayjs().format('YYYY-MM-DD HH:mm:ss')
+      }
+      continue
+    }
+
+    const lastForecastEnd = rows.reduce<dayjs.Dayjs | null>((latest, row) => {
+      const current = dayjs(row.forecast_end ?? row.plan_end)
+      return !latest || current.isAfter(latest) ? current : latest
+    }, null)
+    const reasons: string[] = []
+    if (task.delivery_date && lastForecastEnd && lastForecastEnd.isAfter(dayjs(task.delivery_date).endOf('day'))) {
+      reasons.push(`预计完工 ${lastForecastEnd.format('YYYY-MM-DD HH:mm')} 突破交期 ${task.delivery_date}`)
+    }
+    if (Number(task.deviation_pct) > 10) {
+      reasons.push(`进度偏差 ${task.deviation_pct}% 超阈值 10%`)
+    }
+
+    if (reasons.length === 0) {
+      if (pending) {
+        pending.status = 'expired'
+        pending.reason = '系统自动失效：当前排程调整后已不再满足顺延条件'
+        pending.processed_at = dayjs().format('YYYY-MM-DD HH:mm:ss')
+      }
+      continue
+    }
+
+    const orderLine = Object.values(db.orderLines).flatMap((lines) => lines).find((line) => line.id === task.order_line_id)
+    const order = orderLine ? db.orders.find((item) => item.id === orderLine.order_id) : null
+    const affected = rows.map((row) => ({
+      schedule_id: row.id,
+      seq: row.seq,
+      op_name: row.op_name ?? row.op_type,
+      plan_end: row.plan_end,
+      forecast_end: row.forecast_end ?? null,
+    }))
+    const delayedOrders = [{
+      order_id: order?.id ?? null,
+      order_no: order?.order_no ?? null,
+      task_no: task.task_no,
+      product_code: task.product?.code ?? null,
+      product_name: task.product?.name ?? null,
+      delivery_date: task.delivery_date,
+      forecast_end: lastForecastEnd?.format('YYYY-MM-DD HH:mm:ss') ?? null,
+    }]
+
+    if (pending) {
+      pending.trigger_report_id = null
+      pending.affected = affected
+      pending.delayed_orders = delayedOrders
+      pending.reason = reasons.join('；')
+      pending.processed_at = null
+    } else {
+      const suggestion: ScheduleSuggestion = {
+        id: nextSuggestionId++,
+        type: 'postpone',
+        trigger_report_id: null,
+        task_id: task.id,
+        affected,
+        delayed_orders: delayedOrders,
+        reason: reasons.join('；'),
+        status: 'pending',
+        created_at: dayjs().format('YYYY-MM-DD HH:mm:ss'),
+        task: { id: task.id, task_no: task.task_no, delivery_date: task.delivery_date },
+      }
+      db.suggestions.push(suggestion)
+    }
   }
+}
+
+/** 全量刷新演示模式的 APS 建议层。 */
+export function refreshAllMockSuggestions(): { task_count: number } {
+  const taskIds = db.tasks
+    .filter((task) => db.schedules.some((row) => row.task_id === task.id && !row.is_interrupted)
+      || db.suggestions.some((item) => item.task_id === task.id && item.status === 'pending'))
+    .map((task) => task.id)
+  refreshMockSuggestions(taskIds)
+  persistMockScheduleState()
+  return { task_count: taskIds.length }
+}
+
+/** 刷新演示排程的冻结标识；报工实际时间允许按填报内容回溯或预录。 */
+function refreshMockScheduleFlags(): void {
   for (const schedule of db.schedules) {
-    if (schedule.actual_start && dayjs(schedule.actual_start).isAfter(now)) schedule.actual_start = null
-    if (schedule.actual_end && dayjs(schedule.actual_end).isAfter(now)) schedule.actual_end = null
     schedule.is_frozen = schedule.status === 'pending' && isInFreezeWindow(schedule.plan_start) ? 1 : 0
   }
   // 实际数据已被清理的“已完成”任务不能继续显示历史灰色计划，回退为待执行蓝色计划。
@@ -189,7 +284,7 @@ function sanitizeFutureActuals(): void {
 /** 演示模式持久化排产结果，避免接受后刷新又恢复成初始示例数据。 */
 function persistMockScheduleState(): void {
   if (typeof localStorage === 'undefined') return
-  sanitizeFutureActuals()
+  refreshMockScheduleFlags()
   localStorage.setItem(MOCK_SCHEDULE_STORAGE_KEY, JSON.stringify({
     machines: db.machines,
     schedules: db.schedules,
@@ -200,6 +295,12 @@ function persistMockScheduleState(): void {
       status: task.status,
       is_locked: task.is_locked,
       deviation_pct: task.deviation_pct,
+    })),
+    orders: db.orders.map((order) => ({
+      id: order.id,
+      status: order.status,
+      started_at: order.started_at ?? null,
+      completed_at: order.completed_at ?? null,
     })),
     pool: db.pool,
     versions: db.versions,
@@ -215,6 +316,7 @@ function restoreMockScheduleState(): void {
       machines?: MockDb['machines']
       schedules?: TaskSchedule[]
       tasks?: Array<Partial<ProdTask> & { id: number }>
+      orders?: Array<Pick<Order, 'id' | 'status'> & { started_at?: string | null; completed_at?: string | null }>
       pool?: MockDb['pool']
       versions?: ScheduleVersion[]
     }
@@ -247,6 +349,12 @@ function restoreMockScheduleState(): void {
         if (task) Object.assign(task, savedTask)
       }
     }
+    if (Array.isArray(saved.orders)) {
+      for (const savedOrder of saved.orders) {
+        const order = db.orders.find((item) => item.id === savedOrder.id)
+        if (order) Object.assign(order, savedOrder)
+      }
+    }
     if (Array.isArray(saved.pool)) db.pool = saved.pool
     if (Array.isArray(saved.versions)) db.versions = saved.versions
     // 兼容上一版已保存的排程：历史/在产任务必须继续有对应实际条。
@@ -260,10 +368,10 @@ function restoreMockScheduleState(): void {
     const overlapIds = new Set<number>()
     for (let i = 0; i < db.schedules.length; i += 1) {
       const a = db.schedules[i]
-      if (a.machine_id === null) continue
+      if (a.machine_id === null || a.status === 'paused') continue
       for (let j = i + 1; j < db.schedules.length; j += 1) {
         const b = db.schedules[j]
-        if (b.machine_id !== a.machine_id || a.task_id === b.task_id) continue
+        if (b.machine_id !== a.machine_id || a.task_id === b.task_id || b.status === 'paused') continue
         if (dayjs(a.plan_start).isBefore(dayjs(b.plan_end)) && dayjs(b.plan_start).isBefore(dayjs(a.plan_end))) {
           overlapIds.add(a.id)
           overlapIds.add(b.id)
@@ -275,7 +383,7 @@ function restoreMockScheduleState(): void {
       schedule.is_conflict = schedule.is_overlap
     }
     if (Array.isArray(saved.machines) || Array.isArray(saved.schedules)) {
-      sanitizeFutureActuals()
+      refreshMockScheduleFlags()
       const recalculatedTypes = new Set<'paint_line' | 'effect_line' | 'pack_line'>()
       for (const machine of db.machines) {
         if (machine.type === 'paint_line' || machine.type === 'effect_line' || machine.type === 'pack_line') {
@@ -296,7 +404,7 @@ function restoreMockScheduleState(): void {
 
 normalizeLineScheduleGaps()
 restoreMockScheduleState()
-sanitizeFutureActuals()
+refreshMockScheduleFlags()
 // 旧快照可能只保存了计划时间，不能覆盖报工台账推导出的工序完工量/状态。
 // 启动后再次按当前报工和入库流水回算，保证甘特、报工、入库三页读到同一份关系。
 for (const task of db.tasks) syncRuntimeTask(task)
@@ -352,6 +460,7 @@ function recalculateTaskChainInMemory(taskId: number, preserveBefore?: dayjs.Day
   for (const row of rows) {
     const machine = row.machine_id === null ? undefined : db.machines.find((item) => item.id === row.machine_id)
     if (!machine) continue
+    if (row.status === 'paused') continue
     if (row.status === 'done' || row.actual_end) {
       cursor = dayjs(row.plan_end)
       continue
@@ -402,7 +511,7 @@ export function recalculateSchedulesForMachine(machineId: number): { task_count:
       .map((item) => item.id))
     : new Set([machineId])
   const taskIds = Array.from(new Set(db.schedules
-    .filter((schedule) => schedule.machine_id !== null && resourceIds.has(schedule.machine_id) && !schedule.is_interrupted)
+    .filter((schedule) => schedule.machine_id !== null && resourceIds.has(schedule.machine_id) && !schedule.is_interrupted && schedule.status !== 'paused')
     .map((schedule) => schedule.task_id)))
     .filter((taskId) => db.tasks.some((task) => task.id === taskId && task.status !== 'done'))
   let changedCount = 0
@@ -421,7 +530,7 @@ export function recalculateSchedulesForMachine(machineId: number): { task_count:
 /** 甘特图“重算排程”：按最新产能重算全部已排但未开工任务，不生成算法建议。 */
 export function recalculateAllSchedules(): { task_count: number; changed_count: number } {
   const taskIds = Array.from(new Set(db.schedules
-    .filter((schedule) => schedule.machine_id !== null && !schedule.is_interrupted)
+    .filter((schedule) => schedule.machine_id !== null && !schedule.is_interrupted && schedule.status !== 'paused')
     .map((schedule) => schedule.task_id)))
     .filter((taskId) => db.tasks.some((task) => task.id === taskId && task.status !== 'done'))
   const before = new Map(db.schedules.map((schedule) => [schedule.id, `${schedule.plan_start}|${schedule.plan_end}`]))
@@ -443,6 +552,7 @@ export function recalculateAllSchedules(): { task_count: number; changed_count: 
       changedTaskIds.add(schedule.task_id)
     }
   }
+  refreshMockSuggestions(Array.from(changedTaskIds))
   persistMockScheduleState()
   return { task_count: changedTaskIds.size, changed_count: changedCount }
 }
@@ -508,7 +618,7 @@ function checkOverlap(item: DropItem, excludeScheduleId?: number): Array<{ task_
 
   for (const candidate of candidates) {
     for (const s of db.schedules) {
-      if (s.id === excludeScheduleId || s.task_id === item.task_id || s.machine_id !== candidate.machine_id) continue
+      if (s.id === excludeScheduleId || s.task_id === item.task_id || s.machine_id !== candidate.machine_id || s.status === 'paused') continue
       const sStart = dayjs(s.plan_start)
       const sEnd = dayjs(s.plan_end)
       const gap = TASK_SWITCH_GAP_MIN
@@ -535,7 +645,7 @@ function checkOverlap(item: DropItem, excludeScheduleId?: number): Array<{ task_
   if (moldId) {
     for (const candidate of candidates.filter((row) => row.mold_id === moldId)) {
       for (const s of db.schedules) {
-        if (s.id === excludeScheduleId || s.task_id === item.task_id || s.mold_id !== moldId) continue
+        if (s.id === excludeScheduleId || s.task_id === item.task_id || s.mold_id !== moldId || s.status === 'paused') continue
         const sStart = dayjs(s.plan_start)
         const sEnd = dayjs(s.plan_end)
         if (dayjs(candidate.plan_start).isBefore(sEnd) && sStart.isBefore(dayjs(candidate.plan_end))) {
@@ -650,6 +760,7 @@ export function manualSave(items: DropItem[], force = false, note?: string, mark
   if (note) {
     pushAudit('scheduling', 'schedule_manual_save', 'task', items[0]?.task_id ?? null, { note })
   }
+  refreshMockSuggestions(saved.map((task) => task.id))
   persistMockScheduleState()
   return { version, tasks: saved, conflicts }
 }
@@ -711,6 +822,7 @@ export function operationAdjust(item: {
   }
   db.versions.unshift(version)
   pushAudit('scheduling', 'schedule_operation_adjust', 'schedule', schedule.id, { note: item.note, edge: item.edge ?? null })
+  refreshMockSuggestions([task.id])
   persistMockScheduleState()
   return { version, task: clone(task), schedule: clone(schedule), conflicts: [] }
 }
@@ -770,6 +882,7 @@ export function insertConfirm(item: DropItem, strategy: 'wait' | 'interrupt' = '
       if (s) s.plan_end = t.plan_end
     }
   }
+  refreshMockSuggestions(Array.from(new Set([item.task_id, ...preview.changed_tasks.map((item) => item.task_id)])))
   const v = result.version
   v.type = 'insert'
   v.affected_orders = preview.affected_orders.length > 0 ? (preview.affected_orders as never) : []
@@ -783,7 +896,7 @@ export function acceptSuggestion(id: number): { task_id: number; version_id: num
   if (!s) throw new MockApiError(404, 404, null, '建议不存在')
   if (s.status !== 'pending') throw new MockApiError(422, 422, null, '建议已处理，不能重复采纳')
   let aligned = 0
-  for (const row of db.schedules.filter((x) => x.task_id === s.task_id && x.status !== 'done' && !x.is_interrupted)) {
+  for (const row of db.schedules.filter((x) => x.task_id === s.task_id && x.status !== 'done' && x.status !== 'paused' && !x.is_interrupted)) {
     if (row.forecast_start) row.plan_start = row.forecast_start
     if (row.forecast_end) row.plan_end = row.forecast_end
     aligned++
@@ -840,7 +953,7 @@ export function autoSolve(taskIds: number[]): { job_id: string | null; task_coun
   const moldBusy = new Map<number, dayjs.Dayjs>()
   const base = dayjs().add(1, 'day').hour(8).minute(0).second(0)
   for (const schedule of db.schedules) {
-    if (scope.has(schedule.task_id) || schedule.status === 'done' || !schedule.machine_id) continue
+    if (scope.has(schedule.task_id) || schedule.status === 'done' || schedule.status === 'paused' || !schedule.machine_id) continue
     const end = dayjs(schedule.plan_end)
     const machineEnd = machineBusy.get(schedule.machine_id)
     if (!machineEnd || end.isAfter(machineEnd)) machineBusy.set(schedule.machine_id, end.add(TASK_SWITCH_GAP_MIN, 'minute'))
@@ -932,6 +1045,7 @@ export function autoAccept(mode: 'full' | 'partial', assignments: Array<{ task_i
   const result = manualSave(items, true, `自动排产采纳(${mode})`, false)
   result.version.type = 'ai'
   normalizeLineScheduleGaps()
+  refreshMockSuggestions(assignments.map((item) => item.task_id))
   persistMockScheduleState()
   return { version: result.version, mode, job_id: null, conflicts: [] }
 }
@@ -946,10 +1060,18 @@ function finalScheduleForTask(taskId: number): TaskSchedule | null {
 
 function syncRuntimeTask(task: ProdTask): void {
   const rows = db.schedules.filter((schedule) => schedule.task_id === task.id && !schedule.is_interrupted)
+  const taskWasPaused = task.status === 'paused'
   for (const schedule of rows) {
     const net = db.reports.filter((report) => report.schedule_id === schedule.id).reduce((sum, report) => sum + report.qty, 0)
     schedule.done_qty = Math.max(0, net)
-    schedule.status = schedule.done_qty >= schedule.qty ? 'done' : schedule.done_qty > 0 ? 'running' : 'pending'
+    const scheduleWasPaused = schedule.status === 'paused'
+    schedule.status = schedule.done_qty >= schedule.qty
+      ? 'done'
+      : scheduleWasPaused
+        ? 'paused'
+        : schedule.done_qty > 0
+          ? 'running'
+          : 'pending'
   }
   const lastId = finalScheduleForTask(task.id)?.id
   const finalReported = db.reports
@@ -959,23 +1081,129 @@ function syncRuntimeTask(task: ProdTask): void {
   task.stocked_qty = db.stockIns.filter((stockIn) => stockIn.task_id === task.id).reduce((sum, stockIn) => sum + stockIn.qty, 0)
   task.status = task.done_qty >= task.qty
     ? 'done'
-    : db.reports.some((report) => report.task_id === task.id)
-      ? 'in_progress'
-      : rows.length > 0
-        ? 'scheduled'
-        : 'unscheduled'
+    : taskWasPaused
+      ? 'paused'
+      : db.reports.some((report) => report.task_id === task.id)
+        ? 'in_progress'
+        : rows.length > 0
+          ? 'scheduled'
+          : 'unscheduled'
 }
 
-export function submitReport(payload: { task_id: number; qty: number; defect_qty?: number; worker_id?: number | null; schedule_id?: number | null; machine_id?: number | null; work_date?: string; shift_code?: 'day' | 'night'; client_request_id?: string; source?: string; offline_flag?: boolean; remark?: string }): { report: unknown; task: unknown; is_correction: boolean } {
+function reportTimelineKey(report: WorkReport): string {
+  return `${report.start_time ?? report.report_time}|${String(report.id).padStart(12, '0')}`
+}
+
+function correctionMetadata(reports: WorkReport[]): { remaining: Map<number, number>; targetByNegative: Map<number, number> } {
+  const remaining = new Map<number, number>()
+  const targetByNegative = new Map<number, number>()
+  const groups = new Map<string, WorkReport[]>()
+  for (const report of reports) {
+    const key = `${report.task_id}|${report.schedule_id ?? 'task'}|${report.machine_id ?? 'none'}`
+    groups.set(key, [...(groups.get(key) ?? []), report])
+  }
+  for (const group of groups.values()) {
+    const positives = group.filter((report) => report.qty > 0).sort((a, b) => reportTimelineKey(a).localeCompare(reportTimelineKey(b)))
+    const positiveIds = positives.map((report) => report.id)
+    positives.forEach((report) => remaining.set(report.id, report.qty))
+    const negatives = group.filter((report) => report.qty < 0).sort((a, b) => reportTimelineKey(a).localeCompare(reportTimelineKey(b)))
+    for (const negative of negatives) {
+      let amount = Math.abs(negative.qty)
+      const linkedTargetId = negative.correction_of_report_id ?? null
+      if (linkedTargetId !== null && (remaining.get(linkedTargetId) ?? 0) > 0) {
+        const deduct = Math.min(remaining.get(linkedTargetId) ?? 0, amount)
+        remaining.set(linkedTargetId, (remaining.get(linkedTargetId) ?? 0) - deduct)
+        amount -= deduct
+        targetByNegative.set(negative.id, linkedTargetId)
+      }
+      for (let index = positiveIds.length - 1; index >= 0 && amount > 0; index -= 1) {
+        const targetId = positiveIds[index]!
+        const available = remaining.get(targetId) ?? 0
+        if (available <= 0) continue
+        const deduct = Math.min(available, amount)
+        remaining.set(targetId, available - deduct)
+        amount -= deduct
+        if (!targetByNegative.has(negative.id)) targetByNegative.set(negative.id, targetId)
+      }
+    }
+  }
+  return { remaining, targetByNegative }
+}
+
+/** 报工流水展示：历史冲减沿用原报工作业字段，正单返回剩余可冲减量。 */
+export function decorateReportLedger(items: WorkReport[]): WorkReport[] {
+  const metadata = correctionMetadata(db.reports)
+  return items.map((item) => {
+    const next: WorkReport = { ...item, correctable_qty: metadata.remaining.get(item.id) ?? 0 }
+    if (item.qty >= 0) return next
+    const targetId = metadata.targetByNegative.get(item.id) ?? item.correction_of_report_id ?? null
+    const target = targetId ? db.reports.find((report) => report.id === targetId) : null
+    if (!target) return next
+    return {
+      ...next,
+      schedule_id: target.schedule_id,
+      machine_id: target.machine_id,
+      schedule: target.schedule,
+      machine: target.machine,
+      report_time: target.report_time,
+      start_time: target.start_time,
+      end_time: target.end_time,
+      work_date: target.work_date,
+      shift_code: target.shift_code,
+      source: target.source,
+      source_label: target.source_label,
+      correction_of_report_id: target.id,
+      correction_target_id: target.id,
+    }
+  })
+}
+
+export function submitReport(payload: { task_id: number; qty: number; defect_qty?: number; correction_of_report_id?: number | null; worker_id?: number | null; schedule_id?: number | null; machine_id?: number | null; report_time?: string; start_time?: string; end_time?: string; work_date?: string; shift_code?: 'day' | 'night'; client_request_id?: string; source?: string; offline_flag?: boolean; remark?: string }): { report: unknown; task: unknown; is_correction: boolean } {
   const task = db.tasks.find((t) => t.id === payload.task_id)
   if (!task) throw new MockApiError(404, 404, null, '任务不存在')
   if (payload.worker_id != null) throw new MockApiError(422, 422, { error_code: 'worker_attribution_disabled' }, '当前报工暂不区分个人，请不要填写 worker_id')
   const isCorrection = payload.qty < 0
   const user = db.users.find((u) => u.job_type === 'statistician') ?? db.users.find((u) => u.job_type === 'admin') ?? db.users[0]!
-  const schedule = payload.schedule_id ? db.schedules.find((item) => item.id === payload.schedule_id) : null
+  const correctionTarget = isCorrection && payload.correction_of_report_id
+    ? db.reports.find((report) => report.id === payload.correction_of_report_id && report.qty > 0 && report.task_id === task.id)
+    : null
+  if (isCorrection && payload.correction_of_report_id && !correctionTarget) {
+    throw new MockApiError(422, 422, { error_code: 'correction_source_not_found' }, '原报工记录不存在或不是正报工，无法冲减')
+  }
+  if (correctionTarget) {
+    const available = correctionMetadata(db.reports).remaining.get(correctionTarget.id) ?? 0
+    if (Math.abs(payload.qty) > available) {
+      throw new MockApiError(422, 422, { error_code: 'correction_exceeds_balance', available_qty: available }, `本条正报工剩余可冲减 ${available} 件，不能超过剩余数量`)
+    }
+  } else if (isCorrection) {
+    const available = db.reports
+      .filter((report) => report.task_id === task.id && (report.schedule_id ?? null) === (payload.schedule_id ?? null))
+      .reduce((sum, report) => sum + report.qty, 0)
+    if (Math.abs(payload.qty) > Math.max(0, available)) {
+      throw new MockApiError(422, 422, { error_code: 'correction_exceeds_balance', available_qty: Math.max(0, available) }, `当前工序剩余可冲减 ${Math.max(0, available)} 件，不能超过剩余数量`)
+    }
+  }
+  let schedule = payload.schedule_id ? db.schedules.find((item) => item.id === payload.schedule_id) : null
+  const scheduleMachineId = schedule?.machine_id
+  let machine = (payload.machine_id ? db.machines.find((item) => item.id === payload.machine_id) : null) ?? (scheduleMachineId ? db.machines.find((item) => item.id === scheduleMachineId) : null)
+  let reportTime = payload.report_time ?? payload.end_time ?? dayjs().format('YYYY-MM-DD HH:mm:ss')
+  let startTime = payload.start_time ?? reportTime
+  let endTime = payload.end_time ?? reportTime
+  let workDate = payload.work_date ?? dayjs().format('YYYY-MM-DD')
+  let shiftCode = payload.shift_code ?? 'day'
+  let source = payload.source ?? 'click'
+  if (correctionTarget) {
+    schedule = correctionTarget.schedule_id ? db.schedules.find((item) => item.id === correctionTarget.schedule_id) ?? null : null
+    machine = correctionTarget.machine_id ? db.machines.find((item) => item.id === correctionTarget.machine_id) ?? null : null
+    reportTime = correctionTarget.report_time
+    startTime = correctionTarget.start_time ?? reportTime
+    endTime = correctionTarget.end_time ?? reportTime
+    workDate = correctionTarget.work_date ?? workDate
+    shiftCode = correctionTarget.shift_code ?? shiftCode
+    source = correctionTarget.source
+  }
   if (payload.schedule_id && (!schedule || schedule.task_id !== task.id)) throw new MockApiError(422, 422, { error_code: 'schedule_task_mismatch' }, '报工工序不属于该任务')
-  const machine = (payload.machine_id ? db.machines.find((item) => item.id === payload.machine_id) : null) ?? (schedule?.machine_id ? db.machines.find((item) => item.id === schedule.machine_id) : null)
-  if (schedule && payload.machine_id && payload.machine_id !== schedule.machine_id) throw new MockApiError(422, 422, { error_code: 'schedule_machine_mismatch' }, '报工机台与排程机台不一致')
+  if (schedule && machine && machine.id !== schedule.machine_id) throw new MockApiError(422, 422, { error_code: 'schedule_machine_mismatch' }, '报工机台与排程机台不一致')
   if (schedule && !isCorrection) {
     const previous = db.schedules.filter((item) => item.task_id === task.id && item.seq < schedule.seq && !item.is_interrupted).sort((a, b) => b.seq - a.seq)[0]
     if (previous) {
@@ -983,6 +1211,9 @@ export function submitReport(payload: { task_id: number; qty: number; defect_qty
       const currentDone = db.reports.filter((report) => report.schedule_id === schedule.id).reduce((sum, report) => sum + report.qty, 0)
       if (currentDone + payload.qty > previousDone) throw new MockApiError(422, 422, { error_code: 'process_chain_exceed', previous_done: previousDone }, `下道工序完工量不能超过上道工序完工量（${previousDone}）`)
     }
+  }
+  if (dayjs(endTime).isBefore(dayjs(startTime))) {
+    throw new MockApiError(422, 422, { error_code: 'invalid_report_time_range' }, '结束时间不能早于开始时间')
   }
   reportSeq += 1
   db.reports.unshift({
@@ -1001,11 +1232,14 @@ export function submitReport(payload: { task_id: number; qty: number; defect_qty
     operator: { id: user.id, name: user.name, employee_no: user.employee_no },
     worker_id: null,
     worker: null,
-    report_time: dayjs().format('YYYY-MM-DD HH:mm:ss'),
-    work_date: payload.work_date ?? dayjs().format('YYYY-MM-DD'),
-    shift_code: payload.shift_code ?? 'day',
+    report_time: reportTime,
+    start_time: startTime,
+    end_time: endTime,
+    work_date: workDate,
+    shift_code: shiftCode,
     client_request_id: payload.client_request_id ?? null,
-    source: payload.source ?? 'click',
+    source,
+    correction_of_report_id: correctionTarget?.id ?? null,
     source_label: isCorrection ? '冲减更正' : payload.source === 'leader_batch' ? '班组长/统计员日结' : payload.source === 'offline' ? '离线补传' : '报工',
     offline_flag: payload.offline_flag ? 1 : 0,
     remark: payload.remark ?? (isCorrection ? '演示冲减' : null),
@@ -1087,7 +1321,7 @@ export function dailyReportContext(workDate: string, filters: { keyword?: string
         order_no: order?.order_no ?? schedule.order_no ?? null,
         product: task?.product ?? null,
         operation: { seq: schedule.seq, name: opName },
-        machine: machine ? { id: machine.id, code: machine.code, name: machine.name, workshop_id: machine.workshop_id, workshop_name: machine.workshop_name } : null,
+        machine: machine ? { id: machine.id, code: machine.code, name: machine.name, workshop_id: machine.workshop_id, workshop_name: machine.workshop_name, shift_mode: machine.shift_mode } : null,
         plan_start: schedule.plan_start,
         plan_end: schedule.plan_end,
         planned_qty: schedule.qty,
@@ -1105,14 +1339,47 @@ export function dailyReportContext(workDate: string, filters: { keyword?: string
     .filter((row) => row._match && (!filters.workshop_id || row.machine?.workshop_id === filters.workshop_id) && (!filters.machine_id || row.machine?.id === filters.machine_id) && (!filters.operation || row._operation === filters.operation))
     .sort((a, b) => (a.machine?.id ?? 0) - (b.machine?.id ?? 0) || a.plan_start.localeCompare(b.plan_start) || a.operation.seq - b.operation.seq)
     .map(({ _match, _operation, ...row }) => row)
+  const lastScheduleByTask = new Map<number, number>()
+  for (const schedule of db.schedules.filter((item) => !item.is_interrupted)) {
+    const currentId = lastScheduleByTask.get(schedule.task_id)
+    const current = currentId ? db.schedules.find((item) => item.id === currentId) : null
+    if (!current || schedule.seq > current.seq || (schedule.seq === current.seq && schedule.id > current.id)) {
+      lastScheduleByTask.set(schedule.task_id, schedule.id)
+    }
+  }
+  const rowsWithOperations = rows.map((row) => {
+    const operationOptions = db.schedules
+      .filter((schedule) => schedule.task_id === row.task_id && !schedule.is_interrupted)
+      .sort((a, b) => a.seq - b.seq || a.id - b.id)
+      .map((schedule) => {
+        const machine = schedule.machine_id ? db.machines.find((item) => item.id === schedule.machine_id) : null
+        const directReported = db.reports.filter((report) => report.schedule_id === schedule.id).reduce((sum, report) => sum + report.qty, 0)
+        const taskReported = lastScheduleByTask.get(row.task_id) === schedule.id
+          ? db.reports.filter((report) => report.task_id === row.task_id && report.schedule_id === null).reduce((sum, report) => sum + report.qty, 0)
+          : 0
+        const reportedQty = Math.max(0, directReported + taskReported)
+        return {
+          schedule_id: schedule.id,
+          operation: { seq: schedule.seq, name: schedule.op_name ?? schedule.op_type },
+          machine: machine ? { id: machine.id, code: machine.code, name: machine.name, workshop_id: machine.workshop_id, workshop_name: machine.workshop_name, shift_mode: machine.shift_mode } : null,
+          plan_start: schedule.plan_start,
+          plan_end: schedule.plan_end,
+          planned_qty: schedule.qty,
+          reported_qty: reportedQty,
+          remaining_qty: Math.max(0, schedule.qty - reportedQty),
+          schedule_status: schedule.status,
+        }
+      })
+    return { ...row, operation_options: operationOptions }
+  })
   return {
     work_date: workDate,
-    rows,
+    rows: rowsWithOperations,
     summary: {
-      row_count: rows.length,
-      planned_qty: rows.reduce((sum, row) => sum + row.planned_qty, 0),
-      reported_qty: rows.reduce((sum, row) => sum + row.reported_qty, 0),
-      remaining_qty: rows.reduce((sum, row) => sum + row.remaining_qty, 0),
+      row_count: rowsWithOperations.length,
+      planned_qty: rowsWithOperations.reduce((sum, row) => sum + row.planned_qty, 0),
+      reported_qty: rowsWithOperations.reduce((sum, row) => sum + row.reported_qty, 0),
+      remaining_qty: rowsWithOperations.reduce((sum, row) => sum + row.remaining_qty, 0),
     },
   }
 }
@@ -1616,17 +1883,55 @@ export function confirmOrderRoute(id: number): { id: number; status: string } {
   return { id: order.id, status: order.status }
 }
 
+/** 开始生产/恢复生产：演示模式同步恢复订单排程状态。 */
+export function startOrder(id: number): { id: number; status: string } {
+  const order = db.orders.find((o) => o.id === id)
+  if (!order) throw new MockApiError(404, 404, null, '订单不存在')
+  if (!['pending', 'scheduled', 'paused'].includes(order.status)) throw new MockApiError(409, 409, null, '仅待排产/已排产/已停工工单可开始生产')
+
+  const from = order.status
+  if (from === 'paused') {
+    const lineIds = new Set((db.orderLines[id] ?? []).map((line) => line.id))
+    const pausedTaskIds = new Set(db.tasks
+      .filter((task) => lineIds.has(task.order_line_id) && task.status === 'paused')
+      .map((task) => task.id))
+
+    for (const task of db.tasks) {
+      if (pausedTaskIds.has(task.id)) task.status = 'in_progress'
+    }
+    for (const schedule of db.schedules) {
+      if (!pausedTaskIds.has(schedule.task_id) || schedule.is_interrupted || schedule.status !== 'paused') continue
+      schedule.status = Number(schedule.done_qty ?? 0) > 0 ? 'running' : 'pending'
+    }
+  }
+
+  order.status = 'in_progress'
+  pushAudit('order', 'order_start', 'order', id, { from, to: 'in_progress' })
+  persistMockScheduleState()
+  return { id: order.id, status: order.status }
+}
+
 /** 停工：in_progress → paused（生产中任务暂停） */
 export function pauseOrder(id: number): { id: number; status: string } {
   const order = db.orders.find((o) => o.id === id)
   if (!order) throw new MockApiError(404, 404, null, '订单不存在')
   if (order.status !== 'in_progress') throw new MockApiError(409, 409, null, '仅生产中工单可停工')
   const taskIds = (db.orderLines[id] ?? []).map((l) => l.id)
+  const activeTaskIds = new Set<number>()
   db.tasks.forEach((t) => {
-    if (taskIds.includes(t.order_line_id) && t.status === 'in_progress') t.status = 'paused'
+    if (taskIds.includes(t.order_line_id) && t.status === 'in_progress') {
+      t.status = 'paused'
+      activeTaskIds.add(t.id)
+    }
+  })
+  db.schedules.forEach((schedule) => {
+    if (activeTaskIds.has(schedule.task_id) && !schedule.is_interrupted && schedule.status !== 'done') {
+      schedule.status = 'paused'
+    }
   })
   order.status = 'paused'
   pushAudit('order', 'order_pause', 'order', id, { from: 'in_progress', to: 'paused' })
+  persistMockScheduleState()
   return { id: order.id, status: order.status }
 }
 

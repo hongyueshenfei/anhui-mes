@@ -287,7 +287,7 @@ erDiagram
 | k3_bill_no | VARCHAR(32) | NULL | 金蝶生产订单号（四期拉单后落） |
 | customer_name | VARCHAR(128) | | |
 | status | VARCHAR(16) | IDX(status) | route_confirm(工艺确认)/pending(待排产)/scheduled(已排产)/in_progress(生产中)/paused(已停工)/produced(已入库)/aborted(已中止)/closed(已关闭) |
-| priority | TINYINT | IDX(priority) | 1-5，越大越急 |
+| priority | TINYINT | IDX(priority) | 0-5，数值越小越急，P0 最紧急 |
 
 **order_lines**（订单明细：产品/数量/交期）
 | 字段 | 说明 |
@@ -336,13 +336,13 @@ erDiagram
 | machine_id | BIGINT | FK→machines, NULL | 机台（成型工序必填） |
 | team_id | BIGINT | FK→teams, NULL | 班组（人工线工序必填） |
 | mold_id | BIGINT | NULL | 成型工序模具（与 task.mold_id 一致） |
-| plan_start / plan_end | DATETIME | IDX(machine_id, plan_start), IDX(team_id, plan_start) | 计划起止（自动按产能+班制+换模计算） |
+| plan_start / plan_end | DATETIME | IDX(machine_id, plan_start), IDX(team_id, plan_start) | 计划起止（自动按产能+班制+换模计算）；paused 时保留作甘特参考，不作为当前资源占用 |
 | forecast_start / forecast_end | DATETIME | NULL | APS一期：预计起止（保存时=plan；报工驱动滚动，plan 永不自动改） |
 | actual_start / actual_end | DATETIME | NULL | APS一期：实际起止（报工推断：首笔正报工/累计合格达工序量） |
 | is_frozen | TINYINT | 0 | APS一期：冻结区标记（未来 N 天不可自动顺延，不限制手工重排） |
 | changeover_minutes | INT | 0 | APS一期：排入时实际采用的换模分钟数（矩阵>工序>机台，留档） |
 | qty INT | | | 该工序计划数量 |
-| status | VARCHAR(16) | IDX(status) | pending/running/paused/done |
+| status | VARCHAR(16) | IDX(status) | pending/running/paused/done；paused 排程保留原计划展示，但释放机台/模具占用 |
 | source | VARCHAR(16) | | manual/ai/insert/auto 变更来源 |
 | CONSTRAINT: 成型工序 machine_id NOT NULL；人工线工序 team_id NOT NULL；plan_end > plan_start | | | |
 
@@ -365,7 +365,7 @@ erDiagram
 | affected JSON | 受影响排程明细（schedule_id/seq/op_name/plan_end/forecast_end） |
 | delayed_orders JSON | 延期订单清单（订单号/产品/交期/预计完成） |
 | reason VARCHAR(255) | 生成原因（预计破交期/偏差超阈值） |
-| status VARCHAR(16) IDX | pending/accepted/dismissed（每任务至多一条 pending） |
+| status VARCHAR(16) IDX | pending/accepted/dismissed/expired（每任务至多一条 pending；正式排程变化后不再满足条件的建议自动失效） |
 | processed_by / processed_at / created_by / timestamps | |
 > 采纳：未完工工序 plan 对齐 forecast，并写入内部快照留痕；驳回：留痕不改排程；采纳后计划员仍可手动调整。当前页面不展示版本号，也不提供用户回滚。
 
@@ -382,6 +382,7 @@ erDiagram
 | qty | INT | | 合格数（冲减时为负） |
 | defect_qty | INT | | 次品数（冲减时为负） |
 | sign | TINYINT | | 1=正常 -1=冲减（更正原记录） |
+| correction_of_report_id | BIGINT | FK→work_reports.id, NULL, IDX | 冲减对应的原正报工；历史冲减可为空 |
 | report_by | BIGINT | FK→users, IDX(report_by) | 操作人 |
 | worker_id | BIGINT | FK→users, IDX(worker_id) | **实际作业人（代报必选）** |
 | report_time | DATETIME | IDX(report_time) | 报工时间 |
@@ -392,7 +393,9 @@ erDiagram
 | client_request_id | VARCHAR(64) | UNIQUE NULL | 移动端离线补传幂等键 |
 | source | VARCHAR(16) | | scan/click/machine_qr/leader_batch/leader_report/makeup/offline |
 | remark | VARCHAR(255) | | 冲减原因必填 |
-| CONSTRAINT: qty+defect_qty ≠ 0；sign=-1 时 remark 非空 | | | |
+| CONSTRAINT: qty+defect_qty ≠ 0；sign=-1 时 remark 非空；指定原报工时冲减不得超过该正报工剩余可冲减量 | | | |
+
+> PC 当日报工接口 `/api/reports/daily-context` 的每行 `machine.shift_mode` 返回资源班制；白班资源只允许 `day`，两班制资源才允许选择 `day/night`。每行同时返回同一工单未打断排程的 `operation_options`，前端切换工序时同步切换 `schedule_id`、机台、计划时段和计划数量，提交报工仍由服务端校验工序链与资源匹配。
 
 **stock_ins**（生产入库单 —— 分批入库）
 | 字段 | 类型 | 约束/索引 | 说明 |
@@ -478,13 +481,13 @@ erDiagram
 | 模具 | GET/POST/PUT /api/plm/molds · GET /api/plm/molds/{id}/life · POST /api/plm/molds/{id}/maintain · GET /api/plm/molds/{id}/compatibilities | 台账/寿命/保养/三匹配 |
 | 订单 | GET/POST /api/orders · POST /api/orders/import-excel · POST /api/orders/tasks/{taskId}/split（生产拆单）· GET /api/orders/{id} · GET /api/orders/{id}/lines · POST /api/orders/{id}/route-confirm（工艺确认）· POST /api/orders/{id}/start（开工/恢复）· POST /api/orders/{id}/pause（停工）· POST /api/orders/{id}/complete（完结）· POST /api/orders/{id}/abort（中止）· POST /api/orders/{id}/close（关闭）· POST /api/orders/{id}/revoke（撤销） | 手工/Excel/（四期拉金蝶）；拆单、订单操作全部走 audit |
 | 排产-数据 | GET /api/schedule/task-pool（待排任务池；仅返回存在有效生效工序的任务，并返回首道工序资源类型/名称和模具状态；维修中/已报废模具任务保留展示但前端禁止拖拽，后端排产校验仍拒绝）· GET /api/schedule/timeline?start=&end=（甘特数据：机台/班组×时间；机台行返回 status/status_label/is_active，全部未删除资源始终保留；停机、维修、停用及其他非运行状态即使没有窗口内排程也标异常显示，不自动移动其订单）· GET /api/schedule/details?date=&keyword=&order_no=&product=&machine=（已排产任务明细列表，默认全部、支持当天/任务号/订单号/产品/机台产线筛选）· GET /api/schedule/detail?task_id=（单任务工序明细；单任务响应按工序附带 report_logs，包含报工时间、合格/次品数、报工人、来源、冲减备注及按资源班制归一的 work_segments，每条报工最多一个有效作业段；任务级报工归入末道工序）· GET /api/schedule/orders-affected（受影响订单） | |
-| 排产-操作 | POST /api/schedule/manual-save（新任务/整链手工排程；首道工序按拖入位置锚定，后续工序按工序先后在对应机台/产线空档中顺排；`mode=backward` 交期倒排、不可行降级顺排，`items.*.deadline` 可选；含吨位硬约束与换模矩阵校验）· POST /api/schedule/recalculate（按最新机台/产线产能重算已排但未开工工序；不生成算法建议，已开工/已完工/已有报工工序保持不变）· POST /api/schedule/operation-adjust（已排任务单道工序时间/资源调整，只改当前 `schedule_id`，其他工序保持原计划；可传 `edge=start|end` 与 `plan_end`，分别只调整开始或结束边界；仍校验资源冲突、实际进度与锁定）· POST /api/schedule/insert（插单+顺延预览）· POST /api/schedule/insert/confirm · POST /api/schedule/auto（未指定任务时处理全部未开工候选：待排任务，以及已排但未开工且不在未来三天冻结窗口内的任务；已开工、已有报工和冻结任务不移动；路线/模具/机台等任务级异常不阻断正常任务，返回 `exceptions[{task_id,task_no,code,reason}]`）· GET /api/schedule/auto/{jobId} · POST /api/schedule/auto/accept（整版接受/局部采纳；窗口外已排任务接受前自动解锁，保存成功后重新锁定）· POST /api/schedule/lock · POST /api/schedule/unlock（未来三天默认冻结；`exception_unlock=true` 且填写原因时允许计划员异常解锁，仍禁止已开工/已完工/已有报工任务） | 页面区分“重算排程”和“自动排”；内部快照由服务留痕，全部写 audit |
-| APS顺延建议 | GET /api/schedule/suggestions（清单，默认 pending）· POST /api/schedule/suggestions/{id}/accept（采纳：plan 对齐 forecast+版本快照）· POST /api/schedule/suggestions/{id}/dismiss（驳回） | 建议层：系统生成、计划员确认，绝不自动改排程；采纳/驳回写 audit |
+| 排产-操作 | POST /api/schedule/manual-save（新任务/整链手工排程；甘特图允许计划员对未开工工单手工转机；首道工序按拖入位置锚定，后续工序按工序先后在对应机台/产线空档中顺排；`mode=backward` 交期倒排、不可行降级顺排，`items.*.deadline` 可选；含吨位硬约束与换模矩阵校验）· POST /api/schedule/recalculate（按最新机台/产线产能重算已排但未开工工序；不生成算法建议，已开工/已完工/已有报工工序保持不变）· POST /api/schedule/operation-adjust（已排任务单道工序时间/资源调整，只改当前 `schedule_id`，其他工序保持原计划；可传 `edge=start|end` 与 `plan_end`，分别只调整开始或结束边界；仍校验资源冲突、实际进度与锁定）· POST /api/schedule/insert（插单+顺延预览）· POST /api/schedule/insert/confirm · POST /api/schedule/auto（未指定任务时处理全部未开工候选：待排任务，以及已排但未开工且不在未来三天冻结窗口内的任务；已开工、已有报工和冻结任务不移动；路线/模具/机台等任务级异常不阻断正常任务，返回 `exceptions[{task_id,task_no,code,reason}]`）· GET /api/schedule/auto/{jobId} · POST /api/schedule/auto/accept（整版接受/局部采纳；窗口外已排任务接受前自动解锁，保存成功后重新锁定）· POST /api/schedule/lock · POST /api/schedule/unlock（未来三天默认冻结；`exception_unlock=true` 且填写原因时允许计划员异常解锁，仍禁止已开工/已完工/已有报工任务） | 页面区分“重算排程”和“自动排”；维修机台不会自动改排程；人工转机仅限未开工且无任何报工流水的工单；内部快照由服务留痕，全部写 audit |
+| APS顺延建议 | GET /api/schedule/suggestions（清单，默认 pending）· POST /api/schedule/suggestions/refresh（全量刷新建议层）· POST /api/schedule/suggestions/{id}/accept（采纳：plan 对齐 forecast+版本快照）· POST /api/schedule/suggestions/{id}/dismiss（驳回） | 报工及手工排产、产能重算、插单、算法结果采纳后刷新建议层；也可手工全量刷新；不再满足条件的 pending 自动标记 expired；建议层绝不自动改排程 |
 | 任务 | GET /api/tasks?status=&machine_id= · GET /api/tasks/{id} · GET /api/tasks/{id}/report-history | |
-| 报工 | POST /api/reports（报工/冲减/补报）· POST /api/reports/verify（防重校验）· GET /api/reports?task_id=&worker_id= · GET /api/reports/summary?date_from=&date_to=&keyword=&machine_keyword=（按实际作业日期、任务、工序、机台/产线汇总） | 统计直接聚合 work_reports，冲减记录按负数抵扣 |
+| 报工 | POST /api/reports（报工/冲减/补报）· POST /api/reports/verify（防重校验）· GET /api/reports?task_id=&worker_id= · GET /api/reports/summary?dimension=detail\|daily\|progress\|delivery\|resource\|quality&date_from=&date_to=&keyword=&machine_keyword= | `detail` 按实际作业日期/任务/工序/资源；`daily` 按日/班次/车间/资源；`progress` 按产品/工序；`delivery` 按交期/客户；`resource` 按车间/资源/班次计算有效工时与理论产出；`quality` 按日期/车间/工序统计次品与冲减。所有数量直接聚合 `work_reports`，冲减记录按负数抵扣；资源效率只采用有明确起止时间的报工，单点时间会标记为数据质量问题。 |
 | 入库 | GET /api/warehouse/pending-tasks（待入库任务：可入库量>0，入库管理首页）· GET /api/warehouse/available-qty?task_id=（可入库量）· POST /api/warehouse/ins（确认入库）· POST /api/warehouse/ins/{id}/push（推金蝶，四期）· GET /api/warehouse/ins?k3_push_status= | |
 | 报价 | POST /api/quotes/ai-estimate（调 AI）· POST /api/quotes（生成报价单）· GET /api/quotes · PATCH /api/quotes/{id}/price（调价留痕）· GET/PUT /api/quotes/params（材料价/费率/规则） | |
-| 看板 | GET /api/dashboard/order-overview · GET /api/dashboard/task-board · GET /api/dashboard/load-heatmap（机台×日期）· GET /api/dashboard/red-lights · GET /api/dashboard/reports | |
+| 看板 | GET /api/dashboard/order-overview（订单履约统计：`summary` 汇总指标 + `items` 订单台账；支持 `keyword`、`due_flag`、`fulfillment_status` 筛选，允许 `dashboard.view` 或 `report.view`；工序推进率按所有工序净报工量/工序计划量计算，成品完成量仍按末工序/任务级报工统计，入库量单独展示）· GET /api/dashboard/task-board · GET /api/dashboard/load-heatmap（机台×日期）· GET /api/dashboard/red-lights · GET /api/dashboard/reports | |
 | 系统 | GET/POST/PUT /api/system/users · /api/system/roles · /api/system/configs · GET /api/system/audit-logs · GET /api/system/integration-logs · POST /api/system/integration/{apiType}/manual-trigger（手动拉单/对账） | |
 | 移动 H5 | GET /mobile/tasks?date= （任务查询）· GET /mobile/machines/{code}/report-context?date= （机台当日固定任务/可选工人）· GET /mobile/tasks/{id} · POST /mobile/reports · GET /mobile/reports/mine | 机台码进入后只能选择该机台该日已接受排程；班组长日结需选实际作业人 |
 

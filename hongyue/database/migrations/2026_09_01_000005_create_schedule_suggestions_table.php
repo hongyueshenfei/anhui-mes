@@ -22,7 +22,7 @@ return new class extends Migration
             $table->json('affected')->comment('受影响排程明细JSON（schedule_id/task_no/原预计/新预计）');
             $table->json('delayed_orders')->comment('延期订单清单JSON（订单号/产品/原交期/新预计）');
             $table->string('reason', 255)->nullable()->comment('生成原因（偏差%超阈值/预计破交期）');
-            $table->string('status', 16)->default('pending')->index()->comment('pending/accepted/dismissed');
+            $table->string('status', 16)->default('pending')->index()->comment('pending/accepted/dismissed/expired');
             $table->unsignedBigInteger('processed_by')->nullable()->comment('处理人');
             $table->dateTime('processed_at')->nullable()->comment('处理时间');
             $table->unsignedBigInteger('created_by')->nullable()->comment('创建人（系统生成为空）');

@@ -1121,13 +1121,14 @@ class ScheduleEngineService
      *
      * - 实际已完工/任务已完工：不再占用资源；
      * - 已开工未完工：优先使用实际开始，结束取预测结束（不早于计划结束）；
-     * - 尚未开工：使用计划区间。
+     * - 尚未开工：使用计划区间；已暂停行保留计划区间用于展示，但不占用资源。
      *
      * @return array{0: Carbon, 1: Carbon}|null
      */
     public function effectiveOccupancyInterval(array $row): ?array
     {
         if (($row['status'] ?? null) === TaskSchedule::STATUS_DONE
+            || ($row['status'] ?? null) === TaskSchedule::STATUS_PAUSED
             || ($row['task_status'] ?? null) === ProdTask::STATUS_DONE) {
             return null;
         }

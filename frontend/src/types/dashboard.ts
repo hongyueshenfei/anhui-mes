@@ -27,7 +27,7 @@ export interface WorkbenchData {
   today_tasks: Array<{ task_id: number; task_no: string; product_code: string; product_name: string; machine_code: string | null; plan_start: string; plan_end: string; status: string; progress_pct: number }>
 }
 
-// ==================== 订单进度总览 ====================
+// ==================== 订单履约统计 ====================
 
 export interface OrderProgress {
   order_id: number
@@ -40,15 +40,50 @@ export interface OrderProgress {
   status_label: string
   total_qty: number
   done_qty: number
+  /** 工序报工工作量，不等同于最终成品数量；按所有已排工序加权汇总 */
+  process_plan_qty: number
+  process_done_qty: number
+  process_progress_pct: number
   progress_pct: number
   /** 逾期/临期标记：overdue 红 / due_soon 黄 / normal 正常 */
   due_flag: 'overdue' | 'due_soon' | 'normal'
   delay_days: number
   tasks_count: number
   task_status: 'unscheduled' | 'scheduled' | 'in_progress' | 'done'
+  /** 订单履约状态：按期/延期完成、生产中、预计延期、已延期、未开工、暂停 */
+  fulfillment_status?: 'completed_on_time' | 'completed_late' | 'overdue' | 'forecast_late' | 'paused' | 'not_started' | 'scheduled' | 'in_progress' | 'aborted' | string
+  fulfillment_status_label?: string
+  stocked_qty?: number
+  stock_progress_pct?: number
+  completed_tasks?: number
+  paused_tasks?: number
+  plan_start?: string | null
+  plan_end?: string | null
+  forecast_end?: string | null
+  actual_end?: string | null
 }
 
 export interface OrderOverviewData {
+  summary?: {
+    total_orders: number
+    production_completed: number
+    on_time_completed: number
+    late_completed: number
+    in_progress: number
+    forecast_late: number
+    overdue: number
+    not_started: number
+    paused: number
+    total_qty: number
+    done_qty: number
+    process_plan_qty: number
+    process_done_qty: number
+    process_progress_pct: number
+    stocked_qty: number
+    production_completion_pct: number
+    stock_completion_pct: number
+    on_time_rate: number | null
+  }
   /** 分区统计：待排/在产/逾期/完成 */
   groups: {
     pending: { count: number; qty: number }

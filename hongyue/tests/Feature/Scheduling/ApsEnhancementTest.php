@@ -522,4 +522,53 @@ class ApsEnhancementTest extends TestCase
 
         $this->assertDatabaseCount('schedule_suggestions', 0);
     }
+
+    public function test_manual_schedule_refreshes_suggestion_layer(): void
+    {
+        $this->travelTo(\Illuminate\Support\Carbon::parse('2025-08-05 10:00:00'));
+
+        $task = $this->createTask('P-0001', 400);
+        $task->update(['delivery_date' => '2025-08-08']);
+        $this->saveSchedule($task, 'I-01', '2025-08-09 08:00:00')->assertOk();
+
+        $suggestion = \App\Models\ScheduleSuggestion::where('task_id', $task->id)->first();
+        $this->assertNotNull($suggestion, '正式排产后的 forecast 破交期时，应刷新出待处理顺延建议');
+        $this->assertSame('pending', $suggestion->status);
+        $this->assertNull($suggestion->trigger_report_id, '排产刷新不是报工触发，不应伪造报工流水 ID');
+    }
+
+    public function test_schedule_refresh_expires_obsolete_pending_suggestion(): void
+    {
+        [$task] = $this->setupDelayedScenario('2025-08-08');
+
+        $task->fresh()->schedules()->each(function (TaskSchedule $row): void {
+            $row->update(['forecast_start' => $row->plan_start, 'forecast_end' => $row->plan_end]);
+        });
+        $task->fresh()->update(['delivery_date' => '2025-09-30', 'deviation_pct' => 0]);
+
+        app(\App\Modules\Scheduling\Services\SuggestionService::class)->refreshForTasks([$task->id]);
+
+        $this->assertSame(
+            \App\Models\ScheduleSuggestion::STATUS_EXPIRED,
+            \App\Models\ScheduleSuggestion::where('task_id', $task->id)->firstOrFail()->status,
+        );
+    }
+
+    public function test_full_suggestion_refresh_endpoint_cleans_obsolete_pending_records(): void
+    {
+        [$task] = $this->setupDelayedScenario('2025-08-08');
+
+        $task->fresh()->schedules()->each(function (TaskSchedule $row): void {
+            $row->update(['forecast_start' => $row->plan_start, 'forecast_end' => $row->plan_end]);
+        });
+        $task->fresh()->update(['delivery_date' => '2025-09-30', 'deviation_pct' => 0]);
+
+        $response = $this->api($this->token)->postJson('/api/schedule/suggestions/refresh')->assertOk();
+
+        $this->assertGreaterThanOrEqual(1, (int) $response->json('data.task_count'));
+        $this->assertSame(
+            \App\Models\ScheduleSuggestion::STATUS_EXPIRED,
+            \App\Models\ScheduleSuggestion::where('task_id', $task->id)->firstOrFail()->status,
+        );
+    }
 }

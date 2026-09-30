@@ -219,6 +219,7 @@ class AutoScheduleService
             ->whereIn('machine_id', $machines->pluck('id')->map(fn ($id) => (int) $id)->all())
             ->whereIn('op_type', ScheduleEngineService::MOLDING_OPS)
             ->where('is_interrupted', 0)
+            ->where('status', '!=', TaskSchedule::STATUS_PAUSED)
             ->where(function ($query) use ($now) {
                 $query
                     ->where('plan_end', '>', $now)
@@ -444,7 +445,7 @@ class AutoScheduleService
      * 对算法建议做后端确定性校正：完整展开工序链，并避让共享资源。
      *
      * 算法服务的输出只有“任务首工序机台 + 开始时间”，而工序链中的人工线
-     * 资源由 PHP 权威配置决定。因此这里按建议起点、优先级、任务号稳定排序，
+     * 资源由 PHP 权威配置决定。因此这里按建议起点、优先级（数值越小越紧急）、任务号稳定排序，
      * 将每个任务放入已存在排程和已校正任务之后；每次冲突按实际/预测有效占用
      * 区间右移，直到整条工序链无机台/产线/模具冲突。
      *
@@ -489,7 +490,7 @@ class AutoScheduleService
                 return $startCompare;
             }
 
-            $priorityCompare = (int) $b['task']->priority <=> (int) $a['task']->priority;
+            $priorityCompare = (int) $a['task']->priority <=> (int) $b['task']->priority;
             if ($priorityCompare !== 0) {
                 return $priorityCompare;
             }

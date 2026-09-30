@@ -29,6 +29,7 @@ class WorkReport extends Model
         'qty',
         'defect_qty',
         'sign',
+        'correction_of_report_id',
         'report_by',
         'worker_id',
         'report_time',
@@ -50,6 +51,7 @@ class WorkReport extends Model
         'qty' => 'integer',
         'defect_qty' => 'integer',
         'sign' => 'integer',
+        'correction_of_report_id' => 'integer',
         'report_by' => 'integer',
         'worker_id' => 'integer',
         'offline_flag' => 'integer',
@@ -98,6 +100,14 @@ class WorkReport extends Model
     public function worker()
     {
         return $this->belongsTo(User::class, 'worker_id');
+    }
+
+    /**
+     * 冲减对应的原正报工。历史冲减没有该关系时，由报工台账按工序和时间做兼容推断。
+     */
+    public function correctionSource()
+    {
+        return $this->belongsTo(self::class, 'correction_of_report_id');
     }
 
     /**

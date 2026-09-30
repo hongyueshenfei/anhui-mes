@@ -41,11 +41,12 @@ class ReportController extends Controller
     }
 
     /**
-     * 报工统计汇总（按实际作业日期、任务、工序、机台/产线聚合）
+     * 报工统计汇总（明细、日班次、产品工序、交期客户、资源效率、质量冲减）
      */
     public function summary(Request $request): JsonResponse
     {
         $filters = $request->validate([
+            'dimension' => ['nullable', 'in:detail,daily,progress,delivery,resource,quality'],
             'date_from' => ['nullable', 'date_format:Y-m-d'],
             'date_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:date_from'],
             'keyword' => ['nullable', 'string', 'max:100'],
@@ -59,7 +60,7 @@ class ReportController extends Controller
     /**
      * 提交报工（正常/冲减/代报/离线补传）
      *
-     * body: {task_id, qty(负=冲减), defect_qty?, schedule_id?, machine_id?, source?, offline_flag?, remark?, report_time?, start_time?, end_time?}
+     * body: {task_id, qty(负=冲减), correction_of_report_id?, defect_qty?, schedule_id?, machine_id?, source?, offline_flag?, remark?, report_time?, start_time?, end_time?}
      */
     public function store(ReportRequest $request): JsonResponse
     {

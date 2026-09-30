@@ -246,12 +246,12 @@ def test_mold_exclusivity_across_machines():
 
 
 # ---------------------------------------------------------------------------
-# T2：EDD/优先级排序（紧交期高权重 → 高优先级先排）
+# T2：EDD/优先级排序（紧交期高权重 → P0 等低数值优先级先排）
 # ---------------------------------------------------------------------------
 def test_higher_priority_scheduled_earlier():
     base = date.today() + timedelta(days=30)
-    high = _task(1, priority=5, delivery_date=base + timedelta(days=1), duration_seconds=3600 * 6)
-    low = _task(2, priority=1, delivery_date=base + timedelta(days=2), duration_seconds=3600 * 6)
+    high = _task(1, priority=0, delivery_date=base + timedelta(days=1), duration_seconds=3600 * 6)
+    low = _task(2, priority=5, delivery_date=base + timedelta(days=2), duration_seconds=3600 * 6)
     req = _req([low, high])  # 故意乱序提交
     model = loader.build_model(req)
     placement, _, _ = cp_sat_solver.solve(model, time_limit_sec=10)

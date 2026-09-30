@@ -39,7 +39,7 @@ class GanttDataService
                 $q->where(fn ($w) => $w->where('task_no', 'like', "%{$kw}%")
                     ->orWhereHas('product', fn ($p) => $p->where('code', 'like', "%{$kw}%")->orWhere('name', 'like', "%{$kw}%")));
             })
-            ->orderByRaw('priority DESC, delivery_date IS NULL, delivery_date ASC, id ASC');
+            ->orderByRaw('priority ASC, delivery_date IS NULL, delivery_date ASC, id ASC');
 
         // 任务池必须使用“实际生效工序”过滤，不能只看 route_published：
         // 已发布但没有任何工序的路线、以及历史手动建单未补工序的任务，都不能进入甘特拖拽入口。
@@ -264,13 +264,9 @@ class GanttDataService
             ->orderBy('plan_start')
             ->get();
 
-        // 历史排程所在的维修/停用机台仍要保留为甘特行，否则查询到了排程，
-        // 但因为机台主数据被过滤，最终仍然无法展示过去的任务。
-        $scheduledMachineIds = $schedules->pluck('machine_id')->filter()->unique()->values();
-        $machines = Machine::where(function ($query) use ($scheduledMachineIds) {
-                $query->where('is_active', 1)
-                    ->orWhereIn('id', $scheduledMachineIds);
-            })
+        // 甘特资源区展示全部未删除机台/产线，使维修、停机、停用及未来新增异常状态
+        // 即使没有窗口内排程也可见；计划员手工决定是否转机，这里绝不自动改排。
+        $machines = Machine::query()
             ->with('workshop:id,name,sort')
             ->get()
             ->sortBy([
@@ -298,6 +294,12 @@ class GanttDataService
             ->orderByRaw('COALESCE(start_time, report_time)')
             ->get(['task_id', 'qty', 'report_time', 'start_time', 'end_time'])
             ->groupBy('task_id');
+        // 手工转机必须保留报工台账：即使报工已被冲减，也不能把有历史流水的工单当作未开工。
+        $tasksWithReportHistory = WorkReport::query()
+            ->whereIn('task_id', $schedules->pluck('task_id')->unique())
+            ->distinct()
+            ->pluck('task_id')
+            ->mapWithKeys(fn ($taskId) => [(int) $taskId => true]);
         // 任务级成品报工只能挂到任务全量排程中的最后一道未打断工序；
         // 不能按当前时间窗内的“最后一行”判断，否则末工序在窗口外时会
         // 把成品数量错误显示到窗口内的前序工序。
@@ -307,7 +309,7 @@ class GanttDataService
             ->groupBy('task_id')
             ->map(fn ($rows) => $rows->sortBy([['seq', 'desc'], ['id', 'desc']])->first()?->id);
 
-        $machineRows = $machines->map(function (Machine $machine) use ($schedules, $reportsBySchedule, $taskLevelReports, $lastScheduleIds) {
+        $machineRows = $machines->map(function (Machine $machine) use ($schedules, $reportsBySchedule, $taskLevelReports, $tasksWithReportHistory, $lastScheduleIds) {
             $rows = $schedules->filter(fn ($s) => (int) $s->machine_id === (int) $machine->id)->values();
 
             return [
@@ -320,12 +322,22 @@ class GanttDataService
                 'workshop_name' => $machine->workshop_name,
                 'capacity_per_hour' => (float) $machine->capacity_per_hour,
                 'shift_mode' => $machine->shift_mode,
-                'schedules' => $rows->map(function ($s) use ($reportsBySchedule, $taskLevelReports, $lastScheduleIds) {
+                'status' => $machine->status,
+                'status_label' => !$machine->is_active && $machine->status === Machine::STATUS_RUNNING
+                    ? '已停用'
+                    : $machine->status_label,
+                'is_active' => (bool) $machine->is_active,
+                'schedules' => $rows->map(function ($s) use ($reportsBySchedule, $taskLevelReports, $tasksWithReportHistory, $lastScheduleIds) {
                     $taskReports = (int) $lastScheduleIds->get($s->task_id) === (int) $s->id
                         ? $taskLevelReports->get($s->task_id, collect())
                         : collect();
 
-                    return $this->scheduleItem($s, $reportsBySchedule->get($s->id, collect()), $taskReports);
+                    return $this->scheduleItem(
+                        $s,
+                        $reportsBySchedule->get($s->id, collect()),
+                        $taskReports,
+                        $tasksWithReportHistory->has((int) $s->task_id),
+                    );
                 })->all(),
             ];
         })->values()->all();
@@ -529,9 +541,10 @@ class GanttDataService
                 }
                 // qty 已经带正负号：正常报工为正，冲减为负，不能再次乘 sign。
                 $reportedQty = max(0, (int) $scheduleReports->sum('qty'));
-                $positiveReports = $scheduleReports->filter(fn ($report) => (int) $report->qty > 0)->values();
-                $actualStart = $s->actual_start ?? $this->reportStart($positiveReports->first());
-                $actualEnd = $s->actual_end;
+                $positiveReports = $this->effectivePositiveReports($scheduleReports);
+                $actualStart = $this->reportStart($positiveReports->first())
+                    ?? ($scheduleReports->isEmpty() ? $s->actual_start : null);
+                $actualEnd = $reportedQty >= (int) $s->qty ? $s->actual_end : null;
                 if ($actualEnd === null && $reportedQty >= (int) $s->qty && $positiveReports->isNotEmpty()) {
                     $actualEnd = $this->reportEnd($positiveReports->last());
                 }
@@ -584,14 +597,16 @@ class GanttDataService
         \App\Models\TaskSchedule $s,
         Collection $scheduleReports = new Collection(),
         Collection $taskLevelReports = new Collection(),
+        bool $hasReportHistory = false,
     ): array
     {
         $scheduleReports = $scheduleReports->concat($taskLevelReports);
         // qty 已带正负号：正常报工为正，冲减为负；进度使用净报工量并限制在 0~100%。
         $reportedQty = max(0, (int) $scheduleReports->sum('qty'));
-        $positiveReports = $scheduleReports->filter(fn ($report) => (int) $report->qty > 0)->values();
-        $actualStart = $s->actual_start ?? $this->reportStart($positiveReports->first());
-        $actualEnd = $s->actual_end;
+        $positiveReports = $this->effectivePositiveReports($scheduleReports);
+        $actualStart = $this->reportStart($positiveReports->first())
+            ?? ($scheduleReports->isEmpty() ? $s->actual_start : null);
+        $actualEnd = $reportedQty >= (int) $s->qty ? $s->actual_end : null;
         if ($actualEnd === null && $reportedQty >= (int) $s->qty && $positiveReports->isNotEmpty()) {
             $actualEnd = $this->reportEnd($positiveReports->last());
         }
@@ -619,6 +634,7 @@ class GanttDataService
             'qty' => $s->qty,
             'done_qty' => $s->done_qty,
             'reported_qty' => $reportedQty,
+            'has_report_history' => $hasReportHistory,
             'progress_pct' => (int) min(100, round($s->qty > 0 ? $reportedQty / $s->qty * 100 : 0)),
             'status' => $status,
             'source' => $s->source,
@@ -646,7 +662,7 @@ class GanttDataService
     private function actualSegments(Collection $reports, string $shiftMode): array
     {
         $segments = [];
-        foreach ($reports->filter(fn ($report) => (int) $report->qty > 0)->sortBy(fn ($report) => $this->reportStart($report)?->timestamp ?? 0) as $report) {
+        foreach ($this->effectivePositiveReports($reports) as $report) {
             $pieces = $this->workingSegments($this->reportStart($report), $this->reportEnd($report), $shiftMode);
             foreach ($pieces as $index => $piece) {
                 $segments[] = [
@@ -659,6 +675,42 @@ class GanttDataService
         }
 
         return $segments;
+    }
+
+    /**
+     * 将冲减从最近的正报工段开始抵扣，甘特图只展示冲减后的有效作业段。
+     *
+     * 报工台账必须保留正负两条审计流水，但负记录自身的录入时间不是实际作业时间，
+     * 不能把它再画成一段“实际生产”。完全抵消的正报工段直接从甘特实际段中移除。
+     */
+    private function effectivePositiveReports(Collection $reports): Collection
+    {
+        $positiveReports = $reports
+            ->filter(fn ($report) => (int) $report->qty > 0)
+            ->sortBy(fn ($report) => $this->reportStart($report)?->timestamp ?? 0)
+            ->values()
+            ->map(fn ($report) => clone $report)
+            ->values();
+        $correctionQty = abs((int) $reports
+            ->filter(fn ($report) => (int) $report->qty < 0)
+            ->sum(fn ($report) => (int) $report->qty));
+
+        for ($index = $positiveReports->count() - 1; $index >= 0 && $correctionQty > 0; $index--) {
+            $report = $positiveReports->get($index);
+            $qty = (int) $report->qty;
+            $deduct = min($qty, $correctionQty);
+            $remaining = $qty - $deduct;
+            $correctionQty -= $deduct;
+
+            if ($remaining <= 0) {
+                $positiveReports->forget($index);
+                continue;
+            }
+
+            $report->qty = $remaining;
+        }
+
+        return $positiveReports->sortBy(fn ($report) => $this->reportStart($report)?->timestamp ?? 0)->values();
     }
 
     /**

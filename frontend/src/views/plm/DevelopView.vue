@@ -51,7 +51,7 @@
               <div class="kb-card-top">
                 <span class="kb-dev">{{ card.dev_no }}</span>
                 <el-tag v-if="card.overdue" type="danger" size="small">逾期</el-tag>
-                <el-tag v-else :type="prioTag(card.priority)" size="small">P{{ card.priority }}</el-tag>
+                <el-tag v-else :type="prioTag(card.priority)" :effect="card.priority === 0 ? 'dark' : 'light'" size="small">P{{ card.priority }}</el-tag>
               </div>
               <div class="kb-name">{{ card.product_name }}</div>
               <div class="kb-spec">{{ card.product_code }} · {{ card.spec }}</div>
@@ -93,7 +93,8 @@
           </el-select>
         </el-form-item>
         <el-form-item label="优先级">
-          <el-rate v-model="form.priority" :max="5" show-score />
+          <el-input-number v-model="form.priority" :min="0" :max="5" controls-position="right" />
+          <span class="form-tip">P0 最紧急</span>
         </el-form-item>
       </el-form>
       <template #footer>
@@ -137,7 +138,7 @@ function isLast(stage: DevelopStageKey): boolean {
 }
 
 function prioTag(p: number): 'danger' | 'warning' | 'primary' | 'info' {
-  return p >= 5 ? 'danger' : p >= 4 ? 'warning' : p >= 3 ? 'primary' : 'info'
+  return p === 0 ? 'danger' : p === 1 ? 'warning' : p === 2 ? 'primary' : 'info'
 }
 
 async function load(): Promise<void> {
@@ -189,6 +190,12 @@ onMounted(load)
 </script>
 
 <style scoped>
+.form-tip {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .develop-page {
   display: flex;
   flex-direction: column;

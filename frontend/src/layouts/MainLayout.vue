@@ -98,7 +98,7 @@ const menuGroups: MenuGroup[] = [
     icon: DataLine,
     children: [
       { path: '/dashboard/workbench', title: '工作台', icon: DataLine, perm: 'dashboard.view' },
-      { path: '/dashboard/order-overview', title: '订单进度总览', icon: ShoppingCart, perm: 'dashboard.view' },
+      { path: '/dashboard/order-overview', title: '订单履约统计', icon: ShoppingCart, perm: 'dashboard.view' },
       { path: '/dashboard/load-heatmap', title: '产能负荷热力', icon: Monitor, perm: 'dashboard.view' },
       { path: '/dashboard/red-lights', title: '红灯管理', icon: Bell, perm: 'dashboard.view' },
       { path: '/dashboard/reports', title: '报表中心', icon: TrendCharts, perm: 'dashboard.view' },
@@ -121,6 +121,7 @@ const menuGroups: MenuGroup[] = [
     children: [
       { path: '/order/orders', title: '工单中心', icon: ShoppingCart, perm: 'order.view' },
       { path: '/production/reports', title: '报工台账', icon: Memo, perm: 'report.view' },
+      { path: '/production/report-management', title: '报表管理', icon: TrendCharts, perm: 'report.view' },
       { path: '/warehouse/stock-ins', title: '入库管理', icon: Box, perm: 'warehouse.view' },
     ],
   },

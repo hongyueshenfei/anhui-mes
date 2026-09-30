@@ -22,6 +22,8 @@
           <span class="legend-chip"><i class="dot dot-plan" />计划</span>
           <span class="legend-chip"><i class="dot dot-actual" />实际</span>
           <span class="legend-chip"><i class="dot dot-forecast" />预计(滞后)</span>
+          <span class="legend-chip"><i class="dot dot-paused" />已暂停（释放占用）</span>
+          <span class="legend-chip"><i class="dot dot-abnormal" />异常资源（停机/维修/停用）</span>
           <span class="legend-chip">❄️ 当前起未来三天冻结</span>
         </div>
         <div class="toolbar-right">
@@ -112,11 +114,12 @@
 
       <!-- 甘特 -->
       <el-card shadow="never" class="gantt-card">
-        <div class="gantt-help">操作提示：单击计划条选中并高亮该工单全部工序；当前起未来三天的锁定任务不能直接操作，需选中后点击上方“解锁”并填写原因；超过三天不显示锁定标识，可直接调整。长按任务主体移动整条工序链，拖动左侧手柄只调整开始时间，拖动右侧手柄只调整结束时间；双击进入排产明细。生产中/已完成或已有实际报工的任务仅支持查看。</div>
+        <div class="gantt-help">操作提示：停机、维修、停用等异常资源始终显示且标明状态，不会自动移动其订单；计划员可选中未开工工单后手动转机，模具适配和排程冲突仍会校验。单击计划条选中并高亮该工单全部工序；当前起未来三天的锁定任务需先解锁；长按任务主体移动整条工序链，拖动左右手柄调整时间；双击进入排产明细。生产中/已完成或已有实际报工的任务仅支持查看。</div>
         <div v-if="selectedBar" class="selection-hint">
           <span>已选工单：<strong>{{ selectedBar.taskNo }}</strong></span>
           <span>订单：{{ selectedBar.orderNo || '—' }}</span>
           <span>已联动高亮该任务全部 {{ taskSegmentCount }} 段工序</span>
+          <el-button v-if="canTransferSelected" size="small" type="warning" plain @click="openTransferDialog">手动转机</el-button>
           <span v-if="selectedActualSummary" class="selection-metrics">{{ selectedActualSummary }}</span>
         </div>
         <GanttChart
@@ -149,6 +152,33 @@
 
     <!-- 自动排弹窗 -->
     <AutoScheduleDialog ref="autoDialogRef" :machines="machineBriefs" @accepted="reloadAll" />
+
+    <!-- 维修期间由计划员决定是否转机；确认后复用甘特图的工序链移动与冲突校验流程。 -->
+    <el-dialog v-model="transferDialogVisible" title="手动转移到其他机台" width="520px">
+      <el-alert type="warning" :closable="false" class="mb-12">
+        不会自动改排。仅未开工且没有报工流水的工单可以转移；确认后将重新校验模具适配和整条工序链冲突。
+      </el-alert>
+      <el-form label-width="92px">
+        <el-form-item label="当前机台">
+          <span>{{ transferSourceRow?.label ?? '—' }}</span>
+        </el-form-item>
+        <el-form-item label="目标机台" required>
+          <el-select v-model="transferTargetMachineId" placeholder="选择运行中的同类型机台" style="width: 100%">
+            <el-option
+              v-for="machine in transferCandidates"
+              :key="machine.id"
+              :label="`${machine.label} · ${machine.resourceStatusLabel}`"
+              :value="machine.id"
+            />
+          </el-select>
+          <div v-if="transferCandidates.length === 0" class="transfer-empty">当前没有可选的运行中同类型机台。</div>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="transferDialogVisible = false">取消</el-button>
+        <el-button type="warning" :disabled="transferTargetMachineId === null" @click="confirmManualTransfer">确认转机</el-button>
+      </template>
+    </el-dialog>
 
     <!-- 明细抽屉 -->
     <el-drawer v-model="detailDrawer" :title="selectedBar ? `排产结果明细 · ${selectedBar.taskNo}` : '排产结果明细'" size="70%">
@@ -200,7 +230,7 @@ import { Aim, List, MagicStick, Refresh, RefreshRight, Unlock } from '@element-p
 import { scheduleApi } from '@/api/schedule'
 import type { PoolTask, TimelineData } from '@/types/schedule'
 import type { GanttBar, GanttRow } from '@/utils/ScheduleAdapter'
-import { machineTypeLabel, toDate, toIso, toRows } from '@/utils/ScheduleAdapter'
+import { isAbnormalResource, machineTypeLabel, toDate, toIso, toRows } from '@/utils/ScheduleAdapter'
 import GanttChart from '@/components/gantt/GanttChart.vue'
 import TaskPoolPanel from '@/components/schedule/TaskPoolPanel.vue'
 import InsertDialog from '@/components/schedule/InsertDialog.vue'
@@ -307,7 +337,11 @@ const rows = computed<GanttRow[]>(() => {
         return matchesKeyword && matchesWorkshop && matchesResource && matchesStatus && matchesException
       }),
     }))
-    .filter((row) => row.bars.length > 0)
+    .filter((row) => {
+      const matchesWorkshop = !ganttFilters.value.workshop || row.workshop === ganttFilters.value.workshop
+      const matchesResource = !ganttFilters.value.resourceType || row.resourceType === ganttFilters.value.resourceType
+      return matchesWorkshop && matchesResource && (row.bars.length > 0 || isAbnormalResource(row))
+    })
 })
 const machineBriefs = computed(() => (timeline.value?.machines ?? []).map((m) => ({ id: m.id, code: m.code, name: m.name })))
 
@@ -381,6 +415,59 @@ const detailDrawer = ref(false)
 const selectedBar = ref<GanttBar | null>(null)
 const detailTaskId = ref<number | null>(null)
 const recalculating = ref(false)
+const transferDialogVisible = ref(false)
+const transferTargetMachineId = ref<number | null>(null)
+
+const selectedTaskBars = computed(() => {
+  if (!selectedBar.value) return []
+  return allRows.value.flatMap((row) => row.bars)
+    .filter((bar) => bar.taskId === selectedBar.value?.taskId)
+    .sort((a, b) => a.seq - b.seq || a.start.localeCompare(b.start))
+})
+const transferFirstBar = computed(() => selectedTaskBars.value[0] ?? null)
+const transferSourceRow = computed(() => {
+  const machineId = transferFirstBar.value?.machineId
+  return machineId ? allRows.value.find((row) => row.id === machineId) ?? null : null
+})
+const canTransferSelected = computed(() => {
+  const bars = selectedTaskBars.value
+  return Boolean(
+    transferSourceRow.value
+      && ['injection', 'blow'].includes(transferSourceRow.value.resourceType)
+      && bars.length > 0
+      && bars.every((bar) => bar.status === 'pending'
+        && !bar.isInterrupted
+        && !bar.hasReportHistory
+        && bar.reportedQty <= 0
+        && !bar.actualStart
+        && !bar.actualEnd
+        && bar.actualSegments.length === 0),
+  )
+})
+const transferCandidates = computed(() => allRows.value.filter((row) =>
+  transferSourceRow.value
+  && row.resourceType === transferSourceRow.value.resourceType
+  && row.resourceStatus === 'running'
+  && row.isActive
+  && row.id !== transferSourceRow.value.id,
+))
+
+function openTransferDialog(): void {
+  if (!canTransferSelected.value) return
+  transferTargetMachineId.value = transferCandidates.value[0]?.id ?? null
+  transferDialogVisible.value = true
+}
+
+async function confirmManualTransfer(): Promise<void> {
+  const bar = transferFirstBar.value
+  const target = transferCandidates.value.find((row) => row.id === transferTargetMachineId.value)
+  if (!bar || !target) {
+    ElMessage.warning('请选择一台运行中的同类型机台')
+    return
+  }
+  transferDialogVisible.value = false
+  await onMoveBar({ bar, row: target, startIso: bar.start })
+}
 
 const canUnlockSelected = computed(() => {
   const bar = selectedBar.value
@@ -452,6 +539,10 @@ async function reloadTimeline(): Promise<void> {
 
 /** 拖拽/点击放置：先尝试手工保存；冲突 → 弹窗选择强制/插单 */
 async function tryPlace(payload: { row: GanttRow; startIso: string }, task: PoolTask): Promise<void> {
+  if (payload.row.resourceStatus !== 'running' || !payload.row.isActive) {
+    ElMessage.warning(`${payload.row.label}当前状态为${payload.row.isActive ? payload.row.resourceStatusLabel : '已停用'}，不能排入任务`)
+    return
+  }
   const machineId = payload.row.id
 
   const base = { taskId: task.id, machineId, planStart: payload.startIso }
@@ -634,7 +725,12 @@ async function onMoveBar(payload: { bar: GanttBar; row: GanttRow; startIso: stri
     return
   }
 
-  const taskBars = rows.value
+  if (row.resourceStatus !== 'running' || !row.isActive) {
+    ElMessage.warning(`${row.label}当前状态为${row.isActive ? row.resourceStatusLabel : '已停用'}，不能排入或调整到该资源`)
+    return
+  }
+
+  const taskBars = allRows.value
     .flatMap((item) => item.bars)
     .filter((item) => item.taskId === bar.taskId)
     .sort((a, b) => a.seq - b.seq || a.start.localeCompare(b.start))
@@ -909,6 +1005,14 @@ async function recalculateSchedules(): Promise<void> {
   background: rgba(245, 158, 11, 0.25);
   border: 1px dashed #f59e0b;
 }
+.dot-paused {
+  background: rgba(245, 158, 11, 0.22);
+  border: 1px dashed #b45309;
+}
+.dot-abnormal {
+  background: #fff1d6;
+  border: 1px solid #d97706;
+}
 .toolbar-hint {
   font-size: 12px;
   color: #94a3b8;
@@ -1008,6 +1112,7 @@ async function recalculateSchedules(): Promise<void> {
 }
 .selection-hint {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 16px;
   min-height: 34px;
@@ -1036,6 +1141,11 @@ async function recalculateSchedules(): Promise<void> {
 }
 .mb-12 {
   margin-bottom: 12px;
+}
+.transfer-empty {
+  margin-top: 6px;
+  color: #b45309;
+  font-size: 12px;
 }
 .conflict-item {
   font-size: 12px;

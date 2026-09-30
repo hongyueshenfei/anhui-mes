@@ -11,7 +11,7 @@ export const dashboardApi = {
     return request({ url: '/dashboard/workbench', method: 'get' })
   },
 
-  /** 订单进度总览 */
+  /** 订单履约统计（供管理看板与生产执行报表共用） */
   orderOverview(params?: Record<string, unknown>): Promise<OrderOverviewData> {
     return request({ url: '/dashboard/order-overview', method: 'get', params })
   },

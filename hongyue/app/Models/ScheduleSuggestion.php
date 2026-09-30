@@ -20,6 +20,7 @@ class ScheduleSuggestion extends Model
     public const STATUS_PENDING = 'pending';
     public const STATUS_ACCEPTED = 'accepted';
     public const STATUS_DISMISSED = 'dismissed';
+    public const STATUS_EXPIRED = 'expired';
 
     protected $fillable = [
         'type',

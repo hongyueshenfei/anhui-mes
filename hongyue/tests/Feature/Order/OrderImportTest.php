@@ -40,7 +40,7 @@ class OrderImportTest extends TestCase
     {
         $file = $this->csvFile([
             '产品编码,数量,交期,客户,优先级',
-            'P-0001,1900,2025-08-31,导入客户A,3',
+            'P-0001,1900,2025-08-31,导入客户A,0',
             'P-0002,2000,2025-09-05,导入客户A,4',
         ]);
 
@@ -53,6 +53,7 @@ class OrderImportTest extends TestCase
 
         $orderId = $response->json('data.order.id');
         $this->assertDatabaseHas('orders', ['id' => $orderId]);
+        $this->assertDatabaseHas('orders', ['id' => $orderId, 'priority' => 0]);
         $this->assertDatabaseCount('order_lines', 2);
         $this->assertDatabaseCount('prod_tasks', 2);
     }

@@ -347,7 +347,7 @@ function buildOrdersAndTasks(routeOps: Record<number, RouteOp[]>, molds: Mold[])
   }> = [
     { i: 1, src: 'manual', k3: null, customer: '合肥华联日化', status: 'produced', priority: 3, deliveryOffset: -20, remark: '已交付（演示）', items: [{ productId: 1, qty: 20000, status: 'done', lineNo: 1 }, { productId: 3, qty: 12000, status: 'done', lineNo: 2 }] },
     { i: 2, src: 'manual', k3: null, customer: '芜湖美的电器', status: 'in_progress', priority: 2, deliveryOffset: 2, remark: '临期 2 天 · 整单跟催', items: [{ productId: 6, qty: 30000, status: 'in_progress', lineNo: 1 }] },
-    { i: 3, src: 'manual', k3: null, customer: '上海联合利华', status: 'in_progress', priority: 1, deliveryOffset: -3, remark: '逾期 3 天 · 紧急插单已排', items: [{ productId: 1, qty: 50000, status: 'in_progress', lineNo: 1 }, { productId: 6, qty: 25000, status: 'in_progress', lineNo: 2 }] },
+    { i: 3, src: 'manual', k3: null, customer: '上海联合利华', status: 'in_progress', priority: 0, deliveryOffset: -3, remark: '逾期 3 天 · 紧急插单已排', items: [{ productId: 1, qty: 50000, status: 'in_progress', lineNo: 1 }, { productId: 6, qty: 25000, status: 'in_progress', lineNo: 2 }] },
     { i: 4, src: 'manual', k3: null, customer: '杭州纳爱斯', status: 'scheduled', priority: 3, deliveryOffset: 5, remark: '上批顺延 1 天（插单影响）', items: [{ productId: 7, qty: 15000, status: 'scheduled', lineNo: 1 }] },
     { i: 5, src: 'manual', k3: null, customer: '苏州绿叶日化', status: 'scheduled', priority: 2, deliveryOffset: 4, remark: '喷雾瓶试产', items: [{ productId: 5, qty: 8000, status: 'scheduled', lineNo: 1 }] },
     { i: 6, src: 'excel', k3: null, customer: '南京苏宁易购', status: 'pending', priority: 4, deliveryOffset: 9, remark: '', items: [{ productId: 2, qty: 40000, status: 'pending', lineNo: 1 }] },
@@ -1386,46 +1386,125 @@ function buildWorkbench(orders: Order[], tasks: ProdTask[], redLights: RedLight[
   return { stats, top_red_lights: redLights.filter((r) => r.status === 'open').slice(0, 5), soon_orders: soonOrders, today_tasks: todayTasks }
 }
 
-function buildOrderOverview(orders: Order[], tasks: ProdTask[]): OrderOverviewData {
+function buildOrderOverview(orders: Order[], orderLines: Record<number, OrderLine[]>, tasks: ProdTask[], schedules: TaskSchedule[]): OrderOverviewData {
   const items: OrderProgress[] = orders.map((o) => {
-    const related = tasks.filter((t) => t.task_no.startsWith('T-') && tasks.length > 0 && o.lines_count && t.id > 100 && t.id < 200 && String(t.id).endsWith(String(o.id)) === false ? true : tasks.some((x) => x.id === o.lines_count))
-    void related
-    const lineDone = o.total_qty ? Math.round((o.total_qty * (o.status === 'produced' ? 1 : o.status === 'in_progress' ? 0.45 : 0)) / 1) : 0
-    const doneQty = o.status === 'produced' ? (o.total_qty ?? 0) : o.status === 'in_progress' ? Math.round((o.total_qty ?? 0) * 0.45) : 0
-    const dueFlag = ((): 'overdue' | 'due_soon' | 'normal' => {
-      if (o.status === 'produced') return 'normal'
-      if (!o.delivery_date) return 'normal'
-      const diff = dayjs(o.delivery_date).startOf('day').diff(dayjs().startOf('day'), 'day')
-      if (diff < 0) return 'overdue'
-      if (diff <= 3) return 'due_soon'
-      return 'normal'
-    })()
-    void lineDone
+    const lines = orderLines[o.id] ?? []
+    const lineIds = new Set(lines.map((line) => line.id))
+    const relatedTasks = tasks.filter((task) => lineIds.has(task.order_line_id) && !task.is_split_parent)
+    const relatedSchedules = schedules.filter((schedule) => relatedTasks.some((task) => task.id === schedule.task_id))
+    const scheduledTaskIds = new Set(relatedSchedules.map((schedule) => schedule.task_id))
+    const unscheduledTasks = relatedTasks.filter((task) => !scheduledTaskIds.has(task.id))
+    const totalQty = lines.reduce((sum, line) => sum + line.qty, 0)
+    const doneQty = Math.min(totalQty, Math.max(0, relatedTasks.reduce((sum, task) => sum + task.done_qty, 0)))
+    const processPlanQty = relatedSchedules.reduce((sum, schedule) => sum + schedule.qty, 0)
+      + unscheduledTasks.reduce((sum, task) => sum + task.qty, 0)
+    const processDoneQty = relatedSchedules.reduce((sum, schedule) => sum + Math.max(0, schedule.done_qty ?? 0), 0)
+      + unscheduledTasks.reduce((sum, task) => sum + Math.max(0, task.done_qty), 0)
+    const stockedQty = Math.min(totalQty, Math.max(0, relatedTasks.reduce((sum, task) => sum + (task.stocked_qty ?? 0), 0)))
+    const planStart = relatedTasks.map((task) => task.plan_start).filter(Boolean).sort()[0] ?? null
+    const planEnd = relatedTasks.map((task) => task.plan_end).filter(Boolean).sort().reverse()[0] ?? null
+    const forecastEnd = relatedSchedules.map((schedule) => schedule.forecast_end ?? schedule.plan_end).filter(Boolean).sort().reverse()[0] ?? planEnd
+    const actualEnd = relatedSchedules.map((schedule) => schedule.actual_end).filter(Boolean).sort().reverse()[0] ?? null
+    const deliveryDate = o.delivery_date ?? lines.map((line) => line.delivery_date).filter(Boolean).sort()[0] ?? null
+    const completed = o.status === 'produced' || (totalQty > 0 && doneQty >= totalQty)
+    const due = deliveryDate ? dayjs(deliveryDate).startOf('day') : null
+    const today = dayjs().startOf('day')
+    const completionDay = actualEnd ? dayjs(actualEnd).startOf('day') : null
+    const lateCompleted = completed && !!due && !!completionDay && completionDay.isAfter(due)
+    const overdue = !completed && !!due && today.isAfter(due)
+    const forecastLate = !completed && !overdue && !!due && !!forecastEnd && dayjs(forecastEnd).startOf('day').isAfter(due)
+    const paused = o.status === 'paused' || relatedTasks.some((task) => task.status === 'paused')
+    const hasStarted = doneQty > 0 || relatedTasks.some((task) => task.status === 'in_progress')
+    const hasSchedule = relatedTasks.some((task) => !!task.plan_start || schedules.some((schedule) => schedule.task_id === task.id))
+    const fulfillmentStatus = o.status === 'aborted'
+      ? 'aborted'
+      : lateCompleted
+        ? 'completed_late'
+        : completed
+          ? 'completed_on_time'
+          : paused
+            ? 'paused'
+            : overdue
+              ? 'overdue'
+              : forecastLate
+                ? 'forecast_late'
+                : !hasSchedule && !hasStarted
+                  ? 'not_started'
+                  : relatedTasks.some((task) => task.status === 'scheduled') && !hasStarted
+                    ? 'scheduled'
+                    : 'in_progress'
+    const fulfillmentLabels: Record<string, string> = {
+      completed_on_time: '按期完成', completed_late: '延期完成', overdue: '已延期', forecast_late: '预计延期',
+      paused: '已暂停', not_started: '未开工', scheduled: '已排产', in_progress: '生产中', aborted: '已中止',
+    }
+    const compareDate = fulfillmentStatus.startsWith('completed') ? completionDay : (forecastEnd ? dayjs(forecastEnd).startOf('day') : today)
+    const delayDays = due && compareDate && compareDate.isAfter(due) ? due.diff(compareDate, 'day') * -1 : 0
+    const dueFlag: OrderProgress['due_flag'] = !completed && due
+      ? today.isAfter(due) ? 'overdue' : today.diff(due, 'day') >= -3 ? 'due_soon' : 'normal'
+      : 'normal'
+
     return {
       order_id: o.id,
       order_no: o.order_no,
       k3_bill_no: o.k3_bill_no,
       customer_name: o.customer_name,
       priority: o.priority,
-      delivery_date: o.delivery_date,
+      delivery_date: deliveryDate,
       status: o.status,
-      status_label: o.status === 'pending' ? '待排' : o.status === 'scheduled' ? '已排' : o.status === 'in_progress' ? '在产' : o.status === 'produced' ? '已产' : '已交付',
-      total_qty: o.total_qty ?? 0,
+      status_label: o.status === 'pending' ? '待排' : o.status === 'scheduled' ? '已排' : o.status === 'in_progress' ? '在产' : o.status === 'paused' ? '已停工' : o.status === 'produced' ? '已产' : o.status === 'aborted' ? '已中止' : '已关闭',
+      total_qty: totalQty,
       done_qty: doneQty,
-      progress_pct: o.total_qty ? Math.round((doneQty / o.total_qty) * 100) : 0,
+      process_plan_qty: processPlanQty,
+      process_done_qty: processDoneQty,
+      process_progress_pct: processPlanQty > 0 ? Math.min(100, Math.round(processDoneQty / processPlanQty * 1000) / 10) : 0,
+      stocked_qty: stockedQty,
+      progress_pct: totalQty ? Math.min(100, Math.round((doneQty / totalQty) * 100)) : 0,
+      stock_progress_pct: totalQty ? Math.min(100, Math.round((stockedQty / totalQty) * 100)) : 0,
       due_flag: dueFlag,
-      delay_days: dueFlag === 'overdue' && o.delivery_date ? Math.abs(dayjs().startOf('day').diff(dayjs(o.delivery_date).startOf('day'), 'day')) : 0,
-      tasks_count: o.lines_count ?? 0,
-      task_status: o.status === 'pending' ? 'unscheduled' : o.status === 'scheduled' ? 'scheduled' : o.status === 'produced' ? 'done' : 'in_progress',
+      delay_days: delayDays,
+      fulfillment_status: fulfillmentStatus,
+      fulfillment_status_label: fulfillmentLabels[fulfillmentStatus],
+      tasks_count: relatedTasks.length,
+      completed_tasks: relatedTasks.filter((task) => task.status === 'done').length,
+      paused_tasks: relatedTasks.filter((task) => task.status === 'paused').length,
+      plan_start: planStart,
+      plan_end: planEnd,
+      forecast_end: forecastEnd,
+      actual_end: actualEnd,
+      task_status: completed ? 'done' : fulfillmentStatus === 'not_started' ? 'unscheduled' : fulfillmentStatus === 'scheduled' ? 'scheduled' : 'in_progress',
     }
   })
   const sum = (pred: (o: OrderProgress) => boolean) => items.filter(pred).reduce((s, i) => s + i.total_qty, 0)
+  const completed = items.filter((i) => i.fulfillment_status?.startsWith('completed'))
+  const completedWithDelivery = completed.filter((i) => i.delivery_date)
   return {
+    summary: {
+      total_orders: items.length,
+      production_completed: completed.length,
+      on_time_completed: items.filter((i) => i.fulfillment_status === 'completed_on_time').length,
+      late_completed: items.filter((i) => i.fulfillment_status === 'completed_late').length,
+      in_progress: items.filter((i) => i.fulfillment_status === 'in_progress' || i.fulfillment_status === 'scheduled').length,
+      forecast_late: items.filter((i) => i.fulfillment_status === 'forecast_late').length,
+      overdue: items.filter((i) => i.fulfillment_status === 'overdue').length,
+      not_started: items.filter((i) => i.fulfillment_status === 'not_started').length,
+      paused: items.filter((i) => i.fulfillment_status === 'paused').length,
+      total_qty: items.reduce((sum, item) => sum + item.total_qty, 0),
+      done_qty: items.reduce((sum, item) => sum + item.done_qty, 0),
+      process_plan_qty: items.reduce((sum, item) => sum + item.process_plan_qty, 0),
+      process_done_qty: items.reduce((sum, item) => sum + item.process_done_qty, 0),
+      process_progress_pct: items.reduce((sum, item) => sum + item.process_plan_qty, 0) > 0
+        ? Math.min(100, Math.round(items.reduce((sum, item) => sum + item.process_done_qty, 0) / items.reduce((sum, item) => sum + item.process_plan_qty, 0) * 1000) / 10)
+        : 0,
+      stocked_qty: items.reduce((sum, item) => sum + (item.stocked_qty ?? 0), 0),
+      production_completion_pct: items.reduce((sum, item) => sum + item.total_qty, 0) > 0 ? Math.round(items.reduce((sum, item) => sum + item.done_qty, 0) / items.reduce((sum, item) => sum + item.total_qty, 0) * 1000) / 10 : 0,
+      stock_completion_pct: items.reduce((sum, item) => sum + item.total_qty, 0) > 0 ? Math.round(items.reduce((sum, item) => sum + (item.stocked_qty ?? 0), 0) / items.reduce((sum, item) => sum + item.total_qty, 0) * 1000) / 10 : 0,
+      on_time_rate: completedWithDelivery.length > 0 ? Math.round(completedWithDelivery.filter((i) => i.fulfillment_status === 'completed_on_time').length / completedWithDelivery.length * 1000) / 10 : null,
+    },
     groups: {
-      pending: { count: items.filter((i) => i.status === 'pending').length, qty: sum((i) => i.status === 'pending') },
-      in_progress: { count: items.filter((i) => i.status === 'in_progress' || i.status === 'scheduled').length, qty: sum((i) => i.status === 'in_progress' || i.status === 'scheduled') },
+      pending: { count: items.filter((i) => i.fulfillment_status === 'not_started').length, qty: sum((i) => i.fulfillment_status === 'not_started') },
+      in_progress: { count: items.filter((i) => i.fulfillment_status === 'in_progress' || i.fulfillment_status === 'scheduled').length, qty: sum((i) => i.fulfillment_status === 'in_progress' || i.fulfillment_status === 'scheduled') },
       overdue: { count: items.filter((i) => i.due_flag === 'overdue').length, qty: sum((i) => i.due_flag === 'overdue') },
-      done: { count: items.filter((i) => i.status === 'produced').length, qty: sum((i) => i.status === 'produced') },
+      done: { count: completed.length, qty: sum((i) => i.fulfillment_status?.startsWith('completed') === true) },
     },
     items,
   }
@@ -1928,7 +2007,7 @@ export function buildMockDb(): MockDb {
   const heatmap = buildHeatmap(machines, schedules)
   const reportsData = buildReportsData(orders, tasks, machines, schedules, reports, molds)
   const workbench = buildWorkbench(orders, tasks, redLights, machines, schedules, reports)
-  const orderOverview = buildOrderOverview(orders, tasks)
+  const orderOverview = buildOrderOverview(orders, orderLines, tasks, schedules)
   const integrationLogs = buildIntegrationLogs()
   const auditLogs = buildAuditLogs()
   const versions = buildVersions(schedules)

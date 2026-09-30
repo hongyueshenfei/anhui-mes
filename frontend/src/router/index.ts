@@ -104,6 +104,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '报工台账', perm: 'report.view' },
       },
       {
+        path: 'production/report-management',
+        name: 'ProductionReportManagement',
+        component: () => import('@/views/production/ReportManagementView.vue'),
+        meta: { title: '报表管理', perm: 'report.view' },
+      },
+      {
         path: 'warehouse/stock-ins',
         name: 'StockIns',
         component: () => import('@/views/warehouse/StockInsView.vue'),
@@ -139,7 +145,7 @@ const routes: RouteRecordRaw[] = [
         path: 'dashboard/order-overview',
         name: 'OrderOverview',
         component: () => import('@/views/dashboard/OrderOverviewView.vue'),
-        meta: { title: '订单进度总览', perm: 'dashboard.view' },
+        meta: { title: '订单履约统计', perm: 'dashboard.view' },
       },
       {
         path: 'dashboard/load-heatmap',

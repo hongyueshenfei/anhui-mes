@@ -202,16 +202,40 @@ class WorkOrderLifecycleTest extends TestCase
         ]);
         $id = $create->json('data.id');
         $this->api($this->token)->postJson("/api/orders/{$id}/route-confirm")->assertOk();
+
+        // 准备一条生产中任务排程，验证订单停工会同步反映到甘特图数据源。
+        $line = OrderLine::where('order_id', $id)->firstOrFail();
+        $task = $line->tasks->firstOrFail();
+        TaskSchedule::create([
+            'task_id' => $task->id,
+            'seq' => 1,
+            'route_op_id' => 1,
+            'op_type' => RouteOp::OP_MOLDING_INJECTION,
+            'plan_start' => now(),
+            'plan_end' => now()->addHours(2),
+            'qty' => 1000,
+            'status' => TaskSchedule::STATUS_RUNNING,
+            'source' => TaskSchedule::SOURCE_MANUAL,
+        ]);
         $this->api($this->token)->postJson("/api/orders/{$id}/start")->assertOk();
+        ProdTask::whereKey($task->id)->update(['status' => ProdTask::STATUS_IN_PROGRESS]);
 
         // 停工：in_progress → paused，任务暂停 + 日志
         $pause = $this->api($this->token)->postJson("/api/orders/{$id}/pause");
         $pause->assertOk()->assertJsonPath('data.status', Order::STATUS_PAUSED);
+        $this->assertDatabaseHas('task_schedules', [
+            'task_id' => $task->id,
+            'status' => TaskSchedule::STATUS_PAUSED,
+        ]);
         $this->assertDatabaseHas('work_order_logs', ['order_id' => $id, 'action' => WorkOrderLog::ACTION_PAUSE]);
 
         // 恢复生产：paused → in_progress（开工复用）
         $resume = $this->api($this->token)->postJson("/api/orders/{$id}/start");
         $resume->assertOk()->assertJsonPath('data.status', Order::STATUS_IN_PROGRESS);
+        $this->assertDatabaseHas('task_schedules', [
+            'task_id' => $task->id,
+            'status' => TaskSchedule::STATUS_PENDING,
+        ]);
 
         // 中止：in_progress → aborted
         $abort = $this->api($this->token)->postJson("/api/orders/{$id}/abort");

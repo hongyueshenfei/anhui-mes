@@ -22,7 +22,7 @@ return new class extends Migration
             $table->string('k3_bill_no', 32)->nullable()->comment('金蝶生产订单号（四期拉单后落）');
             $table->string('customer_name', 128)->default('')->comment('客户名称');
             $table->string('status', 16)->default('pending')->index()->comment('pending/scheduled/in_progress/produced/delivered');
-            $table->unsignedTinyInteger('priority')->default(3)->index()->comment('1-5 越大越急');
+            $table->unsignedTinyInteger('priority')->default(3)->index()->comment('0-5，数值越小越急，P0最紧急');
             $table->date('delivery_date')->nullable()->comment('订单级期望交期（冗余，明细行可覆盖）');
             $table->string('remark', 255)->nullable()->comment('备注');
             $table->unsignedBigInteger('created_by')->nullable()->comment('创建人');
@@ -38,7 +38,7 @@ return new class extends Migration
             $table->foreign('product_id')->references('id')->on('products')->cascadeOnDelete();
             $table->integer('qty')->comment('数量');
             $table->date('delivery_date')->nullable()->comment('交期');
-            $table->unsignedTinyInteger('priority')->default(3)->comment('1-5 越大越急');
+            $table->unsignedTinyInteger('priority')->default(3)->comment('0-5，数值越小越急，P0最紧急');
             $table->string('status', 16)->default('pending')->comment('pending/scheduled/in_progress/done');
             $table->integer('done_qty')->default(0)->comment('完成数（报工汇总冗余，可对账）');
             $table->unsignedBigInteger('mold_id')->nullable()->comment('指定模具（可选，排产三匹配校验时确定）');

@@ -79,7 +79,7 @@ class TaskController extends Controller
             'task:id,task_no,order_line_id,product_id,qty,status,delivery_date',
             'task.product:id,code,name',
             'task.line.order:id,order_no',
-            'machine:id,code,name,type,workshop_id',
+            'machine:id,code,name,type,workshop_id,shift_mode',
             'machine.workshop:id,name',
         ])
             ->where('is_interrupted', 0)
@@ -104,8 +104,22 @@ class TaskController extends Controller
             ->orderBy('seq')
             ->get();
 
+        // 工序可在 PC 日报表中切换到同一工单的其他未打断排程，
+        // 因此这里同时加载这些工序的计划与报工汇总，避免前端只改显示值。
+        $taskIds = $schedules->pluck('task_id')->unique()->values();
+        $operationSchedules = TaskSchedule::with([
+            'machine:id,code,name,type,workshop_id,shift_mode',
+            'machine.workshop:id,name',
+        ])
+            ->whereIn('task_id', $taskIds)
+            ->where('is_interrupted', 0)
+            ->orderBy('seq')
+            ->orderBy('id')
+            ->get()
+            ->groupBy('task_id');
+
         $reported = WorkReport::query()
-            ->whereIn('schedule_id', $schedules->pluck('id'))
+            ->whereIn('schedule_id', $operationSchedules->flatten(1)->pluck('id'))
             ->selectRaw('schedule_id, SUM(qty) AS reported_qty, SUM(defect_qty) AS defect_qty')
             ->groupBy('schedule_id')
             ->get()
@@ -123,13 +137,13 @@ class TaskController extends Controller
         // 任务级成品报工只能挂到任务全量排程中的最后一道未打断工序；
         // 不能按当天可见排程的最后一行判断，否则下游工序在其他日期时会
         // 把成品数量错误显示到当天的前序工序。
-        $lastScheduleIds = TaskSchedule::whereIn('task_id', $schedules->pluck('task_id')->unique())
+        $lastScheduleIds = TaskSchedule::whereIn('task_id', $taskIds)
             ->where('is_interrupted', 0)
             ->get(['id', 'task_id', 'seq'])
             ->groupBy('task_id')
             ->map(fn ($rows) => $rows->sortBy([['seq', 'desc'], ['id', 'desc']])->first()?->id);
 
-        $rows = $schedules->map(function (TaskSchedule $schedule) use ($reported, $taskLevelReported, $lastScheduleIds, $workDate) {
+        $rows = $schedules->map(function (TaskSchedule $schedule) use ($reported, $taskLevelReported, $lastScheduleIds, $workDate, $operationSchedules) {
             $summary = $reported->get($schedule->id);
             $taskSummary = (int) $lastScheduleIds->get($schedule->task_id) === (int) $schedule->id
                 ? $taskLevelReported->get($schedule->task_id)
@@ -146,12 +160,39 @@ class TaskController extends Controller
                 'order_no' => $task->line?->order?->order_no,
                 'product' => $task->product ? ['id' => $task->product->id, 'code' => $task->product->code, 'name' => $task->product->name] : null,
                 'operation' => ['seq' => $schedule->seq, 'name' => $schedule->op_name ?? $schedule->op_type],
+                'operation_options' => $operationSchedules->get($schedule->task_id, collect())->map(function (TaskSchedule $option) use ($reported, $taskLevelReported, $lastScheduleIds) {
+                    $optionSummary = $reported->get($option->id);
+                    $optionTaskSummary = (int) $lastScheduleIds->get($option->task_id) === (int) $option->id
+                        ? $taskLevelReported->get($option->task_id)
+                        : null;
+                    $optionReportedQty = max(0, (int) ($optionSummary?->reported_qty ?? 0) + (int) ($optionTaskSummary?->reported_qty ?? 0));
+
+                    return [
+                        'schedule_id' => $option->id,
+                        'operation' => ['seq' => $option->seq, 'name' => $option->op_name ?? $option->op_type],
+                        'machine' => $option->machine ? [
+                            'id' => $option->machine->id,
+                            'code' => $option->machine->code,
+                            'name' => $option->machine->name,
+                            'workshop_id' => $option->machine->workshop_id,
+                            'workshop_name' => $option->machine->workshop?->name,
+                            'shift_mode' => $option->machine->shift_mode ?: 'day',
+                        ] : null,
+                        'plan_start' => $option->plan_start?->format('Y-m-d H:i:s'),
+                        'plan_end' => $option->plan_end?->format('Y-m-d H:i:s'),
+                        'planned_qty' => (int) $option->qty,
+                        'reported_qty' => $optionReportedQty,
+                        'remaining_qty' => max(0, (int) $option->qty - $optionReportedQty),
+                        'schedule_status' => $option->status,
+                    ];
+                })->values()->all(),
                 'machine' => $schedule->machine ? [
                     'id' => $schedule->machine->id,
                     'code' => $schedule->machine->code,
                     'name' => $schedule->machine->name,
                     'workshop_id' => $schedule->machine->workshop_id,
                     'workshop_name' => $schedule->machine->workshop?->name,
+                    'shift_mode' => $schedule->machine->shift_mode ?: 'day',
                 ] : null,
                 'plan_start' => $schedule->plan_start?->format('Y-m-d H:i:s'),
                 'plan_end' => $schedule->plan_end?->format('Y-m-d H:i:s'),

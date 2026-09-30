@@ -9,6 +9,7 @@ use App\Modules\Scheduling\Services\InsertScheduleService;
 use App\Modules\Scheduling\Services\LockService;
 use App\Modules\Scheduling\Services\ManualScheduleService;
 use App\Modules\Scheduling\Services\ScheduleCapacityRecalculationService;
+use App\Modules\Scheduling\Services\SuggestionService;
 use App\Services\AiServiceException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -24,6 +25,7 @@ class ScheduleActionController extends Controller
         private readonly AutoScheduleService $autoService,
         private readonly LockService $lockService,
         private readonly ScheduleCapacityRecalculationService $capacityRecalculationService,
+        private readonly SuggestionService $suggestionService,
     ) {
     }
 
@@ -184,6 +186,7 @@ class ScheduleActionController extends Controller
 
         try {
             $version = $this->insertService->rollback((int) $request->input('version_id'), (int) $request->user()?->id);
+            $this->suggestionService->refreshAllScheduledTasks();
         } catch (ScheduleException $e) {
             return $this->scheduleError($e);
         }

@@ -3,14 +3,18 @@
     <div class="page-head">
       <div>
         <div class="page-title">生产报工</div>
-        <div class="page-subtitle">按已接受排程录入当日汇总，当前由班组长或统计员统一填报，不区分个人作业人</div>
+        <div class="page-subtitle">按排程批量填报，也可从全量任务补录；当前由班组长或统计员统一填报，不区分个人作业人</div>
       </div>
       <el-tag type="info" effect="plain">计划与实际分开记录</el-tag>
     </div>
 
     <el-tabs v-model="activeTab" class="report-tabs">
       <el-tab-pane label="当日报工" name="daily">
-        <DailyReportGrid @saved="load" />
+        <DailyReportGrid
+          :refresh-token="dailyRefreshToken"
+          @saved="load"
+          @create-report="reportVisible = true"
+        />
       </el-tab-pane>
       <el-tab-pane label="报工流水" name="ledger">
     <div class="toolbar">
@@ -100,7 +104,13 @@
       </el-table-column>
       <el-table-column label="冲减入口" width="90" align="center">
         <template #default="{ row }">
-          <el-button v-if="row.qty > 0" size="small" text type="danger" @click="openCorrection(row)">冲减</el-button>
+          <el-button
+            v-if="row.qty > 0 && (row.correctable_qty ?? row.qty) > 0"
+            size="small"
+            text
+            type="danger"
+            @click="openCorrection(row)"
+          >冲减</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -116,9 +126,6 @@
       />
     </div>
       </el-tab-pane>
-      <el-tab-pane label="报工统计" name="summary">
-        <ReportSummaryTable />
-      </el-tab-pane>
     </el-tabs>
 
     <!-- 冲减弹窗 -->
@@ -131,7 +138,7 @@
           <span>{{ selected?.task?.task_no ?? selected?.task_no }}</span>
         </el-form-item>
         <el-form-item label="冲减数量" required>
-          <el-input-number v-model="correctionQty" :min="1" :max="selected?.qty ?? 0" />
+          <el-input-number v-model="correctionQty" :min="1" :max="selected?.correctable_qty ?? selected?.qty ?? 0" />
         </el-form-item>
         <el-form-item label="冲减原因" required>
           <el-input v-model="correctionReason" placeholder="必填（如：误报更正/返工）" />
@@ -144,7 +151,7 @@
     </el-dialog>
 
     <!-- 手动报工（关联工单，工序链校验）—— 公共组件（订单详情同款） -->
-    <ReportDialog v-model="reportVisible" @success="load" />
+    <ReportDialog v-model="reportVisible" @success="onReportSuccess" />
   </el-card>
 </template>
 
@@ -158,7 +165,6 @@ import ReportDialog from '@/components/production/ReportDialog.vue'
 import { useAuthStore } from '@/stores/auth'
 import { formatDateTime } from '@/utils/datetime'
 import DailyReportGrid from '@/components/production/DailyReportGrid.vue'
-import ReportSummaryTable from '@/components/production/ReportSummaryTable.vue'
 
 const auth = useAuthStore()
 const canReport = computed(() => auth.canOperateReports)
@@ -172,7 +178,7 @@ const keyword = ref('')
 const filterSource = ref('')
 const filterSign = ref('')
 const dateRange = ref<[string, string] | null>(null)
-const activeTab = ref<'daily' | 'ledger' | 'summary'>('daily')
+const activeTab = ref<'daily' | 'ledger'>('daily')
 
 const correctionVisible = ref(false)
 const selected = ref<WorkReport | null>(null)
@@ -182,8 +188,14 @@ const submitting = ref(false)
 
 /** 手动报工（弹窗本体在 ReportDialog 组件内） */
 const reportVisible = ref(false)
+const dailyRefreshToken = ref(0)
 
 onMounted(load)
+
+async function onReportSuccess(): Promise<void> {
+  dailyRefreshToken.value += 1
+  await load()
+}
 
 async function load(): Promise<void> {
   loading.value = true
@@ -220,7 +232,7 @@ function sourceTag(s: string): 'primary' | 'success' | 'warning' | 'info' | 'dan
 
 function openCorrection(row: WorkReport): void {
   selected.value = row
-  correctionQty.value = Math.min(1, row.qty)
+  correctionQty.value = Math.min(1, row.correctable_qty ?? row.qty)
   correctionReason.value = ''
   correctionVisible.value = true
 }
@@ -236,8 +248,10 @@ async function onCorrection(): Promise<void> {
     const result = await productionApi.submitReport({
       task_id: selected.value.task_id,
       qty: -correctionQty.value,
+      // 服务端按原正报工复制工序、机台、作业时间、班次和来源，
+      // 这里只传原记录 ID，避免冲减记录出现另一段时间或挂错工序。
+      correction_of_report_id: selected.value.id,
       remark: correctionReason.value.trim(),
-      source: 'click',
     })
     ElMessage.success(`冲减已记录：任务 ${result.task.task_no} 完成量 ${result.task.done_qty}`)
     correctionVisible.value = false

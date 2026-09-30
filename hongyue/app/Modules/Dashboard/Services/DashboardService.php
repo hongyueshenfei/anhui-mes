@@ -12,6 +12,7 @@ use App\Models\WorkReport;
 use App\Modules\System\Services\ConfigService;
 use Carbon\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 
 /**
  * 看板聚合服务（工作台 / 订单总览 / 任务看板 / 产能热力 / 报表）
@@ -112,46 +113,23 @@ class DashboardService
     }
 
     /**
-     * 订单进度总览（待排/在产/逾期/完成 分区）
+     * 订单履约总览（订单级聚合：生产完成、入库完成、交期风险、计划/预计完工）。
+     *
+     * 订单下的多产品行、拆单子任务先聚合回订单，再计算履约状态，避免
+     * 把拆单子任务重复计为订单。生产完成和入库完成分别展示，避免混淆。
      */
     public function orderOverview(array $params = []): array
     {
-        $orders = Order::with(['lines'])->get();
+        $orders = Order::with(['lines.tasks.schedules'])->get();
+        $processProgressByTask = $this->processProgressByTask($orders);
 
-        $items = $orders->map(function (Order $o) {
-            $totalQty = (int) $o->lines()->sum('qty');
-            $doneQty = (int) $o->lines()->sum('done_qty');
-            $dueFlag = $this->dueFlag($o);
-            $taskStatus = match (true) {
-                $o->status === Order::STATUS_PRODUCED => 'done',
-                $o->status === Order::STATUS_PENDING => 'unscheduled',
-                $o->status === Order::STATUS_SCHEDULED => 'scheduled',
-                default => 'in_progress',
-            };
-
-            return [
-                'order_id' => $o->id,
-                'order_no' => $o->order_no,
-                'k3_bill_no' => $o->k3_bill_no,
-                'customer_name' => $o->customer_name,
-                'priority' => (int) $o->priority,
-                'delivery_date' => $o->delivery_date?->toDateString(),
-                'status' => $o->status,
-                'status_label' => $o->status_label,
-                'total_qty' => $totalQty,
-                'done_qty' => $doneQty,
-                'progress_pct' => $totalQty ? (int) round(($doneQty / $totalQty) * 100) : 0,
-                'due_flag' => $dueFlag,
-                'delay_days' => $dueFlag === 'overdue' && $o->delivery_date ? max(0, (int) now()->startOfDay()->diffInDays($o->delivery_date)) : 0,
-                'tasks_count' => $o->lines()->withCount('tasks')->get()->sum('tasks_count'),
-                'task_status' => $taskStatus,
-            ];
-        })->values();
+        $items = $orders->map(fn (Order $order): array => $this->orderFulfillmentItem($order, $processProgressByTask))->values();
 
         $kw = trim((string) ($params['keyword'] ?? ''));
         $due = trim((string) ($params['due_flag'] ?? ''));
+        $fulfillmentStatus = trim((string) ($params['fulfillment_status'] ?? ''));
         $items = $items->filter(function ($i) use ($kw, $due) {
-            if ($kw && ! str_contains(strtolower($i['order_no'].' '.$i['customer_name']), strtolower($kw))) {
+            if ($kw && ! str_contains(strtolower($i['order_no'].' '.$i['customer_name'].' '.($i['k3_bill_no'] ?? '')), strtolower($kw))) {
                 return false;
             }
             if ($due && $i['due_flag'] !== $due) {
@@ -159,19 +137,227 @@ class DashboardService
             }
 
             return true;
-        })->values();
+        })->filter(fn (array $item): bool => ! $fulfillmentStatus || $item['fulfillment_status'] === $fulfillmentStatus)
+            ->sortBy(function (array $item): string {
+                $rank = [
+                    'overdue' => 1,
+                    'forecast_late' => 2,
+                    'paused' => 3,
+                    'not_started' => 4,
+                    'scheduled' => 5,
+                    'in_progress' => 6,
+                    'completed_late' => 7,
+                    'completed_on_time' => 8,
+                    'aborted' => 9,
+                ][$item['fulfillment_status']] ?? 9;
+
+                return sprintf('%02d-%d-%s', $rank, (int) $item['priority'], $item['delivery_date'] ?? '9999-12-31');
+            })->values();
 
         $sumQty = fn (callable $pred) => (int) $items->filter($pred)->sum('total_qty');
-        $countQty = fn (callable $pred) => (int) $items->filter($pred)->sum('total_qty');
+        $totalQty = (int) $items->sum('total_qty');
+        $productionDoneQty = (int) $items->sum('done_qty');
+        $processPlanQty = (int) $items->sum('process_plan_qty');
+        $processDoneQty = (int) $items->sum('process_done_qty');
+        $stockedQty = (int) $items->sum('stocked_qty');
+        $completed = $items->filter(fn (array $item): bool => str_starts_with($item['fulfillment_status'], 'completed'));
+        $completedWithDelivery = $completed->filter(fn (array $item): bool => $item['delivery_date'] !== null);
 
         return [
+            'summary' => [
+                'total_orders' => $items->count(),
+                'production_completed' => $completed->count(),
+                'on_time_completed' => $items->where('fulfillment_status', 'completed_on_time')->count(),
+                'late_completed' => $items->where('fulfillment_status', 'completed_late')->count(),
+                'in_progress' => $items->whereIn('fulfillment_status', ['scheduled', 'in_progress'])->count(),
+                'forecast_late' => $items->where('fulfillment_status', 'forecast_late')->count(),
+                'overdue' => $items->where('fulfillment_status', 'overdue')->count(),
+                'not_started' => $items->where('fulfillment_status', 'not_started')->count(),
+                'paused' => $items->where('fulfillment_status', 'paused')->count(),
+                'total_qty' => $totalQty,
+                'done_qty' => $productionDoneQty,
+                'process_plan_qty' => $processPlanQty,
+                'process_done_qty' => $processDoneQty,
+                'process_progress_pct' => $processPlanQty > 0 ? min(100, round($processDoneQty / $processPlanQty * 100, 1)) : 0,
+                'stocked_qty' => $stockedQty,
+                'production_completion_pct' => $totalQty > 0 ? round($productionDoneQty / $totalQty * 100, 1) : 0,
+                'stock_completion_pct' => $totalQty > 0 ? round($stockedQty / $totalQty * 100, 1) : 0,
+                'on_time_rate' => $completedWithDelivery->isNotEmpty()
+                    ? round($completedWithDelivery->where('fulfillment_status', 'completed_on_time')->count() / $completedWithDelivery->count() * 100, 1)
+                    : null,
+            ],
             'groups' => [
-                'pending' => ['count' => $items->filter(fn ($i) => $i['status'] === 'pending')->count(), 'qty' => $sumQty(fn ($i) => $i['status'] === 'pending')],
-                'in_progress' => ['count' => $items->filter(fn ($i) => in_array($i['status'], ['scheduled', 'in_progress']), )->count(), 'qty' => $countQty(fn ($i) => in_array($i['status'], ['scheduled', 'in_progress']))],
-                'overdue' => ['count' => $items->filter(fn ($i) => $i['due_flag'] === 'overdue')->count(), 'qty' => $sumQty(fn ($i) => $i['due_flag'] === 'overdue')],
-                'done' => ['count' => $items->filter(fn ($i) => $i['status'] === 'produced')->count(), 'qty' => $sumQty(fn ($i) => $i['status'] === 'produced')],
+                'pending' => ['count' => $items->where('fulfillment_status', 'not_started')->count(), 'qty' => $sumQty(fn ($i) => $i['fulfillment_status'] === 'not_started')],
+                'in_progress' => ['count' => $items->whereIn('fulfillment_status', ['scheduled', 'in_progress'])->count(), 'qty' => $sumQty(fn ($i) => in_array($i['fulfillment_status'], ['scheduled', 'in_progress'], true))],
+                'overdue' => ['count' => $items->where('due_flag', 'overdue')->count(), 'qty' => $sumQty(fn ($i) => $i['due_flag'] === 'overdue')],
+                'done' => ['count' => $completed->count(), 'qty' => $sumQty(fn ($i) => str_starts_with($i['fulfillment_status'], 'completed'))],
             ],
             'items' => $items->all(),
+        ];
+    }
+
+    /** 订单头聚合：多产品行、拆单子任务均归并后再计算履约状态。 */
+    private function orderFulfillmentItem(Order $order, array $processProgressByTask): array
+    {
+        $lines = $order->lines;
+        $tasks = $lines->flatMap(fn ($line) => $line->tasks ?? collect());
+        $schedules = $tasks->flatMap(fn ($task) => $task->schedules ?? collect());
+        $totalQty = (int) $lines->sum('qty');
+        $doneQty = min($totalQty, max(0, (int) ($tasks->isNotEmpty() ? $tasks->sum('done_qty') : $lines->sum('done_qty'))));
+        $processProgress = $this->orderProcessProgress($tasks, $lines, $totalQty, $processProgressByTask);
+        $stockedQty = min($totalQty, max(0, (int) $tasks->sum('stocked_qty')));
+        $deliveryDate = collect([$order->delivery_date])
+            ->merge($lines->pluck('delivery_date'))
+            ->filter()
+            ->sortBy(fn ($date) => $date->timestamp)
+            ->first();
+        $planStart = $tasks->pluck('plan_start')->filter()->sortBy(fn ($date) => $date->timestamp)->first();
+        $planEnd = $tasks->pluck('plan_end')->filter()->sortBy(fn ($date) => $date->timestamp)->last();
+        $forecastEnd = $schedules->map(fn ($schedule) => $schedule->forecast_end ?? $schedule->plan_end)
+            ->filter()
+            ->sortBy(fn ($date) => $date->timestamp)
+            ->last() ?? $planEnd;
+        $actualEnd = $schedules->pluck('actual_end')->filter()->sortBy(fn ($date) => $date->timestamp)->last();
+        $completionAt = $order->completed_at ?? $actualEnd;
+        $hasSchedule = $tasks->contains(fn ($task) => $task->plan_start !== null || ($task->schedules?->isNotEmpty() ?? false));
+        $hasStarted = $processProgress['process_done_qty'] > 0 || $doneQty > 0 || $tasks->contains(fn ($task) => $task->status === ProdTask::STATUS_IN_PROGRESS);
+        $isPaused = $order->status === Order::STATUS_PAUSED || $tasks->contains(fn ($task) => $task->status === ProdTask::STATUS_PAUSED);
+        $isCompleted = $totalQty > 0 && ($doneQty >= $totalQty || $order->status === Order::STATUS_PRODUCED);
+        $today = now()->startOfDay();
+        $due = $deliveryDate?->copy()->startOfDay();
+        $completionDay = $completionAt?->copy()->startOfDay();
+        $isLateCompleted = $isCompleted && $due && $completionDay && $completionDay->gt($due);
+        $isOverdue = ! $isCompleted && $due && $today->gt($due);
+        $isForecastLate = ! $isCompleted && ! $isOverdue && $due && $forecastEnd && $forecastEnd->copy()->startOfDay()->gt($due);
+
+        $fulfillmentStatus = match (true) {
+            $order->status === Order::STATUS_ABORTED => 'aborted',
+            $isLateCompleted => 'completed_late',
+            $isCompleted => 'completed_on_time',
+            $isPaused => 'paused',
+            $isOverdue => 'overdue',
+            $isForecastLate => 'forecast_late',
+            ! $hasSchedule && ! $hasStarted => 'not_started',
+            $tasks->contains(fn ($task) => $task->status === ProdTask::STATUS_SCHEDULED) && ! $hasStarted => 'scheduled',
+            default => 'in_progress',
+        };
+
+        $comparisonDate = str_starts_with($fulfillmentStatus, 'completed')
+            ? $completionDay
+            : ($forecastEnd?->copy()->startOfDay() ?? $today);
+        $delayDays = $due && $comparisonDate && $comparisonDate->gt($due) ? (int) $due->diffInDays($comparisonDate) : 0;
+        $dueFlag = ! $isCompleted && $due
+            ? ($today->gt($due) ? 'overdue' : ($today->diffInDays($due) <= 3 ? 'due_soon' : 'normal'))
+            : 'normal';
+        $labels = [
+            'completed_on_time' => '按期完成',
+            'completed_late' => '延期完成',
+            'overdue' => '已延期',
+            'forecast_late' => '预计延期',
+            'paused' => '已暂停',
+            'not_started' => '未开工',
+            'scheduled' => '已排产',
+            'in_progress' => '生产中',
+            'aborted' => '已中止',
+        ];
+        $taskStatus = $isCompleted ? 'done' : ($fulfillmentStatus === 'not_started' ? 'unscheduled' : ($fulfillmentStatus === 'scheduled' ? 'scheduled' : 'in_progress'));
+
+        return [
+            'order_id' => (int) $order->id,
+            'order_no' => $order->order_no,
+            'k3_bill_no' => $order->k3_bill_no,
+            'customer_name' => $order->customer_name,
+            'priority' => (int) $order->priority,
+            'delivery_date' => $deliveryDate?->toDateString(),
+            'status' => $order->status,
+            'status_label' => $order->status_label,
+            'total_qty' => $totalQty,
+            'done_qty' => $doneQty,
+            'process_plan_qty' => $processProgress['process_plan_qty'],
+            'process_done_qty' => $processProgress['process_done_qty'],
+            'process_progress_pct' => $processProgress['process_progress_pct'],
+            'stocked_qty' => $stockedQty,
+            'progress_pct' => $totalQty ? (int) round($doneQty / $totalQty * 100) : 0,
+            'stock_progress_pct' => $totalQty ? (int) round($stockedQty / $totalQty * 100) : 0,
+            'due_flag' => $dueFlag,
+            'delay_days' => $delayDays,
+            'fulfillment_status' => $fulfillmentStatus,
+            'fulfillment_status_label' => $labels[$fulfillmentStatus] ?? $fulfillmentStatus,
+            'tasks_count' => $tasks->count(),
+            'completed_tasks' => $tasks->where('status', ProdTask::STATUS_DONE)->count(),
+            'paused_tasks' => $tasks->where('status', ProdTask::STATUS_PAUSED)->count(),
+            'task_status' => $taskStatus,
+            'plan_start' => $planStart?->format('Y-m-d H:i'),
+            'plan_end' => $planEnd?->format('Y-m-d H:i'),
+            'forecast_end' => $forecastEnd?->format('Y-m-d H:i'),
+            'actual_end' => $actualEnd?->format('Y-m-d H:i'),
+        ];
+    }
+
+    /** 按 task_id + op_type 一次性聚合工序计划量和报工净量，避免逐订单查询报工明细。 */
+    private function processProgressByTask(Collection $orders): array
+    {
+        $taskIds = $orders->flatMap(fn (Order $order) => $order->lines->flatMap(fn ($line) => $line->tasks ?? collect()))
+            ->pluck('id')->unique()->values()->all();
+        if ($taskIds === []) {
+            return [];
+        }
+
+        $plans = DB::table('task_schedules')
+            ->whereIn('task_id', $taskIds)
+            ->select('task_id', 'op_type', DB::raw('SUM(qty) AS plan_qty'))
+            ->groupBy('task_id', 'op_type')
+            ->get();
+        $reports = DB::table('task_schedules')
+            ->join('work_reports', 'work_reports.schedule_id', '=', 'task_schedules.id')
+            ->whereIn('task_schedules.task_id', $taskIds)
+            ->select('task_schedules.task_id', 'task_schedules.op_type', DB::raw('SUM(work_reports.qty) AS done_qty'))
+            ->groupBy('task_schedules.task_id', 'task_schedules.op_type')
+            ->get()
+            ->keyBy(fn ($row) => $row->task_id.'|'.$row->op_type);
+
+        $progress = [];
+        foreach ($plans as $stage) {
+            $taskId = (int) $stage->task_id;
+            $key = $taskId.'|'.$stage->op_type;
+            $progress[$taskId] ??= ['process_plan_qty' => 0, 'process_done_qty' => 0];
+            $progress[$taskId]['process_plan_qty'] += (int) $stage->plan_qty;
+            $progress[$taskId]['process_done_qty'] += max(0, (int) ($reports->get($key)?->done_qty ?? 0));
+        }
+
+        return $progress;
+    }
+
+    /**
+     * 汇总订单下各任务的工序推进工作量；无生产任务时兼容订单行完成量。
+     *
+     * @param  array<int, array{process_plan_qty:int, process_done_qty:int}>  $progressByTask
+     * @return array{process_plan_qty:int, process_done_qty:int, process_progress_pct:float|int}
+     */
+    private function orderProcessProgress(Collection $tasks, Collection $lines, int $totalQty, array $progressByTask): array
+    {
+        $planQty = 0;
+        $doneQty = 0;
+        foreach ($tasks as $task) {
+            $progress = $progressByTask[$task->id] ?? null;
+            if ($progress === null) {
+                continue;
+            }
+
+            $planQty += $progress['process_plan_qty'];
+            $doneQty += $progress['process_done_qty'];
+        }
+
+        // 兼容历史上没有拆出生产任务、只在订单产品行上记完成量的数据。
+        if ($tasks->isEmpty()) {
+            $planQty = $totalQty;
+            $doneQty = max(0, (int) $lines->sum('done_qty'));
+        }
+
+        return [
+            'process_plan_qty' => $planQty,
+            'process_done_qty' => $doneQty,
+            'process_progress_pct' => $planQty > 0 ? min(100, round($doneQty / $planQty * 100, 1)) : 0,
         ];
     }
 

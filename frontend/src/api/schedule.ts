@@ -167,6 +167,11 @@ export const scheduleApi = {
     return request({ url: '/schedule/suggestions', method: 'get', params: { status } })
   },
 
+  /** 全量刷新建议层，不修改正式排程 */
+  refreshSuggestions(): Promise<{ task_count: number }> {
+    return request({ url: '/schedule/suggestions/refresh', method: 'post' })
+  },
+
   /** 采纳建议：受影响任务未完工工序计划对齐预计，采纳后仍可手动调整 */
   acceptSuggestion(id: number): Promise<{ task_id: number; version_id: number; aligned: number }> {
     return request({ url: `/schedule/suggestions/${id}/accept`, method: 'post' })

@@ -39,6 +39,16 @@ class ScheduleSuggestionController extends Controller
     }
 
     /**
+     * 全量刷新建议层：只重新评估建议，不修改正式排程。
+     */
+    public function refresh(): JsonResponse
+    {
+        $taskCount = $this->suggestionService->refreshAllScheduledTasks();
+
+        return $this->ok(['task_count' => $taskCount], "顺延建议已全量刷新，共检查 {$taskCount} 个任务");
+    }
+
+    /**
      * 采纳建议：受影响任务未完工工序 plan 对齐 forecast（版本快照+留痕）
      */
     public function accept(Request $request, int $id): JsonResponse

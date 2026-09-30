@@ -14,11 +14,11 @@ use Illuminate\Support\Facades\DB;
 /**
  * 顺延建议服务（APS一期：建议层）
  *
- * 报工滞后导致 forecast 破交期/偏差超阈值 → 系统生成顺延建议（pending）；
+ * 报工滞后或正式排程变化导致 forecast 破交期/偏差超阈值 → 系统生成/刷新顺延建议（pending）；
  * 计划员一键采纳 → 受影响任务未完工工序 plan 对齐 forecast（版本快照+留痕）；
  * 驳回 → dismissed 留痕。
  *
- * 铁律：手工排产是铁保底——建议只在报工后生成，采纳是计划员显式动作，
+ * 铁律：手工排产是铁保底——建议只生成/刷新建议，采纳是计划员显式动作，
  * 系统绝不自动改排程；采纳后仍可手动调整。
  */
 class SuggestionService
@@ -38,6 +38,59 @@ class SuggestionService
      */
     public function evaluateAfterReport(ProdTask $task, ?int $triggerReportId): void
     {
+        $this->evaluateTask($task, $triggerReportId);
+    }
+
+    /**
+     * 正式排程变更后刷新指定任务的建议。
+     *
+     * 手工排产、产能重算、插单和算法结果采纳都会改变 plan/forecast；这些变化
+     * 不应自动采纳建议，但必须让建议内容与当前排程重新对齐。
+     *
+     * @param iterable<int|string> $taskIds
+     */
+    public function refreshForTasks(iterable $taskIds): int
+    {
+        $ids = collect($taskIds)
+            ->map(fn ($id): int => (int) $id)
+            ->filter(fn (int $id): bool => $id > 0)
+            ->unique()
+            ->values();
+
+        foreach ($ids as $taskId) {
+            $task = ProdTask::find($taskId);
+            if ($task) {
+                $this->evaluateTask($task, null);
+            }
+        }
+
+        return $ids->count();
+    }
+
+    /** 刷新当前排程任务及已有待处理建议，供回滚和页面手动刷新使用。 */
+    public function refreshAllScheduledTasks(): int
+    {
+        $taskIds = TaskSchedule::query()
+            ->where('is_interrupted', 0)
+            ->whereHas('task', fn ($query) => $query->where('status', '!=', ProdTask::STATUS_DONE))
+            ->pluck('task_id')
+            ->merge(
+                ScheduleSuggestion::query()
+                    ->where('status', ScheduleSuggestion::STATUS_PENDING)
+                    ->whereNotNull('task_id')
+                    ->pluck('task_id'),
+            );
+
+        return $this->refreshForTasks($taskIds);
+    }
+
+    /**
+     * 按当前任务排程评估建议。
+     *
+     * @param int|null $triggerReportId 报工触发时填写；排程变化刷新时为空
+     */
+    private function evaluateTask(ProdTask $task, ?int $triggerReportId): void
+    {
         $task = $task->fresh();
         if (! $task) {
             return;
@@ -49,6 +102,7 @@ class SuggestionService
             ->get();
 
         if ($rows->isEmpty()) {
+            $this->expirePending($task->id);
             return;
         }
 
@@ -73,6 +127,7 @@ class SuggestionService
         }
 
         if ($reasons === []) {
+            $this->expirePending($task->id);
             return;
         }
 
@@ -106,8 +161,26 @@ class SuggestionService
                 'affected' => $affected,
                 'delayed_orders' => $delayedOrders,
                 'reason' => implode('；', $reasons),
+                'processed_by' => null,
+                'processed_at' => null,
             ],
         );
+    }
+
+    /** 当前排程已恢复时，让旧 pending 建议退出待处理清单并保留留痕。 */
+    private function expirePending(int $taskId): void
+    {
+        ScheduleSuggestion::query()
+            ->where('task_id', $taskId)
+            ->where('status', ScheduleSuggestion::STATUS_PENDING)
+            ->where('type', ScheduleSuggestion::TYPE_POSTPONE)
+            ->update([
+                'status' => ScheduleSuggestion::STATUS_EXPIRED,
+                'reason' => '系统自动失效：当前排程调整后已不再满足顺延条件',
+                'processed_by' => null,
+                'processed_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ]);
     }
 
     /**

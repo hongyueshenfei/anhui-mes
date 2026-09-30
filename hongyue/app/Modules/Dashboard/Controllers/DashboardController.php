@@ -29,12 +29,12 @@ class DashboardController extends Controller
     }
 
     /**
-     * 订单进度总览（待排/在产/逾期/完成 分区）
-     * GET /api/dashboard/order-overview?keyword=&due_flag=
+     * 订单履约总览（完成/延期/预计延期/未开工/暂停）
+     * GET /api/dashboard/order-overview?keyword=&due_flag=&fulfillment_status=
      */
     public function orderOverview(Request $request): JsonResponse
     {
-        return $this->ok($this->dashboardService->orderOverview($request->only(['keyword', 'due_flag'])));
+        return $this->ok($this->dashboardService->orderOverview($request->only(['keyword', 'due_flag', 'fulfillment_status'])));
     }
 
     /**

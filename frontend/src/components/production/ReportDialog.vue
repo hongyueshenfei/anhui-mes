@@ -1,6 +1,6 @@
 <template>
-  <el-dialog v-model="dialogVisible" title="手动报工 · 关联工单" width="620px" @closed="onClosed">
-    <el-form label-width="100px">
+  <el-dialog v-model="dialogVisible" class="report-dialog" title="手动报工 · 关联工单" width="700px" @closed="onClosed">
+    <el-form label-width="96px" class="report-form">
       <el-form-item label="工单" required>
         <el-select
           v-model="reportForm.taskId"
@@ -13,7 +13,7 @@
           <el-option
             v-for="o in taskOptions"
             :key="o.taskId"
-            :label="`${o.order_no} · ${o.product}（${o.task_no}）`"
+            :label="`${o.task_no} · ${o.product}`"
             :value="o.taskId"
           />
         </el-select>
@@ -21,7 +21,8 @@
       <el-form-item v-if="currentTask" label="任务">
         <div class="report-task-info">
           <el-tag size="small">{{ currentTask.task_no }}</el-tag>
-          <span>{{ currentTask.product?.name ?? '' }} · 计划 {{ currentTask.qty }} 件 · 已完工 {{ currentTask.done_qty ?? 0 }} 件</span>
+          <span class="task-product">{{ currentTask.product?.name ?? '' }}</span>
+          <span class="task-meta">计划 {{ currentTask.qty }} 件 · 已完工 {{ currentTask.done_qty ?? 0 }} 件</span>
         </div>
       </el-form-item>
       <el-form-item label="工序">
@@ -34,21 +35,23 @@
           />
         </el-select>
       </el-form-item>
-      <el-form-item label="合格数" required>
-        <!-- 不设 max 截断：超量时明确报错（工序链校验），不允许静默修改 -->
-        <el-input-number v-model="reportForm.qty" :min="1" :max="10000000" style="width: 100%" />
-      </el-form-item>
-      <el-alert v-if="chainError" :title="chainError" type="warning" :closable="false" show-icon style="margin: 0 0 12px 100px" />
-      <el-form-item label="次品数">
-        <el-input-number v-model="reportForm.defectQty" :min="0" style="width: 100%" />
-      </el-form-item>
-      <el-alert title="当前由班组长或统计员统一填报，不区分个人作业人。" type="info" :closable="false" show-icon />
+      <div class="quantity-grid">
+        <el-form-item label="合格数" required>
+          <!-- 不设 max 截断：超量时明确报错（工序链校验），不允许静默修改 -->
+          <el-input-number v-model="reportForm.qty" :min="1" :max="10000000" style="width: 100%" />
+        </el-form-item>
+        <el-form-item label="次品数">
+          <el-input-number v-model="reportForm.defectQty" :min="0" style="width: 100%" />
+        </el-form-item>
+      </div>
+      <el-alert v-if="chainError" class="inline-alert chain-alert" :title="chainError" type="warning" :closable="false" show-icon />
+      <el-alert class="inline-alert" title="当前由班组长或统计员统一填报，不区分个人作业人。" type="info" :closable="false" show-icon />
       <el-form-item label="机台/产线">
         <el-select v-model="reportForm.machineId" placeholder="默认带出排产资源，可修改" clearable filterable style="width: 100%">
           <el-option v-for="m in machines" :key="m.id" :label="m.name" :value="m.id" />
         </el-select>
       </el-form-item>
-      <el-form-item label="实际作业时间" required>
+      <el-form-item label="实际作业时间" required class="time-form-item">
         <div class="report-time-range">
           <el-date-picker
             v-model="reportForm.startTime"
@@ -58,7 +61,7 @@
             placeholder="开始时间"
             style="width: 100%"
           />
-          <span>至</span>
+          <span class="time-separator">至</span>
           <el-date-picker
             v-model="reportForm.endTime"
             type="datetime"
@@ -294,14 +297,35 @@ function currentReportTime(): string {
 </script>
 
 <style scoped>
+.report-form :deep(.el-form-item) { margin-bottom: 14px; }
+.report-form :deep(.el-form-item__label) { white-space: nowrap; color: #475569; }
+.report-form :deep(.el-form-item__content) { min-width: 0; }
+.quantity-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.quantity-grid :deep(.el-form-item) { min-width: 0; }
+.inline-alert { width: calc(100% - 96px); box-sizing: border-box; margin: 2px 0 14px 96px; }
+.chain-alert { margin-top: -2px; }
 .report-task-info {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+  min-width: 0;
   font-size: 13px;
   color: #334155;
 }
-.report-time-range { display: flex; align-items: center; gap: 8px; width: 100%; }
-.report-time-range > span { color: #94a3b8; flex: 0 0 auto; }
+.task-product { color: #334155; font-weight: 600; }
+.task-meta { color: #64748b; }
+.report-time-range { display: flex; align-items: center; gap: 8px; width: 100%; min-width: 0; }
+.report-time-range :deep(.el-date-editor) { flex: 1 1 0; min-width: 0; width: auto !important; }
+.time-separator { color: #94a3b8; flex: 0 0 auto; }
 .time-hint { margin-top: 5px; color: #94a3b8; font-size: 12px; line-height: 18px; }
+:deep(.report-dialog .el-dialog__body) { padding: 18px 22px 6px; }
+:deep(.report-dialog .el-dialog__footer) { padding: 12px 22px 18px; }
+
+@media (max-width: 640px) {
+  .quantity-grid { grid-template-columns: 1fr; gap: 0; }
+  .inline-alert { width: 100%; margin-left: 0; }
+  .report-time-range { align-items: stretch; flex-direction: column; gap: 6px; }
+  .time-separator { display: none; }
+}
 </style>

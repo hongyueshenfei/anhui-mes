@@ -258,7 +258,7 @@ class OrderController extends Controller
 
         $data = $request->validate([
             'customer_name' => ['sometimes', 'string', 'max:128'],
-            'priority' => ['sometimes', 'integer', 'between:1,5'],
+            'priority' => ['sometimes', 'integer', 'between:0,5'],
             'delivery_date' => ['sometimes', 'nullable', 'date'],
             'remark' => ['sometimes', 'nullable', 'string', 'max:255'],
         ]);

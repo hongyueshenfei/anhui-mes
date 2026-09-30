@@ -26,6 +26,9 @@
       <div class="toolbar-actions">
         <el-tag type="info" effect="plain">报工日期：{{ workDate }}</el-tag>
         <el-button :loading="loading" @click="load">刷新</el-button>
+        <el-button v-if="auth.canOperateReports" type="primary" plain @click="emit('create-report')">
+          新增任务报工
+        </el-button>
         <el-button type="primary" :loading="saving" :disabled="!pendingRows.length" @click="saveBatch">
           保存本批（{{ pendingRows.length }} 行）
         </el-button>
@@ -49,8 +52,9 @@
       border
       stripe
       height="calc(100vh - 365px)"
+      :row-class-name="reportRowClass"
       class="report-table"
-      empty-text="当天没有已接受的排程任务"
+      empty-text="当天没有已接受的排程任务，可点击“新增任务报工”补录"
     >
       <el-table-column type="index" label="#" width="52" fixed="left" align="center" />
       <el-table-column label="机台/产线" width="150" fixed="left">
@@ -59,10 +63,9 @@
           <div class="secondary-cell">{{ row.machine?.name ?? '未分配资源' }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="工单号" width="145" fixed="left">
+      <el-table-column label="工单号" width="145" fixed="left" show-overflow-tooltip>
         <template #default="{ row }">
-          <div class="primary-cell">{{ row.task_no }}</div>
-          <div class="secondary-cell">{{ row.order_no ?? '无订单号' }}</div>
+          <div class="primary-cell task-no-cell" :title="row.task_no">{{ row.task_no }}</div>
         </template>
       </el-table-column>
       <el-table-column label="产品" min-width="190" fixed="left">
@@ -71,8 +74,25 @@
           <div class="secondary-cell">{{ row.product?.code ?? '-' }}</div>
         </template>
       </el-table-column>
-      <el-table-column label="工序" width="115">
-        <template #default="{ row }"><el-tag size="small" effect="plain">{{ row.operation.seq }} · {{ row.operation.name }}</el-tag></template>
+      <el-table-column label="工序" width="150">
+        <template #default="{ row }">
+          <el-select
+            v-if="row.operation_options?.length"
+            v-model="row.selected_schedule_id"
+            class="operation-select"
+            size="small"
+            :aria-label="`选择工序：${row.task_no}`"
+            @change="changeOperation(row)"
+          >
+            <el-option
+              v-for="option in row.operation_options"
+              :key="option.schedule_id"
+              :label="`${option.operation.seq} · ${option.operation.name}`"
+              :value="option.schedule_id"
+            />
+          </el-select>
+          <el-tag v-else size="small" effect="plain">{{ row.operation.seq }} · {{ row.operation.name }}</el-tag>
+        </template>
       </el-table-column>
       <el-table-column label="计划时段" width="180">
         <template #default="{ row }">
@@ -112,34 +132,49 @@
       </el-table-column>
       <el-table-column label="实际作业时间" width="365" align="center">
         <template #default="{ row }">
-          <div class="time-range-cell">
-            <el-date-picker
-              v-model="row.input_start_time"
-              type="datetime"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              format="MM-DD HH:mm"
-              placeholder="开始"
+          <div class="work-time-editor">
+            <div class="time-range-cell">
+              <el-date-picker
+                v-model="row.input_start_time"
+                class="work-time-picker"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                format="MM-DD HH:mm"
+                placeholder="开始时间"
+                aria-label="实际作业开始时间"
+                size="small"
+                :clearable="true"
+              />
+              <span class="time-separator">至</span>
+              <el-date-picker
+                v-model="row.input_end_time"
+                class="work-time-picker"
+                type="datetime"
+                value-format="YYYY-MM-DD HH:mm:ss"
+                format="MM-DD HH:mm"
+                placeholder="结束时间"
+                aria-label="实际作业结束时间"
+                size="small"
+                :clearable="true"
+              />
+            </div>
+            <el-button
+              v-if="row.plan_start && row.plan_end"
+              class="fill-plan-button"
+              link
+              type="primary"
               size="small"
-              :clearable="true"
-            />
-            <span>至</span>
-            <el-date-picker
-              v-model="row.input_end_time"
-              type="datetime"
-              value-format="YYYY-MM-DD HH:mm:ss"
-              format="MM-DD HH:mm"
-              placeholder="结束"
-              size="small"
-              :clearable="true"
-            />
+              @click="fillPlanTime(row)"
+            >
+              按计划填充
+            </el-button>
           </div>
         </template>
       </el-table-column>
-      <el-table-column label="班次" width="105">
+      <el-table-column v-if="showShiftColumn" label="班次" width="105">
         <template #default="{ row }">
           <el-select v-model="row.shift_code" class="cell-select">
-            <el-option label="白班" value="day" />
-            <el-option label="夜班" value="night" />
+            <el-option v-for="option in shiftOptions(row)" :key="option.code" :label="option.label" :value="option.code" />
           </el-select>
         </template>
       </el-table-column>
@@ -159,7 +194,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import dayjs from 'dayjs'
 import { ElMessage } from 'element-plus'
 import { productionApi } from '@/api/production'
@@ -167,8 +202,14 @@ import type { DailyReportContext, DailyReportRow } from '@/types/production'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
-const emit = defineEmits<{ (event: 'saved'): void }>()
-const workDate = ref(dayjs().format('YYYY-MM-DD'))
+const props = defineProps<{ refreshToken?: number }>()
+const emit = defineEmits<{
+  (event: 'saved'): void
+  (event: 'create-report'): void
+}>()
+const configuredNow = String(import.meta.env.VITE_TEST_NOW ?? '').trim()
+const initialNow = configuredNow ? dayjs(configuredNow) : dayjs()
+const workDate = ref((initialNow.isValid() ? initialNow : dayjs()).format('YYYY-MM-DD'))
 const keyword = ref('')
 const workshopFilter = ref<number | undefined>()
 const machineFilter = ref<number | undefined>()
@@ -197,8 +238,13 @@ const filteredSummary = computed(() => filteredRows.value.reduce((summary, row) 
   summary.remaining_qty += row.remaining_qty
   return summary
 }, { planned_qty: 0, reported_qty: 0, remaining_qty: 0 }))
+const showShiftColumn = computed(() => filteredRows.value.some((row) => row.machine?.shift_mode === 'two_shift'))
 
 onMounted(load)
+
+watch(() => props.refreshToken, (value, previous) => {
+  if (value !== undefined && value !== previous) void load()
+})
 
 async function load(): Promise<void> {
   loading.value = true
@@ -206,13 +252,15 @@ async function load(): Promise<void> {
   try {
     const result = await productionApi.dailyReportContext({ work_date: workDate.value })
     context.value = result
-    rows.value = result.rows.map((row) => ({
-      ...row,
+    workDate.value = result.work_date
+      rows.value = result.rows.map((row) => ({
+        ...row,
       input_qty: null,
       input_defect_qty: null,
-      input_start_time: null,
-      input_end_time: null,
-      shift_code: defaultShift(row),
+        input_start_time: null,
+        input_end_time: null,
+        selected_schedule_id: row.schedule_id,
+        shift_code: defaultShift(row),
       remark: '',
     }))
   } catch (error) {
@@ -253,7 +301,7 @@ async function saveBatch(): Promise<void> {
     for (const row of pendingRows.value) {
       await productionApi.submitReport({
         task_id: row.task_id,
-        schedule_id: row.schedule_id,
+        schedule_id: row.selected_schedule_id ?? row.schedule_id,
         machine_id: row.machine?.id ?? null,
         qty: row.input_qty ?? 0,
         defect_qty: row.input_defect_qty ?? 0,
@@ -262,7 +310,7 @@ async function saveBatch(): Promise<void> {
         end_time: row.input_end_time ?? undefined,
         work_date: workDate.value,
         shift_code: row.shift_code,
-        client_request_id: `pc-${row.schedule_id}-${workDate.value}-${Date.now()}-${saved}`,
+        client_request_id: `pc-${row.task_id}-${row.selected_schedule_id ?? row.schedule_id}-${workDate.value}-${Date.now()}-${saved}`,
         source: 'leader_batch',
         remark: row.remark.trim() || undefined,
       })
@@ -280,8 +328,49 @@ async function saveBatch(): Promise<void> {
 }
 
 function defaultShift(row: DailyReportContext['rows'][number]): 'day' | 'night' {
+  if (row.machine?.shift_mode !== 'two_shift') return 'day'
   const hour = dayjs(row.plan_start).hour()
   return hour >= 20 || hour < 8 ? 'night' : 'day'
+}
+
+function shiftOptions(row: DailyReportRow): Array<{ code: 'day' | 'night'; label: string }> {
+  return row.machine?.shift_mode === 'two_shift'
+    ? [{ code: 'day', label: '白班' }, { code: 'night', label: '夜班' }]
+    : [{ code: 'day', label: '白班' }]
+}
+
+function fillPlanTime(row: DailyReportRow): void {
+  row.input_start_time = row.plan_start
+  row.input_end_time = row.plan_end
+}
+
+function changeOperation(row: DailyReportRow): void {
+  const option = row.operation_options?.find((item) => item.schedule_id === row.selected_schedule_id)
+  if (!option) return
+
+  const previousPlanStart = row.plan_start
+  const previousPlanEnd = row.plan_end
+  row.operation = option.operation
+  row.machine = option.machine
+  row.plan_start = option.plan_start
+  row.plan_end = option.plan_end
+  row.planned_qty = option.planned_qty
+  row.reported_qty = option.reported_qty
+  row.remaining_qty = option.remaining_qty
+  row.schedule_status = option.schedule_status
+  if (row.input_start_time === previousPlanStart) row.input_start_time = option.plan_start
+  if (row.input_end_time === previousPlanEnd) row.input_end_time = option.plan_end
+  row.shift_code = defaultShift(row)
+}
+
+function reportRowClass({ row }: { row: DailyReportRow }): string {
+  return hasDraft(row) ? 'is-pending' : ''
+}
+
+function hasDraft(row: DailyReportRow): boolean {
+  return row.input_qty !== null
+    || (row.input_defect_qty ?? 0) > 0
+    || Boolean(row.input_start_time || row.input_end_time || row.remark.trim())
 }
 
 function fillRemaining(row: DailyReportRow): void {
@@ -289,14 +378,14 @@ function fillRemaining(row: DailyReportRow): void {
 }
 
 function statusLabel(row: DailyReportRow): string {
-  if (row.input_qty !== null || (row.input_defect_qty ?? 0) > 0) return '待保存'
+  if (hasDraft(row)) return '待保存'
   if (row.remaining_qty <= 0) return '已完成'
   if (row.reported_qty > 0) return '部分完成'
   return '待报工'
 }
 
 function statusType(row: DailyReportRow): 'success' | 'warning' | 'info' | 'primary' {
-  if (row.input_qty !== null || (row.input_defect_qty ?? 0) > 0) return 'primary'
+  if (hasDraft(row)) return 'primary'
   if (row.remaining_qty <= 0) return 'success'
   if (row.reported_qty > 0) return 'warning'
   return 'info'
@@ -331,17 +420,24 @@ function uniqueBy<T extends { id?: number | null }>(items: Array<T | null>, key:
 .summary-item strong { display: block; margin-top: 3px; color: #1e293b; font-size: 17px; }
 .summary-tip { padding: 0 16px; color: #64748b; font-size: 12px; }
 .primary-cell { color: #1e293b; font-weight: 600; line-height: 20px; }
+.task-no-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .secondary-cell { color: #94a3b8; font-size: 12px; line-height: 18px; }
 .success-text { color: #15803d !important; }
 .warning-text { color: #b45309 !important; }
 .input-with-action { display: flex; align-items: center; gap: 4px; }
 .cell-input { width: 100px; }
 .cell-select { width: 100%; }
-.time-range-cell { display: flex; align-items: center; gap: 4px; }
-.time-range-cell > span { color: #94a3b8; flex: 0 0 auto; }
-.time-range-cell :deep(.el-date-editor) { width: 160px; }
+.operation-select { width: 100%; }
+.work-time-editor { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
+.time-range-cell { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
+.time-separator { color: #64748b; flex: 0 0 auto; font-size: 12px; }
+.time-range-cell :deep(.work-time-picker) { flex: 1 1 0; min-width: 0; width: auto; }
+.time-range-cell :deep(.work-time-picker .el-input__wrapper) { padding: 1px 8px; }
+.fill-plan-button { flex: 0 0 auto; padding: 0 2px; font-size: 12px; white-space: nowrap; }
 .grid-alert { margin: 0; }
 .grid-footer { justify-content: space-between; color: #94a3b8; font-size: 12px; }
 :deep(.report-table .el-table__cell) { padding: 7px 0; }
 :deep(.report-table .cell) { line-height: 20px; }
+:deep(.report-table .is-pending td) { background: #eff6ff !important; }
+:deep(.report-table .is-pending .cell) { color: #1d4ed8; }
 </style>

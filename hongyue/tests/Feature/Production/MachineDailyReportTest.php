@@ -75,9 +75,14 @@ class MachineDailyReportTest extends TestCase
             ->assertJsonPath('data.rows.0.schedule_id', $schedule->id)
             ->assertJsonPath('data.rows.0.task_id', $schedule->task_id)
             ->assertJsonPath('data.rows.0.order_no', $schedule->task->line->order->order_no)
+            ->assertJsonPath('data.rows.0.machine.shift_mode', $schedule->machine->shift_mode)
             ->assertJsonStructure([
                 'data' => [
-                    'rows' => [['schedule_id', 'task_id', 'task_no', 'operation', 'machine', 'planned_qty', 'reported_qty', 'remaining_qty']],
+                    'rows' => [[
+                        'schedule_id', 'task_id', 'task_no', 'operation', 'machine',
+                        'planned_qty', 'reported_qty', 'remaining_qty',
+                        'operation_options' => [['schedule_id', 'operation', 'machine', 'plan_start', 'plan_end', 'planned_qty', 'reported_qty', 'remaining_qty', 'schedule_status']],
+                    ]],
                     'summary' => ['row_count', 'planned_qty', 'reported_qty', 'remaining_qty'],
                 ],
             ]);

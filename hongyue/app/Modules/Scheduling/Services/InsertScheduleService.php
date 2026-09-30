@@ -31,6 +31,7 @@ class InsertScheduleService
         private readonly ScheduleEngineService $engine,
         private readonly VersionService $versionService,
         private readonly OrderService $orderService,
+        private readonly SuggestionService $suggestionService,
     ) {
     }
 
@@ -260,6 +261,7 @@ class InsertScheduleService
                     $this->orderService->syncStatus($order);
                 }
             }
+            $this->suggestionService->refreshForTasks($taskIds);
 
             return [
                 'version' => $version->load('creator:id,name,employee_no'),

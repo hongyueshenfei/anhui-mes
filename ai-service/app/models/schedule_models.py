@@ -33,7 +33,7 @@ class TaskIn(BaseModel):
     product_code: str = ""
     product_name: str = ""
     qty: int = Field(gt=0)
-    priority: int = Field(ge=1, le=5)
+    priority: int = Field(ge=0, le=5)
     delivery_date: Optional[date] = None
     mold_id: Optional[int] = None
     mold_code: str = ""

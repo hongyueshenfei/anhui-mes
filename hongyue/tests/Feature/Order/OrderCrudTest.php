@@ -74,6 +74,26 @@ class OrderCrudTest extends TestCase
         $this->assertDatabaseCount('orders', 0);
     }
 
+    public function test_priority_zero_is_accepted_as_most_urgent(): void
+    {
+        $response = $this->api($this->token)->postJson('/api/orders', [
+            'customer_name' => 'P0 紧急客户',
+            'priority' => 0,
+            'lines' => [
+                ['product_code' => 'P-0001', 'qty' => 100, 'priority' => 0],
+            ],
+        ]);
+
+        $response->assertStatus(201)
+            ->assertJsonPath('data.priority', 0);
+
+        $this->assertDatabaseHas('order_lines', [
+            'order_id' => $response->json('data.id'),
+            'priority' => 0,
+        ]);
+        $this->assertDatabaseHas('prod_tasks', ['priority' => 0]);
+    }
+
     public function test_create_order_qty_must_be_positive(): void
     {
         $response = $this->api($this->token)->postJson('/api/orders', [

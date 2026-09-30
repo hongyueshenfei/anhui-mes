@@ -145,6 +145,10 @@ class ChangeoverService
         $taskStatus = is_array($row) ? ($row['task_status'] ?? null) : null;
         // 已完工行应与 ScheduleEngineService::effectiveOccupancyInterval 保持一致：
         // 预测字段是未完工滚动用的，不能让历史完工任务继续占用机台。
+        // 已暂停行已释放当前资源时段，也不作为新任务的前序模具占用。
+        if ($status === TaskSchedule::STATUS_PAUSED) {
+            return null;
+        }
         if ($status === TaskSchedule::STATUS_DONE || $taskStatus === ProdTask::STATUS_DONE) {
             return $end;
         }

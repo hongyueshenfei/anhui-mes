@@ -166,8 +166,8 @@ class ExcelImportService
         $priority = $row['priority'] === null || trim((string) $row['priority']) === ''
             ? 3
             : (int) $row['priority'];
-        if ($priority < 1 || $priority > 5) {
-            return '优先级必须在 1-5 之间';
+        if ($priority < 0 || $priority > 5) {
+            return '优先级必须在 0-5 之间（P0 最紧急）';
         }
 
         $row['product_code'] = $code;

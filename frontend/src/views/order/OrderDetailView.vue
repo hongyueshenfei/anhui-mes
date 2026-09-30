@@ -29,7 +29,7 @@
           <el-tag size="small" :type="statusType(detail.status)">{{ statusLabel(detail.status) }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="优先级">
-          <el-tag size="small" :type="priorityType(detail.priority)">P{{ detail.priority }}</el-tag>
+          <el-tag size="small" :type="priorityType(detail.priority)" :effect="detail.priority === 0 ? 'dark' : 'light'">P{{ detail.priority }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="期望交期">{{ fmtDate(detail.delivery_date) }}</el-descriptions-item>
         <el-descriptions-item label="创建人">{{ detail.creator?.name ?? '-' }}</el-descriptions-item>
@@ -294,7 +294,8 @@
               <el-input v-model="editForm.customer_name" placeholder="客户名称" />
             </el-form-item>
             <el-form-item label="优先级">
-              <el-input-number v-model="editForm.priority" :min="1" :max="5" />
+              <el-input-number v-model="editForm.priority" :min="0" :max="5" controls-position="right" />
+              <span class="form-tip">P0 最紧急</span>
             </el-form-item>
             <el-form-item label="期望交期">
               <el-date-picker v-model="editForm.delivery_date" type="date" value-format="YYYY-MM-DD" style="width: 180px" />
@@ -1269,8 +1270,8 @@ function overdueType(s: OverdueState): 'danger' | 'success' | 'info' {
 function overdueLabel(s: OverdueState): string {
   return ({ overdue: '逾期', ok: '正常', unscheduled: '未排产' } as const)[s]
 }
-function priorityType(p: number): 'danger' | 'warning' | 'info' {
-  return p >= 5 ? 'danger' : p >= 4 ? 'warning' : 'info'
+function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
+  return p === 0 ? 'danger' : p === 1 ? 'warning' : p === 2 ? 'primary' : 'info'
 }
 function logActionLabel(a: string): string {
   return { edit: '编辑', start: '开始', complete: '完结', revoke: '撤销', route_confirm: '工艺确认' }[a] ?? a
@@ -1278,6 +1279,12 @@ function logActionLabel(a: string): string {
 </script>
 
 <style scoped>
+.form-tip {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .detail-header {
   display: flex;
   justify-content: space-between;

@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 # 贪心启发式（保底算法，确定性）
 # ---------------------------------------------------------------------------
 def heuristic_solve(model: InternalModel) -> dict[int, tuple[int, int]]:
-    """贪心：优先级降序 + 交期升序（EDD）排序；每任务选最早完成的可用机台。
+    """贪心：优先级升序（P0 最紧急）+ 交期升序（EDD）排序；每任务选最早完成的可用机台。
 
     约束：同机台无重叠（machine_until）；同模具不并发（mold_until）。
     返回 {task_id: (machine_id, start_epoch_min)}
@@ -34,7 +34,7 @@ def heuristic_solve(model: InternalModel) -> dict[int, tuple[int, int]]:
     ordered = sorted(
         model.tasks,
         key=lambda t: (
-            -t.priority,
+            t.priority,
             t.delivery_epoch_min if t.delivery_epoch_min is not None else 10**12,
             t.duration_minutes,
         ),
@@ -221,8 +221,9 @@ def cp_sat_solve(model: InternalModel, time_limit_sec: int) -> Optional[dict[int
         obj_tardiness,
         [sum(tardiness_parts) if tardiness_parts else cm.new_constant(0), cm.new_constant(500)],
     )
-    # 在相同完工/拖期结果下，优先级高的任务优先开工（priority 数值越大越紧急）。
-    priority_tie_break = sum(task_starts[t.id] * int(t.priority) for t in model.tasks)
+    # 在相同完工/拖期结果下，P0 最紧急的任务优先开工。
+    # 反向权重让数值越小的 priority 对开始时间惩罚越大。
+    priority_tie_break = sum(task_starts[t.id] * (6 - int(t.priority)) for t in model.tasks)
     cm.minimize(obj_makespan + obj_tardiness + priority_tie_break)
 
     solver = cp_model.CpSolver()

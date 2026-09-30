@@ -16,7 +16,10 @@ use Illuminate\Support\Facades\DB;
  */
 class ScheduleCapacityRecalculationService
 {
-    public function __construct(private readonly ScheduleEngineService $engine)
+    public function __construct(
+        private readonly ScheduleEngineService $engine,
+        private readonly SuggestionService $suggestionService,
+    )
     {
     }
 
@@ -137,6 +140,9 @@ class ScheduleCapacityRecalculationService
                 'plan_end' => $scheduleRows->max('plan_end'),
             ]);
         }
+
+        // 产能重算只改正式计划，不自动采纳建议；但建议层必须立即按新 forecast 刷新。
+        $this->suggestionService->refreshForTasks($taskIds);
 
         return ['task_count' => count($changedTaskIds), 'changed_count' => $changedCount];
     }

@@ -54,6 +54,8 @@ Route::prefix('schedule')->middleware('auth.api')->group(function () {
 
     // ---- APS 顺延建议（一期：建议层——系统生成，计划员采纳/驳回，绝不自动改排程） ----
     Route::get('/suggestions', [ScheduleSuggestionController::class, 'index'])->middleware('check.permission:schedule.view');
+    Route::post('/suggestions/refresh', [ScheduleSuggestionController::class, 'refresh'])
+        ->middleware('check.permission:schedule.manage')->middleware('audit.log:scheduling,suggestion_refresh');
     Route::post('/suggestions/{id}/accept', [ScheduleSuggestionController::class, 'accept'])
         ->middleware('check.permission:schedule.manage')->middleware('audit.log:scheduling,suggestion_accept');
     Route::post('/suggestions/{id}/dismiss', [ScheduleSuggestionController::class, 'dismiss'])

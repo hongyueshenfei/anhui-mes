@@ -13,6 +13,7 @@
             <el-radio-button value="pending">待处理</el-radio-button>
             <el-radio-button value="all">全部</el-radio-button>
           </el-radio-group>
+          <el-button size="small" type="primary" :loading="refreshing" @click="refreshAll">全量刷新建议</el-button>
           <el-button size="small" :icon="Refresh" @click="load">刷新</el-button>
         </div>
       </div>
@@ -94,6 +95,7 @@ import type { ScheduleSuggestion } from '@/types/schedule'
 
 const items = ref<ScheduleSuggestion[]>([])
 const loading = ref(false)
+const refreshing = ref(false)
 const busy = ref<number | null>(null)
 const statusFilter = ref<'pending' | 'all'>('pending')
 
@@ -108,6 +110,19 @@ async function load(): Promise<void> {
     items.value = []
   } finally {
     loading.value = false
+  }
+}
+
+async function refreshAll(): Promise<void> {
+  refreshing.value = true
+  try {
+    const result = await scheduleApi.refreshSuggestions()
+    ElMessage.success(`顺延建议已全量刷新，共检查 ${result.task_count} 个任务`)
+    await load()
+  } catch (e) {
+    ElMessage.error(e instanceof Error ? e.message : '刷新顺延建议失败')
+  } finally {
+    refreshing.value = false
   }
 }
 
@@ -147,10 +162,10 @@ async function dismiss(row: ScheduleSuggestion): Promise<void> {
 }
 
 function statusTag(s: string): 'warning' | 'success' | 'info' {
-  return ({ pending: 'warning', accepted: 'success', dismissed: 'info' }[s] ?? 'info') as 'warning' | 'success' | 'info'
+  return ({ pending: 'warning', accepted: 'success', dismissed: 'info', expired: 'info' }[s] ?? 'info') as 'warning' | 'success' | 'info'
 }
 function statusLabel(s: string): string {
-  return { pending: '待处理', accepted: '已采纳', dismissed: '已驳回' }[s] ?? s
+  return { pending: '待处理', accepted: '已采纳', dismissed: '已驳回', expired: '已自动失效' }[s] ?? s
 }
 function short(v: string | null): string {
   return v ? v.slice(0, 16) : '-'

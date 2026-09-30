@@ -135,6 +135,35 @@ class InsertShiftTest extends TestCase
         );
     }
 
+    public function test_paused_schedule_keeps_original_plan_for_display_but_releases_resource(): void
+    {
+        $b = $this->base();
+        $pausedTask = $this->createTask('P-0001', 1900);
+        $this->prepareMachineQueue([$pausedTask]);
+
+        $pausedTask->update(['status' => ProdTask::STATUS_PAUSED]);
+        $pausedTask->fresh()->schedules()->update(['status' => TaskSchedule::STATUS_PAUSED]);
+
+        $newTask = $this->createTask('P-0001', 1900);
+        $preview = $this->api($this->token)->postJson('/api/schedule/insert', [
+            'task_id' => $newTask->id,
+            'machine_id' => $this->machine('I-01')->id,
+            'plan_start' => $b->format('Y-m-d 08:00:00'),
+            'strategy' => 'wait',
+        ])->assertOk();
+
+        $chainStart = collect($preview->json('data.insert_chain'))->pluck('plan_start')->min();
+        $this->assertSame(
+            $b->format('Y-m-d H:i:s'),
+            $chainStart,
+            '已暂停排程保留原计划供甘特展示，但不应阻塞新的插单'
+        );
+        $this->assertSame(
+            TaskSchedule::STATUS_PAUSED,
+            $pausedTask->fresh()->schedules()->where('op_type', 'molding_injection')->value('status')
+        );
+    }
+
     public function test_insert_wait_uses_actual_end_as_current_occupancy_boundary(): void
     {
         $b = $this->base();

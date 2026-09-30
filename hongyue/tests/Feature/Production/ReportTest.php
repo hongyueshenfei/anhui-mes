@@ -77,17 +77,29 @@ class ReportTest extends TestCase
         $this->assertSame('in_progress', $task->fresh()->status, '首次报工任务进入生产中');
     }
 
-    public function test_future_report_time_is_rejected(): void
+    public function test_report_time_is_not_limited_by_current_time(): void
     {
         $task = $this->scheduledTask();
+        $futureStart = now()->addDay()->setTime(8, 0);
+        $futureEnd = $futureStart->copy()->addHours(2);
 
-        $this->api($this->token)->postJson('/api/reports', [
+        $response = $this->api($this->token)->postJson('/api/reports', [
             'task_id' => $task->id,
             'qty' => 100,
-            'report_time' => now()->addDay()->format('Y-m-d H:i:s'),
-        ])->assertStatus(422)->assertJsonPath('data.error_code', 'future_report_time');
+            'report_time' => $futureEnd->format('Y-m-d H:i:s'),
+            'start_time' => $futureStart->format('Y-m-d H:i:s'),
+            'end_time' => $futureEnd->format('Y-m-d H:i:s'),
+            'work_date' => $futureStart->format('Y-m-d'),
+        ])->assertStatus(201);
 
-        $this->assertDatabaseMissing('work_reports', ['task_id' => $task->id]);
+        $response->assertJsonPath('data.report.report_time', $futureEnd->format('Y-m-d H:i:s'));
+        $this->assertDatabaseHas('work_reports', [
+            'task_id' => $task->id,
+            'report_time' => $futureEnd->format('Y-m-d H:i:s'),
+            'start_time' => $futureStart->format('Y-m-d H:i:s'),
+            'end_time' => $futureEnd->format('Y-m-d H:i:s'),
+            'work_date' => $futureStart->format('Y-m-d'),
+        ]);
     }
 
     public function test_defect_qty_not_counted_in_good_progress(): void
@@ -159,6 +171,53 @@ class ReportTest extends TestCase
         $this->assertSame(2, WorkReport::where('task_id', $task->id)->count(), '台账只增不改（3 行中 2 行记录+初始？实为 2 条）');
     }
 
+    public function test_correction_copies_original_work_fields_and_hides_entry_after_full_offset(): void
+    {
+        $task = $this->scheduledTask();
+        $schedule = $task->schedules()->where('seq', 1)->firstOrFail();
+
+        $positiveResponse = $this->api($this->token)->postJson('/api/reports', [
+            'task_id' => $task->id,
+            'schedule_id' => $schedule->id,
+            'machine_id' => $schedule->machine_id,
+            'qty' => 30,
+            'source' => WorkReport::SOURCE_LEADER_BATCH,
+        ])->assertStatus(201);
+        $positiveId = (int) $positiveResponse->json('data.report.id');
+        $positive = WorkReport::findOrFail($positiveId);
+
+        $this->api($this->token)->postJson('/api/reports', [
+            'task_id' => $task->id,
+            'qty' => -30,
+            'correction_of_report_id' => $positiveId,
+            'remark' => '整笔报工更正',
+        ])->assertStatus(201);
+
+        $negative = WorkReport::where('correction_of_report_id', $positiveId)->firstOrFail();
+        foreach (['task_id', 'schedule_id', 'product_id', 'machine_id', 'shift_code', 'source'] as $field) {
+            $this->assertSame($positive->{$field}, $negative->{$field}, "冲减记录字段 {$field} 应复制原正报工");
+        }
+        $this->assertSame($positive->work_date?->format('Y-m-d'), $negative->work_date?->format('Y-m-d'));
+        $this->assertSame($positive->report_time?->format('Y-m-d H:i:s'), $negative->report_time?->format('Y-m-d H:i:s'));
+        $this->assertSame($positive->start_time?->format('Y-m-d H:i:s'), $negative->start_time?->format('Y-m-d H:i:s'));
+        $this->assertSame($positive->end_time?->format('Y-m-d H:i:s'), $negative->end_time?->format('Y-m-d H:i:s'));
+        $this->assertSame(-30, $negative->qty);
+
+        $rows = $this->api($this->token)
+            ->getJson('/api/reports?task_id='.$task->id)
+            ->assertOk()
+            ->json('data.data');
+        $positiveRow = collect($rows)->firstWhere('id', $positiveId);
+        $this->assertSame(0, (int) $positiveRow['correctable_qty'], '正报工全部冲减后不应再有冲减入口');
+
+        $this->api($this->token)->postJson('/api/reports', [
+            'task_id' => $task->id,
+            'qty' => -1,
+            'correction_of_report_id' => $positiveId,
+            'remark' => '重复冲减',
+        ])->assertStatus(422)->assertJsonPath('data.error_code', 'correction_exceeds_balance');
+    }
+
     public function test_route_operation_summary_does_not_double_apply_correction_sign(): void
     {
         $task = $this->scheduledTask();
@@ -187,6 +246,31 @@ class ReportTest extends TestCase
         $this->assertSame(70, $op['done_qty']);
         $this->assertSame(3.7, $op['percent']);
         $this->assertSame(-30, $correction->net_qty);
+    }
+
+    public function test_report_summary_supports_all_business_dimensions(): void
+    {
+        $task = $this->scheduledTask();
+        $schedule = $task->schedules()->where('seq', 1)->firstOrFail();
+
+        $this->api($this->token)->postJson('/api/reports', [
+            'task_id' => $task->id,
+            'schedule_id' => $schedule->id,
+            'machine_id' => $schedule->machine_id,
+            'qty' => 100,
+            'start_time' => now()->subHours(2)->format('Y-m-d H:i:s'),
+            'end_time' => now()->subHour()->format('Y-m-d H:i:s'),
+        ])->assertStatus(201);
+
+        foreach (['detail', 'daily', 'progress', 'delivery', 'resource', 'quality'] as $dimension) {
+            $response = $this->api($this->token)
+                ->getJson('/api/reports/summary?dimension='.$dimension)
+                ->assertOk();
+
+            $response->assertJsonPath('data.dimension', $dimension);
+            $this->assertIsArray($response->json('data.items'));
+            $this->assertGreaterThanOrEqual(1, $response->json('data.totals.report_count'));
+        }
     }
 
     public function test_task_detail_done_qty_uses_finished_process_only(): void

@@ -50,7 +50,7 @@
       <el-table-column prop="qty" label="数量" :width="colWidths.qty" align="center" />
       <el-table-column label="优先级" :width="colWidths.priority" align="center">
         <template #default="{ row }">
-          <el-tag size="small" :type="priorityType(row.priority)">P{{ row.priority }}</el-tag>
+          <el-tag size="small" :type="priorityType(row.priority)" :effect="row.priority === 0 ? 'dark' : 'light'">P{{ row.priority }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="delivery_date" label="期望交期" :width="colWidths.delivery_date" show-overflow-tooltip>
@@ -112,7 +112,8 @@
           <el-date-picker v-model="form.delivery_date" type="date" value-format="YYYY-MM-DD" style="width: 180px" />
         </el-form-item>
         <el-form-item label="优先级">
-          <el-rate v-model="form.priority" :max="5" show-score />
+            <el-input-number v-model="form.priority" :min="0" :max="5" controls-position="right" />
+            <span class="form-tip">P0 最紧急</span>
         </el-form-item>
         <el-form-item label="备注">
           <el-input v-model="form.remark" placeholder="备注" />
@@ -425,12 +426,18 @@ function statusLabel(s: string): string {
 function statusType(s: string): 'primary' | 'success' | 'info' | 'warning' {
   return ({ route_confirm: 'warning', pending: 'info', scheduled: 'success', in_progress: 'primary', paused: 'warning', produced: 'success', aborted: 'danger', closed: 'info' }[s] ?? 'info') as 'primary' | 'success' | 'info' | 'warning'
 }
-function priorityType(p: number): 'danger' | 'warning' | 'info' {
-  return p >= 5 ? 'danger' : p >= 4 ? 'warning' : 'info'
+function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
+  return p === 0 ? 'danger' : p === 1 ? 'warning' : p === 2 ? 'primary' : 'info'
 }
 </script>
 
 <style scoped>
+.form-tip {
+  margin-left: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+
 .page-card {
   border-radius: 8px;
 }

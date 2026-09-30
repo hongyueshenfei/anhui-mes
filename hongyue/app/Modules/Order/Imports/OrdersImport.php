@@ -12,7 +12,7 @@ use Maatwebsite\Excel\Concerns\WithStartRow;
  * 订单 Excel/CSV 导入（首行为表头）
  *
  * 支持的列（中文或英文表头均可）：
- * | 产品编码(product_code) | 数量(qty) | 交期(delivery_date) | 客户(customer_name) | 优先级(priority, 1-5) | 备注(remark) |
+ * | 产品编码(product_code) | 数量(qty) | 交期(delivery_date) | 客户(customer_name) | 优先级(priority, 0-5，P0最紧急) | 备注(remark) |
  */
 class OrdersImport implements ToCollection, WithHeadingRow, WithStartRow, WithCustomCsvSettings
 {

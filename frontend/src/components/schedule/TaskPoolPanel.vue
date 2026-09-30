@@ -19,6 +19,7 @@
           'is-disabled': !canPlace(item),
         }"
         :draggable="canPlace(item)"
+        :title="pickedId === item.id ? '再次点击取消选择' : '点击选择任务，或拖动到甘特图'"
         @dragstart="onDragStart($event, item)"
         @dragend="draggingId = null"
         @click="onPick(item)"
@@ -61,7 +62,7 @@ import type { PoolTask } from '@/types/schedule'
 
 const props = defineProps<{ items: PoolTask[]; pickedId?: number | null }>()
 const emit = defineEmits<{
-  (e: 'pick', task: PoolTask): void
+  (e: 'pick', task: PoolTask | null): void
 }>()
 
 const keyword = ref('')
@@ -80,15 +81,17 @@ const filtered = computed(() => {
   )
 })
 
-function priorityType(p: number): 'danger' | 'warning' | 'info' {
-  if (p >= 5) return 'danger'
-  if (p >= 4) return 'warning'
+function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
+  if (p === 0) return 'danger'
+  if (p === 1) return 'warning'
+  if (p === 2) return 'primary'
   return 'info'
 }
 
 function onPick(task: PoolTask): void {
   if (!canPlace(task)) return
-  emit('pick', task)
+  // 已选任务再次点击即取消，避免用户进入甘特图后只能改选其他任务。
+  emit('pick', pickedId.value === task.id ? null : task)
 }
 
 function canPlace(task: PoolTask): boolean {
