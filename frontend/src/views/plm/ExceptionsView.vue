@@ -29,7 +29,18 @@
         </div>
       </template>
 
-      <el-table :data="items" size="small" stripe class="ex-table">
+      <StaleDataNotice :visible="loadError && items.length > 0" @retry="load" />
+
+      <el-table v-loading="loading" :data="items" size="small" stripe class="ex-table">
+        <template #empty>
+          <EmptyStatePanel
+            :kind="emptyKind"
+            :title="emptyTitle"
+            :description="emptyDescription"
+            :action-label="emptyActionLabel"
+            @action="onEmptyAction"
+          />
+        </template>
         <el-table-column label="类型" width="90">
           <template #default="{ row }">
             <el-tag :type="typeTag(row.type)" size="small" effect="dark">{{ row.type_label }}</el-tag>
@@ -139,6 +150,8 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { productionApiV4 } from '@/api/production'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import { useAuthStore } from '@/stores/auth'
 import type { ProductionException } from '@/types/production'
 
@@ -147,6 +160,15 @@ const items = ref<ProductionException[]>([])
 const total = ref(0)
 const filterType = ref('')
 const filterStatus = ref('')
+const loading = ref(true)
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(filterType.value || filterStatus.value))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取异常记录' : loadError.value ? '异常列表加载失败' : hasFilters.value ? '没有匹配的异常记录' : '当前没有异常记录')
+const emptyDescription = computed(() => loading.value ? '正在从生产系统读取异常列表。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有异常”。'
+  : hasFilters.value ? '调整异常类型或处理状态，也可以清空筛选后查看全部。' : '出现停机、换模、次品或缺料时，可从上方“上报异常”登记。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空筛选' : '')
 
 const typeCards = computed(() => {
   const countOf = (t: string): number => items.value.filter((e) => e.type === t).length
@@ -177,13 +199,26 @@ function levelLabel(level: string): string {
 }
 
 async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = false
   try {
     const page = await productionApiV4.exceptions({ status: filterStatus.value || undefined, type: filterType.value || undefined })
     items.value = page.data
     total.value = page.total
   } catch {
-    items.value = []
-    total.value = 0
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    filterType.value = ''
+    filterStatus.value = ''
+    void load()
   }
 }
 

@@ -1,46 +1,35 @@
 <template>
   <el-container class="main-layout">
-    <!-- 侧边栏 -->
-    <el-aside width="220px" class="sidebar">
-      <div class="logo">
-        <span class="logo-mark">虹</span>
-        <div class="logo-text">
-          <strong>虹越智造平台</strong>
-          <small>PLM · MES · AI 报价 · 看板</small>
-        </div>
-      </div>
-      <el-menu
-        :default-active="route.path"
-        router
-        background-color="#1d2939"
-        text-color="#cbd5e1"
-        active-text-color="#ffffff"
-      >
-        <el-sub-menu v-for="group in visibleGroups" :key="group.key" :index="group.key">
-          <template #title>
-            <el-icon><component :is="group.icon" /></el-icon>
-            <span>{{ group.title }}</span>
-          </template>
-          <el-menu-item v-for="item in group.children" :key="item.path" :index="item.path">
-            <el-icon><component :is="item.icon" /></el-icon>
-            <span>{{ item.title }}</span>
-          </el-menu-item>
-        </el-sub-menu>
-      </el-menu>
+    <el-aside width="248px" class="desktop-sidebar">
+      <PrimaryNavigation :groups="visibleGroups" :active-path="route.path" />
     </el-aside>
 
-    <el-container>
-      <!-- 顶栏 -->
-      <el-header class="header">
-        <div class="header-title">{{ route.meta.title }}</div>
+    <el-container class="workspace-column">
+      <el-header class="app-header">
+        <div class="header-leading">
+          <el-button
+            class="mobile-nav-trigger"
+            text
+            :icon="Expand"
+            aria-label="打开主导航"
+            @click="mobileNavOpen = true"
+          />
+          <div class="header-context">
+            <span class="header-title">{{ route.meta.title }}</span>
+            <span class="header-caption">虹越生产协同平台</span>
+          </div>
+        </div>
+
         <div class="header-right">
-          <el-tag v-if="isMockMode" type="warning" size="small" effect="dark">演示模式 · 模拟数据（未连接后端）</el-tag>
+          <el-tag v-if="isMockMode" type="warning" size="small" effect="plain">
+            演示数据
+          </el-tag>
           <el-dropdown @command="onCommand">
-            <span class="user-chip">
-              <el-avatar :size="28" class="avatar">{{ nameChar }}</el-avatar>
+            <button class="user-chip" type="button" aria-label="打开用户菜单">
+              <el-avatar :size="30" class="avatar">{{ nameChar }}</el-avatar>
               <span class="user-name">{{ auth.user?.name ?? '未登录' }}</span>
               <el-icon><ArrowDown /></el-icon>
-            </span>
+            </button>
             <template #dropdown>
               <el-dropdown-menu>
                 <el-dropdown-item disabled>
@@ -53,49 +42,86 @@
         </div>
       </el-header>
 
-      <!-- 内容区 -->
       <el-main class="content">
         <router-view />
       </el-main>
     </el-container>
+
+    <el-drawer
+      v-model="mobileNavOpen"
+      class="mobile-navigation-drawer"
+      direction="ltr"
+      size="280px"
+      :with-header="false"
+      :lock-scroll="true"
+      aria-label="主导航"
+    >
+      <PrimaryNavigation
+        :groups="visibleGroups"
+        :active-path="route.path"
+        @select="mobileNavOpen = false"
+      />
+    </el-drawer>
   </el-container>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessageBox } from 'element-plus'
-import { ArrowDown, Setting, Tools, Box, Document, Monitor, User, Key, List, ShoppingCart, Calendar, DataLine, Memo, Bell, TrendCharts, Warning, Files, Connection, MagicStick, Ticket, PriceTag, Operation } from '@element-plus/icons-vue'
+import {
+  ArrowDown,
+  Bell,
+  Box,
+  Calendar,
+  Connection,
+  DataLine,
+  Document,
+  Expand,
+  Files,
+  Key,
+  List,
+  MagicStick,
+  Memo,
+  Monitor,
+  Operation,
+  PriceTag,
+  Setting,
+  ShoppingCart,
+  Ticket,
+  Tools,
+  TrendCharts,
+  User,
+  Warning,
+} from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { STATUS_LABELS } from '@/utils/capacity'
 import { isDemoMode } from '@/config/demo'
+import PrimaryNavigation from '@/components/layout/PrimaryNavigation.vue'
 
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
-
-/** 是否演示模式（数据来自本地 mock 层） */
 const isMockMode = ref(isDemoMode())
+const mobileNavOpen = ref(false)
 
 interface MenuItem {
   path: string
   title: string
-  icon: unknown
+  icon: typeof DataLine
   perm: string
 }
 
 interface MenuGroup {
   key: string
   title: string
-  icon: unknown
+  icon: typeof DataLine
   children: MenuItem[]
 }
 
 const menuGroups: MenuGroup[] = [
   {
-    key: 'dashboard',
-    title: '管理看板',
-    icon: DataLine,
+    key: 'dashboard', title: '管理看板', icon: DataLine,
     children: [
       { path: '/dashboard/workbench', title: '工作台', icon: DataLine, perm: 'dashboard.view' },
       { path: '/dashboard/order-overview', title: '订单履约统计', icon: ShoppingCart, perm: 'dashboard.view' },
@@ -105,9 +131,7 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    key: 'planning',
-    title: '计划排产',
-    icon: Calendar,
+    key: 'planning', title: '计划排产', icon: Calendar,
     children: [
       { path: '/schedule/gantt', title: '排产甘特', icon: Calendar, perm: 'schedule.view' },
       { path: '/schedule/detail', title: '排产明细', icon: DataLine, perm: 'schedule.view' },
@@ -115,9 +139,7 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    key: 'production',
-    title: '生产执行',
-    icon: ShoppingCart,
+    key: 'production', title: '生产执行', icon: ShoppingCart,
     children: [
       { path: '/order/orders', title: '工单中心', icon: ShoppingCart, perm: 'order.view' },
       { path: '/production/reports', title: '报工台账', icon: Memo, perm: 'report.view' },
@@ -126,9 +148,7 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    key: 'plm',
-    title: '工艺 PLM',
-    icon: Tools,
+    key: 'plm', title: '工艺 PLM', icon: Tools,
     children: [
       { path: '/plm/machines', title: '机台产线', icon: Monitor, perm: 'plm.machine.view' },
       { path: '/plm/products', title: '产品档案', icon: Box, perm: 'plm.product.view' },
@@ -141,9 +161,7 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    key: 'quote',
-    title: '报价中心',
-    icon: MagicStick,
+    key: 'quote', title: '报价中心', icon: MagicStick,
     children: [
       { path: '/quote/estimate', title: 'AI 快速估价', icon: MagicStick, perm: 'quote.view' },
       { path: '/quote/quotes', title: '报价单管理', icon: Ticket, perm: 'quote.view' },
@@ -151,9 +169,7 @@ const menuGroups: MenuGroup[] = [
     ],
   },
   {
-    key: 'system',
-    title: '系统管理',
-    icon: Setting,
+    key: 'system', title: '系统管理', icon: Setting,
     children: [
       { path: '/system/users', title: '用户管理', icon: User, perm: 'system.user.manage' },
       { path: '/system/roles', title: '角色权限', icon: Key, perm: 'system.role.manage' },
@@ -163,11 +179,10 @@ const menuGroups: MenuGroup[] = [
   },
 ]
 
-/** 按权限过滤菜单：仅展示有权限的子项，整组无可见项则隐藏 */
 const visibleGroups = computed(() =>
   menuGroups
-    .map((g) => ({ ...g, children: g.children.filter((c) => auth.can(c.perm)) }))
-    .filter((g) => g.children.length > 0),
+    .map((group) => ({ ...group, children: group.children.filter((item) => auth.can(item.perm)) }))
+    .filter((group) => group.children.length > 0),
 )
 
 const nameChar = computed(() => (auth.user?.name ?? '?').charAt(0))
@@ -176,8 +191,11 @@ const roleLabel = computed(() => {
   return roleName ? (STATUS_LABELS[roleName] ?? roleName) : ''
 })
 
+watch(() => route.path, () => {
+  mobileNavOpen.value = false
+})
+
 onMounted(async () => {
-  // 只按显式开关显示演示标识；后端失败不能改变数据源。
   await auth.refreshMe()
   isMockMode.value = isDemoMode()
 })
@@ -193,95 +211,153 @@ async function onCommand(command: string): Promise<void> {
 
 <style scoped>
 .main-layout {
+  width: 100%;
+  min-height: 100vh;
+  background: var(--hy-canvas);
+}
+
+.desktop-sidebar {
+  position: sticky;
+  top: 0;
   height: 100vh;
+  overflow-y: auto;
+  background: var(--hy-ink);
 }
 
-.sidebar {
-  background: #1d2939;
-  display: flex;
-  flex-direction: column;
+.workspace-column {
+  min-width: 0;
 }
 
-.logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 16px;
-  color: #fff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-}
-
-.logo-mark {
-  width: 34px;
-  height: 34px;
-  border-radius: 8px;
-  background: linear-gradient(135deg, #1677ff, #06b6d4);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 18px;
-  font-weight: 700;
-}
-
-.logo-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1.3;
-
-  small {
-    color: #94a3b8;
-    font-size: 12px;
-  }
-}
-
-.sidebar :deep(.el-menu) {
-  border-right: none;
-  flex: 1;
-}
-
-.header {
-  background: #fff;
+.app-header {
+  position: sticky;
+  z-index: 5;
+  top: 0;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  border-bottom: 1px solid #e5e7eb;
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.04);
+  height: 62px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--hy-line);
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(8px);
 }
 
-.header-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #1f2937;
-}
-
+.header-leading,
+.header-context,
 .header-right {
   display: flex;
   align-items: center;
+}
+
+.header-leading {
   gap: 12px;
 }
 
+.header-context {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.header-title {
+  color: var(--hy-ink);
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.header-caption {
+  color: var(--hy-muted);
+  font-size: 11px;
+}
+
+.header-right {
+  gap: 14px;
+}
+
 .user-chip {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 8px;
+  padding: 4px 7px 4px 4px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  color: var(--hy-text);
+  background: transparent;
   cursor: pointer;
-  outline: none;
+}
+
+.user-chip:hover {
+  border-color: var(--hy-line);
+  background: #f7f9fa;
 }
 
 .avatar {
-  background: #1677ff;
   color: #fff;
-  font-size: 14px;
+  background: #28516b;
+  font-size: 13px;
+  font-weight: 650;
 }
 
 .user-name {
-  font-size: 14px;
-  color: #1f2937;
+  color: var(--hy-text);
+  font-size: 13px;
+}
+
+.mobile-nav-trigger {
+  display: none;
+  min-height: 34px;
+  color: var(--hy-ink);
+  font-size: 18px;
 }
 
 .content {
-  background: #f5f7fa;
-  padding: 20px;
-  overflow-y: auto;
+  min-width: 0;
+  padding: 20px 22px 28px;
+  overflow-x: auto;
+  background: var(--hy-canvas);
+}
+
+.mobile-navigation-drawer :deep(.el-drawer__body) {
+  padding: 0;
+  background: var(--hy-ink);
+}
+
+@media (max-width: 900px) {
+  .desktop-sidebar {
+    display: none;
+  }
+
+  .mobile-nav-trigger {
+    display: inline-flex;
+  }
+
+  .app-header {
+    padding: 0 16px;
+  }
+
+  .content {
+    padding: 14px;
+  }
+}
+
+@media (max-width: 560px) {
+  .header-caption {
+    display: none;
+  }
+
+  .header-right {
+    gap: 7px;
+  }
+
+  .user-name {
+    max-width: 78px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .content {
+    padding: 10px;
+  }
 }
 </style>

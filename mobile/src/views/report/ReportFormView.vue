@@ -1,31 +1,55 @@
 <template>
   <div class="page">
     <van-nav-bar title="日结报工" left-arrow @click-left="router.back()" />
-    <van-cell-group inset v-if="task" class="task-card">
-      <van-cell title="机台" :value="machineCode || '从任务排程带出'" />
-      <van-cell title="工单" :value="task.task_no || '-'" />
-      <van-cell title="产品" :value="productName" />
-      <van-cell title="工序" :value="selectedSchedule?.operation?.name || selectedSchedule?.op_name || '-'" />
-      <van-cell title="计划时段" :value="planText" />
-      <van-cell title="当班可报" :value="remainingQty + ' 件'" />
-    </van-cell-group>
-    <van-cell-group inset class="qty-card">
-      <van-cell title="本次实际完工数量" value="晚间日结填写" />
-      <div class="qty-stepper">
-        <van-button round size="large" @click="changeQty(-10)">-10</van-button>
-        <van-button round size="large" @click="changeQty(-1)">-</van-button>
-        <div class="qty-value"><div class="qty-num">{{ qtyInput || 0 }}</div><div class="qty-tail">件</div></div>
-        <van-button round size="large" @click="changeQty(1)">+</van-button>
-        <van-button round size="large" @click="changeQty(10)">+10</van-button>
+    <div v-if="loading && !task" class="request-state" role="status" aria-live="polite">
+      <van-loading vertical>正在读取任务和排程</van-loading>
+    </div>
+    <van-empty v-else-if="loadError && !task" image="network" :description="loadError">
+      <van-button round type="primary" size="small" @click="loadData">重新加载</van-button>
+    </van-empty>
+    <van-notice-bar v-if="loading && task" type="primary" left-icon="replay" text="正在刷新，当前显示上次成功读取的任务信息。" />
+    <van-notice-bar v-if="loadError && task" type="warning" left-icon="warning-o" :text="`${loadError}，当前仍显示上次成功读取的任务信息。`">
+      <template #right-icon><van-button size="mini" plain type="warning" @click="loadData">重试</van-button></template>
+    </van-notice-bar>
+    <van-notice-bar v-if="contextWarning && task" type="warning" left-icon="info-o" :text="contextWarning" />
+
+    <section v-if="task" class="report-section" aria-labelledby="task-context-title">
+      <div class="section-heading">
+        <h2 id="task-context-title">当前任务</h2>
+        <van-tag type="primary" plain>{{ machineCode || '未带出机台' }}</van-tag>
       </div>
-      <van-field v-model="qtyInput" type="digit" label="合格数" placeholder="请输入实际合格数" />
-      <van-field v-model="defectQty" type="digit" label="次品数" placeholder="0" />
-      <van-field v-model="startTime" type="datetime-local" label="开始时间" />
-      <van-field v-model="endTime" type="datetime-local" label="结束时间" />
-      <van-button class="fill-button" size="small" plain type="primary" @click="fillRemaining">填入剩余计划量 {{ remainingQty }}</van-button>
-    </van-cell-group>
-    <van-notice-bar inset left-icon="info-o" text="当前由班组长或统计员统一填报，不区分个人作业人。" />
-    <div class="actions">
+      <van-cell-group inset class="task-card">
+        <van-cell title="工单" :value="task.task_no || '-'" />
+        <van-cell title="产品" :value="productName" />
+        <van-cell title="工序" :value="selectedSchedule?.operation?.name || selectedSchedule?.op_name || '-'" />
+        <van-cell title="计划时段" :value="planText" />
+        <van-cell title="当班可报" :value="remainingQty + ' 件'" />
+      </van-cell-group>
+    </section>
+
+    <section v-if="task" class="report-section" aria-labelledby="report-entry-title">
+      <div class="section-heading">
+        <h2 id="report-entry-title">本次报工</h2>
+        <span>合格数与次品数分开填写</span>
+      </div>
+      <van-cell-group inset class="qty-card">
+        <van-cell title="实际完工数量" value="按本次作业填写" />
+        <div class="qty-stepper">
+          <van-button round size="small" @click="changeQty(-10)">减少 10</van-button>
+          <van-button round size="small" @click="changeQty(-1)">−</van-button>
+          <div class="qty-value"><div class="qty-num">{{ qtyInput || 0 }}</div><div class="qty-tail">件</div></div>
+          <van-button round size="small" @click="changeQty(1)">＋</van-button>
+          <van-button round size="small" @click="changeQty(10)">增加 10</van-button>
+        </div>
+        <van-field v-model="qtyInput" type="digit" label="合格数" placeholder="请输入实际合格数" />
+        <van-field v-model="defectQty" type="digit" label="次品数" placeholder="0" />
+        <van-field v-model="startTime" type="datetime-local" label="开始时间" />
+        <van-field v-model="endTime" type="datetime-local" label="结束时间" />
+        <van-button class="fill-button" size="small" plain type="primary" @click="fillRemaining">填入剩余计划量 {{ remainingQty }}</van-button>
+      </van-cell-group>
+    </section>
+    <van-notice-bar v-if="task" inset left-icon="info-o" text="当前由班组长或统计员统一填报，不区分个人作业人。" />
+    <div v-if="task" class="actions">
       <van-button round block type="primary" size="large" :loading="submitting" @click="onSubmit">
         提交日结报工
       </van-button>
@@ -62,6 +86,9 @@ const endTime = ref(localDateTime(0))
 const submitting = ref(false)
 const offlining = ref(false)
 const pending = ref(0)
+const loading = ref(true)
+const loadError = ref('')
+const contextWarning = ref('')
 
 const taskId = computed(() => Number(route.query.task_id ?? 0))
 const scheduleId = computed(() => Number(route.query.schedule_id ?? selectedSchedule.value?.schedule_id ?? selectedSchedule.value?.id ?? 0) || null)
@@ -73,31 +100,46 @@ const reportSource = computed(() => 'leader_batch')
 onMounted(async () => { pending.value = pendingCount(); await loadData() })
 
 async function loadData(): Promise<void> {
-  if (!taskId.value) { showToast('缺少任务参数'); return }
+  loadError.value = ''
+  contextWarning.value = ''
+  if (!taskId.value) {
+    loadError.value = '缺少任务编号，请从任务列表或机台扫码入口重新进入'
+    loading.value = false
+    return
+  }
+  loading.value = true
   try {
     if (machineCode.value) {
-      const response = await mobileMachineReportContext(machineCode.value, workDate.value)
-      const body = response.data
-      if (body?.code === 0) {
+      try {
+        const response = await mobileMachineReportContext(machineCode.value, workDate.value)
+        const body = response.data
+        if (body?.code !== 0) throw new Error(body?.message ?? '机台排程读取失败')
         const item = (body.data.tasks ?? []).find((row: any) => row.task_id === taskId.value && (!scheduleId.value || row.schedule_id === scheduleId.value))
         if (item) {
           selectedSchedule.value = item
           machineId.value = body.data.machine.id
           shiftCode.value = String(route.query.shift_code ?? body.data.default_shift ?? 'day')
+        } else {
+          contextWarning.value = '机台当日任务列表中未找到此工序，将尝试使用工单排程信息。'
         }
+      } catch (error: any) {
+        contextWarning.value = error?.response?.data?.message ?? error?.message ?? '机台排程读取失败，请核对当前机台和日期。'
       }
     }
     const response = await mobileTask(taskId.value)
     const body = response.data
-    if (body?.code === 0) {
-      task.value = body.data
-      if (!selectedSchedule.value && scheduleId.value) {
-        const raw = (body.data.schedules ?? []).find((row: any) => row.id === scheduleId.value)
-        if (raw) selectedSchedule.value = raw
-      }
-      if (!machineId.value && selectedSchedule.value?.machine_id) machineId.value = selectedSchedule.value.machine_id
+    if (body?.code !== 0) throw new Error(body?.message ?? '任务读取失败')
+    task.value = body.data
+    if (!selectedSchedule.value && scheduleId.value) {
+      const raw = (body.data.schedules ?? []).find((row: any) => row.id === scheduleId.value)
+      if (raw) selectedSchedule.value = raw
     }
-  } catch (error: any) { showToast(error?.response?.data?.message ?? '任务加载失败，可先暂存') }
+    if (!machineId.value && selectedSchedule.value?.machine_id) machineId.value = selectedSchedule.value.machine_id
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? error?.message ?? '任务加载失败，请检查网络后重试'
+  } finally {
+    loading.value = false
+  }
 }
 function changeQty(delta: number): void { qtyInput.value = String(Math.max(0, Number(qtyInput.value || 0) + delta)) }
 function fillRemaining(): void { qtyInput.value = String(remainingQty.value) }
@@ -156,14 +198,19 @@ function toApiDateTime(value: string): string {
 </script>
 
 <style scoped>
-.page { min-height: 100vh; padding-bottom: 40px; background: #f7f8fa; }
-.task-card, .qty-card, .worker-card { margin-top: 12px; }
-.qty-stepper { display: flex; align-items: center; gap: 8px; padding: 12px 16px; }
-.qty-value { flex: 1; text-align: center; }
-.qty-num { color: #1989fa; font-size: 34px; font-weight: 700; }
-.qty-tail { color: #969799; font-size: 12px; }
+.page { min-height: 100vh; padding: 0 0 40px; background: var(--hy-canvas); }
+.request-state { display: grid; min-height: 180px; place-items: center; color: var(--hy-muted); }
+.report-section { margin-top: 16px; }
+.section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0 16px 8px; }
+.section-heading h2 { margin: 0; color: var(--hy-ink); font-size: 15px; font-weight: 650; }
+.section-heading > span { color: var(--hy-muted); font-size: 11px; }
+.task-card, .qty-card, .worker-card { margin-top: 0; }
+.qty-stepper { display: flex; align-items: center; gap: 6px; padding: 12px 12px; }
+.qty-value { flex: 1; min-width: 58px; text-align: center; }
+.qty-num { color: var(--hy-blue); font-size: 32px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.qty-tail { color: var(--hy-muted); font-size: 12px; }
 .fill-button { margin: 0 16px 12px; }
-.worker-card .selected { background: #ecf9ff; }
+.worker-card .selected { background: #eaf3f9; }
 .actions { display: flex; flex-direction: column; gap: 10px; margin: 20px 16px; }
-.offline-hint { color: #e6a23c; font-size: 12px; text-align: center; }
+.offline-hint { color: var(--hy-amber); font-size: 12px; text-align: center; }
 </style>

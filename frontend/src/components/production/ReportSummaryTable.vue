@@ -6,7 +6,7 @@
         <div class="summary-subtitle">汇总订单履约、日班次执行、产品工序、交期、资源效率和质量数据</div>
       </div>
       <el-radio-group v-model="dimension" size="small" class="dimension-switcher" @change="load">
-        <el-radio-button v-for="item in dimensionOptions" :key="item.value" :label="item.value">
+        <el-radio-button v-for="item in dimensionOptions" :key="item.value" :value="item.value">
           {{ item.label }}
         </el-radio-button>
       </el-radio-group>

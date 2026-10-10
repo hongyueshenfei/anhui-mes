@@ -1,28 +1,32 @@
 <template>
   <div class="develop-page">
+    <el-alert v-if="loadError" :title="`${loadError}${hasLoaded ? '；当前仍显示上次成功读取的项目。' : ''}`" type="error" show-icon :closable="false">
+      <template #default><el-button size="small" type="danger" plain @click="load">重新加载</el-button></template>
+    </el-alert>
+    <el-alert v-else-if="loading && hasLoaded" title="正在更新看板，暂时显示上次读取的项目。" type="info" show-icon :closable="false" />
     <!-- 统计条 -->
     <el-row :gutter="12" class="stat-row">
-      <el-col :span="6">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card">
-          <div class="stat-value">{{ total }}</div>
+          <div class="stat-value">{{ hasLoaded ? total : '—' }}</div>
           <div class="stat-label">开发中项目</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card">
-          <div class="stat-value">{{ doingCount }}</div>
+          <div class="stat-value">{{ hasLoaded ? doingCount : '—' }}</div>
           <div class="stat-label">进行中阶段</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card overdue">
-          <div class="stat-value">{{ overdueCount }}</div>
+          <div class="stat-value">{{ hasLoaded ? overdueCount : '—' }}</div>
           <div class="stat-label">逾期项目</div>
         </el-card>
       </el-col>
-      <el-col :span="6">
+      <el-col :xs="12" :sm="6">
         <el-card shadow="never" class="stat-card">
-          <div class="stat-value">{{ massCount }}</div>
+          <div class="stat-value">{{ hasLoaded ? massCount : '—' }}</div>
           <div class="stat-label">已量产</div>
         </el-card>
       </el-col>
@@ -32,14 +36,18 @@
       <template #header>
         <div class="panel-header">
           <span>新品开发流程 · 阶段看板（询价 → 立项 → 设计 → 开模 → 试模 → 小批 → 量产）</span>
-          <el-button size="small" type="primary" plain @click="reportVisible = true">
-            <el-icon><Plus /></el-icon>新建开发
-          </el-button>
+          <div class="header-actions">
+            <el-button size="small" :loading="loading" @click="load">刷新</el-button>
+            <el-button size="small" type="primary" plain @click="reportVisible = true">
+              <el-icon><Plus /></el-icon>新建开发
+            </el-button>
+          </div>
         </div>
       </template>
 
       <!-- Kanban 列 -->
-      <div class="kanban">
+      <div v-if="loading && !hasLoaded" class="kanban-loading" role="status" aria-live="polite"><el-skeleton :rows="5" animated /></div>
+      <div v-else-if="hasLoaded" class="kanban">
         <div v-for="stage in stageDefs" :key="stage.key" class="kb-col" :style="{ borderTopColor: stage.color }">
           <div class="kb-head">
             <span class="kb-dot" :style="{ background: stage.color }"></span>
@@ -66,7 +74,7 @@
                 <el-button v-else size="small" type="success" text disabled>已量产</el-button>
               </div>
             </div>
-            <el-empty v-if="(byStage[stage.key]?.length ?? 0) === 0" description="暂无" :image-size="48" />
+            <el-empty v-if="!loading && !loadError && (byStage[stage.key]?.length ?? 0) === 0" description="暂无" :image-size="48" />
           </div>
         </div>
       </div>
@@ -114,6 +122,9 @@ import { developStages, type DevelopStageKey, type DevelopTask } from '@/types/d
 
 const items = ref<DevelopTask[]>([])
 const stageDefs = developStages
+const loading = ref(true)
+const hasLoaded = ref(false)
+const loadError = ref('')
 
 const byStage = computed<Record<string, DevelopTask[]>>(() => {
   const map: Record<string, DevelopTask[]> = {}
@@ -142,11 +153,16 @@ function prioTag(p: number): 'danger' | 'warning' | 'primary' | 'info' {
 }
 
 async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = ''
   try {
     const data = await plmApiV4.develop()
     items.value = data.items
-  } catch {
-    items.value = []
+    hasLoaded.value = true
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? '新品开发项目读取失败，请检查连接后重试。'
+  } finally {
+    loading.value = false
   }
 }
 
@@ -229,6 +245,8 @@ onMounted(load)
   align-items: center;
   font-weight: 600;
 }
+.header-actions { display: flex; gap: 8px; flex: 0 0 auto; }
+.kanban-loading { min-height: 220px; padding: 12px; }
 .kanban {
   display: flex;
   gap: 10px;

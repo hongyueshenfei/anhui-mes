@@ -3,8 +3,8 @@
     <!-- 来源统计 -->
     <el-row :gutter="12" class="src-row">
       <el-col :span="6" v-for="s in sourceCards" :key="s.source">
-        <el-card shadow="never" class="src-card" :class="`src-${s.source}`" @click="filterSource = s.source === filterSource ? '' : s.source">
-          <div class="src-count">{{ s.count }}</div>
+        <el-card shadow="never" class="src-card" :class="[`src-${s.source}`, { unavailable: !data }]" @click="toggleSource(s.source)">
+          <div class="src-count">{{ data ? s.count : '—' }}</div>
           <div class="src-label">{{ s.label }}</div>
           <div class="src-desc">{{ s.desc }}</div>
         </el-card>
@@ -17,7 +17,7 @@
         <div class="panel-header">
           <span>红灯明细（按责任人聚合 · 关闭留审计）</span>
           <div>
-            <el-radio-group v-model="filterSource" size="small" @change="load">
+            <el-radio-group v-model="filterSource" size="small" @change="onFilterChange">
               <el-radio-button value="">全部</el-radio-button>
               <el-radio-button value="unscheduled">未排产</el-radio-button>
               <el-radio-button value="no_report">未报工</el-radio-button>
@@ -31,8 +31,14 @@
         </div>
       </template>
 
+      <el-alert v-if="loadError" :title="`${loadError}${data ? '；当前仍显示上次成功读取的红灯清单。' : ''}`" type="error" show-icon :closable="false" class="load-alert">
+        <template #default><el-button size="small" type="danger" plain @click="load">重试</el-button></template>
+      </el-alert>
+      <el-alert v-else-if="loading && data" title="正在更新红灯清单，暂时显示上次读取结果。" type="info" show-icon :closable="false" class="load-alert" />
+
       <!-- 责任人聚合 -->
-      <div class="group-wrap">
+      <div v-if="loading && !data" class="load-state" role="status" aria-live="polite"><el-skeleton :rows="3" animated /></div>
+      <div v-else class="group-wrap">
         <el-card v-for="g in groups" :key="g.owner_id ?? 'none'" shadow="never" class="owner-group" :class="{ 'has-red': g.total > 0 }">
           <div class="owner-head">
             <el-avatar :size="26" class="owner-avatar">{{ (g.owner_name ?? '?').charAt(0) }}</el-avatar>
@@ -48,7 +54,7 @@
       </div>
 
       <!-- 红灯表格 -->
-      <el-table :data="items" size="small" stripe class="rl-table">
+      <el-table v-if="data" :data="items" size="small" stripe class="rl-table" v-loading="loading" :empty-text="loadError ? '读取失败，请重试' : '当前没有红灯事项'">
         <el-table-column label="来源" width="90">
           <template #default="{ row }">
             <el-tag :type="srcType(row.source)" size="small" effect="dark">{{ row.source_label }}</el-tag>
@@ -116,6 +122,8 @@ const auth = useAuthStore()
 const data = ref<RedLightListData | null>(null)
 const filterSource = ref('')
 const refreshing = ref(false)
+const loading = ref(true)
+const loadError = ref('')
 
 const items = computed(() => data.value?.items ?? [])
 const groups = computed<RedLightGroup[]>(() => data.value?.groups ?? [])
@@ -140,11 +148,26 @@ function srcType(source: string): 'danger' | 'warning' | 'info' | 'primary' {
 }
 
 async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = ''
   try {
     data.value = await dashboardApi.redLights({ source: filterSource.value || undefined })
-  } catch {
-    data.value = null
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? '红灯清单读取失败，请稍后重试。'
+  } finally {
+    loading.value = false
   }
+}
+
+function onFilterChange(): void {
+  data.value = null
+  void load()
+}
+
+function toggleSource(source: string): void {
+  if (!data.value) return
+  filterSource.value = source === filterSource.value ? '' : source
+  onFilterChange()
 }
 
 async function refresh(): Promise<void> {
@@ -200,6 +223,7 @@ onMounted(load)
   cursor: pointer;
   transition: transform 0.15s;
 }
+.src-card.unavailable { cursor: default; }
 .src-card:hover {
   transform: translateY(-2px);
 }
@@ -250,6 +274,8 @@ onMounted(load)
   gap: 10px;
   margin-bottom: 12px;
 }
+.load-state { padding: 10px 0 18px; }
+.load-alert { margin-bottom: 12px; }
 .owner-group {
   flex: 1 1 220px;
   max-width: 320px;

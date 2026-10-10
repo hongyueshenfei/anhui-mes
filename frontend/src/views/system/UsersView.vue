@@ -10,7 +10,12 @@
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon>新建用户</el-button>
     </div>
 
+    <StaleDataNotice :visible="loadError && rows.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="rows" stripe>
+      <template #empty>
+        <EmptyStatePanel :kind="emptyKind" :title="emptyTitle" :description="emptyDescription" :action-label="emptyActionLabel" @action="onEmptyAction" />
+      </template>
       <el-table-column prop="employee_no" label="工号" width="100" />
       <el-table-column prop="name" label="姓名" width="110" />
       <el-table-column prop="phone" label="手机号" width="130" />
@@ -87,6 +92,8 @@ import { Plus } from '@element-plus/icons-vue'
 import { systemApi } from '@/api/system'
 import type { PlmWorkshop, SysRole, SysUser } from '@/types'
 import FormDialog, { type FormField } from '@/components/common/FormDialog.vue'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import { useAuthStore } from '@/stores/auth'
 import { STATUS_LABELS } from '@/utils/capacity'
 import { plmApi } from '@/api/plm'
@@ -94,7 +101,7 @@ import { plmApi } from '@/api/plm'
 const auth = useAuthStore()
 const canManage = computed(() => auth.can('system.user.manage'))
 
-const loading = ref(false)
+const loading = ref(true)
 const rows = ref<SysUser[]>([])
 const roles = ref<SysRole[]>([])
 const workshops = ref<PlmWorkshop[]>([])
@@ -103,6 +110,14 @@ const page = ref(1)
 const perPage = ref(15)
 const keyword = ref('')
 const filterRole = ref('')
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(keyword.value.trim() || filterRole.value))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取用户档案' : loadError.value ? '用户列表加载失败' : hasFilters.value ? '没有匹配的用户' : '还没有用户档案')
+const emptyDescription = computed(() => loading.value ? '正在读取用户与权限信息。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有用户”。'
+  : hasFilters.value ? '调整工号、姓名或角色条件，也可以清空筛选。' : '新增用户后，可配置岗位、角色、车间与移动端绑定信息。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空筛选' : '')
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -140,6 +155,7 @@ const userFields = computed<FormField[]>(() => [
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
   try {
     const result = await systemApi.listUsers({
       page: page.value,
@@ -158,8 +174,21 @@ async function load(): Promise<void> {
       rows.value = rows.value.filter((u) => u.roles.includes(filterRole.value))
       total.value = rows.value.length
     }
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    keyword.value = ''
+    filterRole.value = ''
+    page.value = 1
+    void load()
   }
 }
 

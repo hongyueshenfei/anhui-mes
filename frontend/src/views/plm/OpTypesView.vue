@@ -7,7 +7,12 @@
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon>新增工序类型</el-button>
     </div>
 
+    <StaleDataNotice :visible="loadError && rows.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="rows" stripe>
+      <template #empty>
+        <EmptyStatePanel :kind="emptyKind" :title="emptyTitle" :description="emptyDescription" :action-label="emptyActionLabel" @action="onEmptyAction" />
+      </template>
       <el-table-column prop="op_type" label="类型键" width="170" show-overflow-tooltip />
       <el-table-column prop="op_name" label="名称" min-width="110" />
       <el-table-column label="形态" width="90">
@@ -57,14 +62,24 @@ import { plmApi } from '@/api/plm'
 import type { OpType } from '@/types'
 import { WORKSHOP_LABEL, type Workshop } from '@/types'
 import FormDialog, { type FormField } from '@/components/common/FormDialog.vue'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const canManage = computed(() => auth.can('plm.route.manage'))
 
-const loading = ref(false)
+const loading = ref(true)
 const rows = ref<OpType[]>([])
 const keyword = ref('')
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(keyword.value.trim()))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取工序类型' : loadError.value ? '工序类型加载失败' : hasFilters.value ? '没有匹配的工序类型' : '还没有工序类型')
+const emptyDescription = computed(() => loading.value ? '正在从生产系统读取最新记录。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有工序类型”。'
+  : hasFilters.value ? '调整类型名称或键值，也可以清空关键词后查看全部。' : '新增工序类型后，可在工艺路线中复用。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空搜索' : '')
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -104,12 +119,26 @@ const formFields = computed<FormField[]>(() => {
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
   try {
     // all=true：真实后端返回全量数组（含停用项，启停按钮才可用）；兼容分页对象
     const result = (await plmApi.listOpTypes({ all: true, keyword: keyword.value || undefined })) as OpType[] | { data: OpType[] }
     rows.value = Array.isArray(result) ? result : result.data ?? []
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    keyword.value = ''
+    void load()
+  } else if (canManage.value) {
+    openCreate()
   }
 }
 

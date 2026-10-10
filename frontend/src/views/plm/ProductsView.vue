@@ -13,7 +13,12 @@
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon>新建产品</el-button>
     </div>
 
+    <StaleDataNotice :visible="loadError && rows.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="rows" stripe>
+      <template #empty>
+        <EmptyStatePanel :kind="emptyKind" :title="emptyTitle" :description="emptyDescription" :action-label="emptyActionLabel" @action="onEmptyAction" />
+      </template>
       <el-table-column prop="code" label="产品编码" width="120" />
       <el-table-column prop="name" label="产品名称" min-width="150" />
       <el-table-column prop="spec" label="规格" min-width="150" show-overflow-tooltip />
@@ -84,19 +89,29 @@ import { Plus } from '@element-plus/icons-vue'
 import { plmApi } from '@/api/plm'
 import type { Mold, PlmRoute, Product } from '@/types'
 import FormDialog, { type FormField } from '@/components/common/FormDialog.vue'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 
 const auth = useAuthStore()
 const canManage = computed(() => auth.can('plm.product.manage'))
 
-const loading = ref(false)
+const loading = ref(true)
 const rows = ref<Product[]>([])
 const total = ref(0)
 const page = ref(1)
 const perPage = ref(15)
 const keyword = ref('')
 const filterStatus = ref('')
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(keyword.value.trim() || filterStatus.value))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取产品档案' : loadError.value ? '产品列表加载失败' : hasFilters.value ? '没有匹配的产品' : '还没有产品档案')
+const emptyDescription = computed(() => loading.value ? '正在从生产系统读取最新记录。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有产品”。'
+  : hasFilters.value ? '调整关键词或状态条件，也可以清空筛选后重试。' : '建立产品档案后，可继续关联默认工艺路线和模具。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空筛选' : '')
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -180,6 +195,7 @@ async function loadMoldOptions(): Promise<void> {
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
   try {
     const result = await plmApi.listProducts({
       page: page.value,
@@ -194,8 +210,23 @@ async function load(): Promise<void> {
       rows.value = result.data
       total.value = result.total
     }
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    keyword.value = ''
+    filterStatus.value = ''
+    page.value = 1
+    void load()
+  } else if (canManage.value) {
+    openCreate()
   }
 }
 

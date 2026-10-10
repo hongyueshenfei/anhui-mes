@@ -1,8 +1,11 @@
 <template>
   <div class="quote-params-page">
+    <el-alert v-if="loadError" :title="`${loadError}${hasLoaded ? '；当前仍显示上次成功读取的配置。' : ''}`" type="error" show-icon :closable="false">
+      <template #default><el-button size="small" type="danger" plain @click="load">重试</el-button></template>
+    </el-alert>
     <el-row :gutter="12">
       <!-- 材料价格 -->
-      <el-col :span="10">
+      <el-col :xs="24" :sm="12" :lg="10">
         <el-card shadow="never" class="panel">
           <template #header>
             <div class="panel-header">
@@ -12,7 +15,7 @@
               </el-button>
             </div>
           </template>
-          <el-table :data="materials" size="small" stripe max-height="420">
+          <el-table :data="materials" size="small" stripe max-height="420" v-loading="loading" :empty-text="loadError ? '读取失败，请重试' : '暂无材料价格'">
             <el-table-column prop="material_code" label="材料编码" width="120" />
             <el-table-column prop="material_name" label="名称" min-width="120" />
             <el-table-column prop="price_per_unit" label="单价" width="80" />
@@ -23,7 +26,7 @@
       </el-col>
 
       <!-- 工序费率 -->
-      <el-col :span="8">
+      <el-col :xs="24" :sm="12" :lg="8">
         <el-card shadow="never" class="panel">
           <template #header>
             <div class="panel-header">
@@ -33,7 +36,7 @@
               </el-button>
             </div>
           </template>
-          <el-table :data="rates" size="small" stripe max-height="420">
+          <el-table :data="rates" size="small" stripe max-height="420" v-loading="loading" :empty-text="loadError ? '读取失败，请重试' : '暂无工序费率'">
             <el-table-column prop="rate_key" label="费率键" width="120" />
             <el-table-column prop="op_type" label="工序类型" min-width="110" />
             <el-table-column prop="rate" label="费率" width="80" />
@@ -43,12 +46,12 @@
       </el-col>
 
       <!-- 报价规则 -->
-      <el-col :span="6">
+      <el-col :xs="24" :sm="24" :lg="6">
         <el-card shadow="never" class="panel">
           <template #header>
             <div class="panel-header"><span>报价规则</span></div>
           </template>
-          <el-form label-position="top" size="small">
+          <el-form label-position="top" size="small" v-loading="loading">
             <el-form-item v-for="rule in rules" :key="rule.rule_key" :label="ruleLabel(rule.rule_key)">
               <div class="rule-row">
                 <el-input-number v-model="rule.rule_value" :min="0" :max="100" :step="1" controls-position="right" style="width: 110px" />
@@ -104,6 +107,9 @@ import type { MaterialPrice, ProcessRate, QuoteRuleItem } from '@/types/quote'
 const materials = ref<MaterialPrice[]>([])
 const rates = ref<ProcessRate[]>([])
 const rules = ref<QuoteRuleItem[]>([])
+const loading = ref(true)
+const hasLoaded = ref(false)
+const loadError = ref('')
 
 const materialVisible = ref(false)
 const rateVisible = ref(false)
@@ -115,16 +121,22 @@ function ruleLabel(key: string): string {
 }
 
 async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = ''
   try {
     const m = (await quoteApi.listMaterials({ all: true })) as MaterialPrice[]
-    materials.value = Array.isArray(m) ? m : []
     const r = (await quoteApi.listProcessRates({ all: true })) as ProcessRate[]
-    rates.value = Array.isArray(r) ? r : []
-    rules.value = await quoteApi.listRules()
-  } catch {
-    materials.value = []
-    rates.value = []
-    rules.value = []
+    const ruleRows = await quoteApi.listRules()
+    const nextMaterials = Array.isArray(m) ? m : Array.isArray((m as { data?: MaterialPrice[] })?.data) ? (m as { data: MaterialPrice[] }).data : []
+    const nextRates = Array.isArray(r) ? r : Array.isArray((r as { data?: ProcessRate[] })?.data) ? (r as { data: ProcessRate[] }).data : []
+    materials.value = nextMaterials
+    rates.value = nextRates
+    rules.value = ruleRows
+    hasLoaded.value = true
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? '报价参数读取失败，请检查服务连接后重试。'
+  } finally {
+    loading.value = false
   }
 }
 

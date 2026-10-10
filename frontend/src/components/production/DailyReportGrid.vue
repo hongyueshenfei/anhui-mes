@@ -44,6 +44,7 @@
     </div>
 
     <el-alert v-if="loadError" :title="loadError" type="error" :closable="false" show-icon class="grid-alert" />
+    <div class="grid-scroll-hint">表格可横向滚动；机台、工单与产品信息保持固定，右侧包含数量、作业时间和保存状态</div>
 
     <el-table
       v-loading="loading"
@@ -414,30 +415,42 @@ function uniqueBy<T extends { id?: number | null }>(items: Array<T | null>, key:
 .grid-toolbar, .filters, .toolbar-actions, .summary-row, .grid-footer { display: flex; align-items: center; }
 .grid-toolbar { justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .filters, .toolbar-actions { gap: 8px; flex-wrap: wrap; }
-.summary-row { gap: 0; border: 1px solid #e5eaf2; border-radius: 6px; background: #f8fafc; min-height: 58px; }
+.summary-row { gap: 0; border: 1px solid var(--hy-line); border-radius: 6px; background: #f5f8fa; min-height: 58px; }
 .summary-item { min-width: 112px; padding: 8px 16px; border-right: 1px solid #e5eaf2; }
-.summary-item span { display: block; color: #64748b; font-size: 12px; }
-.summary-item strong { display: block; margin-top: 3px; color: #1e293b; font-size: 17px; }
-.summary-tip { padding: 0 16px; color: #64748b; font-size: 12px; }
-.primary-cell { color: #1e293b; font-weight: 600; line-height: 20px; }
+.summary-item span { display: block; color: var(--hy-muted); font-size: 12px; }
+.summary-item strong { display: block; margin-top: 3px; color: var(--hy-ink); font-size: 17px; font-variant-numeric: tabular-nums; }
+.summary-tip { padding: 0 16px; color: var(--hy-muted); font-size: 12px; }
+.primary-cell { color: var(--hy-ink); font-weight: 600; line-height: 20px; }
 .task-no-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.secondary-cell { color: #94a3b8; font-size: 12px; line-height: 18px; }
-.success-text { color: #15803d !important; }
-.warning-text { color: #b45309 !important; }
+.secondary-cell { color: var(--hy-muted); font-size: 12px; line-height: 18px; }
+.success-text { color: var(--hy-green) !important; }
+.warning-text { color: var(--hy-amber) !important; }
 .input-with-action { display: flex; align-items: center; gap: 4px; }
 .cell-input { width: 100px; }
 .cell-select { width: 100%; }
 .operation-select { width: 100%; }
 .work-time-editor { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; }
 .time-range-cell { display: flex; align-items: center; gap: 6px; min-width: 0; flex: 1 1 auto; }
-.time-separator { color: #64748b; flex: 0 0 auto; font-size: 12px; }
+.time-separator { color: var(--hy-muted); flex: 0 0 auto; font-size: 12px; }
 .time-range-cell :deep(.work-time-picker) { flex: 1 1 0; min-width: 0; width: auto; }
 .time-range-cell :deep(.work-time-picker .el-input__wrapper) { padding: 1px 8px; }
 .fill-plan-button { flex: 0 0 auto; padding: 0 2px; font-size: 12px; white-space: nowrap; }
 .grid-alert { margin: 0; }
-.grid-footer { justify-content: space-between; color: #94a3b8; font-size: 12px; }
+.grid-scroll-hint { display: none; color: var(--hy-muted); font-size: 12px; text-align: right; }
+.grid-footer { justify-content: space-between; color: var(--hy-muted); font-size: 12px; }
 :deep(.report-table .el-table__cell) { padding: 7px 0; }
 :deep(.report-table .cell) { line-height: 20px; }
 :deep(.report-table .is-pending td) { background: #eff6ff !important; }
 :deep(.report-table .is-pending .cell) { color: #1d4ed8; }
+
+@media (max-width: 1600px) {
+  .grid-scroll-hint { display: block; }
+}
+
+@media (max-width: 760px) {
+  .summary-row { align-items: stretch; flex-wrap: wrap; }
+  .summary-item { flex: 1 1 40%; border-bottom: 1px solid var(--hy-line); }
+  .summary-tip { flex: 1 1 100%; padding: 8px 12px; }
+  .grid-footer { align-items: flex-start; flex-direction: column; gap: 4px; }
+}
 </style>

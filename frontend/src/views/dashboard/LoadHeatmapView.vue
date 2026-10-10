@@ -3,7 +3,7 @@
     <el-card shadow="never" class="panel">
       <template #header>
         <div class="panel-header">
-          <span>产能负荷热力（{{ data?.start ?? '-' }} ~ {{ data?.end ?? '-' }}）</span>
+          <span>产能负荷热力（{{ data ? `${data.start} ~ ${data.end}` : loading ? '读取中' : '未获取' }}）</span>
           <div class="legend">
             <span class="legend-item"><i class="cell-demo" style="background:#e8f5e9"></i> &le;30%</span>
             <span class="legend-item"><i class="cell-demo" style="background:#c8e6c9"></i> 31-50%</span>
@@ -11,11 +11,13 @@
             <span class="legend-item"><i class="cell-demo" style="background:#ffb74d"></i> 71-85%</span>
             <span class="legend-item"><i class="cell-demo" style="background:#e57373"></i> &gt;85% 预警</span>
             <el-tag v-if="data" size="small" type="warning" effect="plain">高负荷机台 {{ data.summary.alert_count }} 台 · 平均负荷 {{ data.summary.avg_load }}% · 峰值 {{ data.summary.peak_load }}%</el-tag>
+            <el-button size="small" plain :loading="loading" @click="load">刷新</el-button>
           </div>
         </div>
       </template>
-      <div class="table-wrap">
-        <table class="heat-table">
+      <div v-if="loadError && data" class="stale-hint" role="status">{{ loadError }}；当前仍显示上次成功读取的数据。</div>
+      <div class="table-wrap" v-loading="loading" element-loading-text="正在读取机台负荷…">
+        <table v-if="data" class="heat-table">
           <thead>
             <tr>
               <th class="col-machine">机台</th>
@@ -43,6 +45,10 @@
             </tr>
           </tbody>
         </table>
+        <el-empty v-if="!loading && loadError && !data" :description="loadError">
+          <el-button type="primary" plain size="small" @click="load">重新加载</el-button>
+        </el-empty>
+        <el-empty v-else-if="!loading && data && data.rows.length === 0" description="当前统计周期暂无机台负荷数据" />
       </div>
     </el-card>
   </div>
@@ -55,6 +61,8 @@ import { dashboardApi } from '@/api/dashboard'
 import type { LoadHeatmapData } from '@/types/dashboard'
 
 const data = ref<LoadHeatmapData | null>(null)
+const loading = ref(true)
+const loadError = ref('')
 
 function cellStyle(load: number | null): Record<string, string> {
   if (load === null) {
@@ -76,13 +84,19 @@ function weekLabel(date: string): string {
   return `周${map[dayjs(date).day()]}`
 }
 
-onMounted(async () => {
+async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = ''
   try {
     data.value = await dashboardApi.loadHeatmap()
-  } catch {
-    data.value = null
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? '负荷数据读取失败，请检查后端连接后重试。'
+  } finally {
+    loading.value = false
   }
-})
+}
+
+onMounted(load)
 </script>
 
 <style scoped>
@@ -121,7 +135,9 @@ onMounted(async () => {
 }
 .table-wrap {
   overflow-x: auto;
+  min-height: 180px;
 }
+.stale-hint { margin-bottom: 10px; color: #ad7419; font-size: 12px; }
 .heat-table {
   width: 100%;
   border-collapse: collapse;

@@ -1,5 +1,5 @@
 <template>
-  <el-dialog v-model="visible" title="Excel 导入订单" width="560px">
+  <el-dialog v-model="visible" title="Excel 导入订单" width="min(560px, calc(100vw - 24px))" append-to-body destroy-on-close>
     <el-alert type="info" :closable="false" class="mb-12">
       支持 CSV / XLSX。首行为表头：产品编码、数量、交期、客户、优先级。
       编码不匹配行将明确报错（行号+编码+原因），合法行照常导入。
@@ -10,8 +10,9 @@
       accept=".csv,.xlsx,.xls,.ods,.txt"
       :auto-upload="false"
       :limit="1"
+      :disabled="importing"
       :on-change="onFileChange"
-      :on-remove="() => (file = null)"
+      :on-remove="onFileRemove"
     >
       <el-icon class="el-icon--upload"><UploadFilled /></el-icon>
       <div class="el-upload__text">拖入文件或<em>点击选择</em></div>
@@ -37,6 +38,8 @@
       </template>
     </div>
 
+    <el-alert v-if="importError" type="error" show-icon :closable="false" class="import-error" :title="importError" />
+
     <template #footer>
       <el-button @click="close">关闭</el-button>
       <el-button type="primary" :loading="importing" :disabled="!file" @click="onImport">
@@ -61,6 +64,7 @@ const visible = ref(false)
 const file = ref<File | null>(null)
 const importing = ref(false)
 const result = ref<ImportResult | null>(null)
+const importError = ref('')
 
 watch(
   () => props.modelValue,
@@ -69,6 +73,7 @@ watch(
     if (v) {
       file.value = null
       result.value = null
+      importError.value = ''
     }
   },
 )
@@ -76,6 +81,14 @@ watch(visible, (v) => emit('update:modelValue', v))
 
 function onFileChange(uploadFile: UploadFile): void {
   file.value = uploadFile.raw ?? null
+  result.value = null
+  importError.value = ''
+}
+
+function onFileRemove(): void {
+  file.value = null
+  result.value = null
+  importError.value = ''
 }
 
 function close(): void {
@@ -85,6 +98,7 @@ function close(): void {
 async function onImport(): Promise<void> {
   if (!file.value) return
   importing.value = true
+  importError.value = ''
   try {
     const res = await orderApi.importExcel(file.value)
     result.value = res
@@ -94,8 +108,8 @@ async function onImport(): Promise<void> {
     } else {
       ElMessage.error('无可导入的合法行')
     }
-  } catch {
-    result.value = null
+  } catch (error: any) {
+    importError.value = error?.response?.data?.message ?? '导入请求失败；请确认文件内容并检查服务连接后重试。'
   } finally {
     importing.value = false
   }
@@ -105,6 +119,9 @@ async function onImport(): Promise<void> {
 <style scoped>
 .mb-12 {
   margin-bottom: 12px;
+}
+.import-error {
+  margin-top: 12px;
 }
 .result-panel {
   margin-top: 14px;

@@ -32,7 +32,12 @@
       </el-button>
     </div>
 
+    <StaleDataNotice :visible="loadError && routes.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="routes" stripe>
+      <template #empty>
+        <EmptyStatePanel :kind="emptyKind" :title="emptyTitle" :description="emptyDescription" :action-label="emptyActionLabel" @action="onEmptyAction" />
+      </template>
       <el-table-column prop="name" label="路线名称" min-width="180" show-overflow-tooltip />
       <el-table-column prop="version" label="版本" width="90" />
       <el-table-column label="状态" width="100">
@@ -194,6 +199,8 @@ import { plmApi } from '@/api/plm'
 import type { Machine, OpTemplate, PlmRoute, PlmWorkshop, RouteOp } from '@/types'
 import { OP_TYPE_WORKSHOP } from '@/types'
 import FormDialog, { type FormField } from '@/components/common/FormDialog.vue'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 import { estimateHours, formatHours } from '@/utils/capacity'
@@ -202,9 +209,17 @@ const auth = useAuthStore()
 const canManage = computed(() => auth.can('plm.route.manage'))
 
 const routes = ref<PlmRoute[]>([])
-const loading = ref(false)
+const loading = ref(true)
 const keyword = ref('')
 const filterStatus = ref('')
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(keyword.value.trim() || filterStatus.value))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取工艺路线' : loadError.value ? '工艺路线加载失败' : hasFilters.value ? '没有匹配的工艺路线' : '还没有工艺路线')
+const emptyDescription = computed(() => loading.value ? '正在从生产系统读取最新记录。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有路线”。'
+  : hasFilters.value ? '调整路线名称、版本或状态条件，也可以清空筛选。' : '先建立工艺路线，再配置工序顺序与适用车间。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空筛选' : '')
 
 const opsVisible = ref(false)
 const opsTitle = ref('')
@@ -333,13 +348,28 @@ async function loadMachines(): Promise<void> {
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
   try {
     routes.value = await plmApi.listRoutes({
       keyword: keyword.value || undefined,
       status: filterStatus.value || undefined,
     })
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    keyword.value = ''
+    filterStatus.value = ''
+    void load()
+  } else if (canManage.value) {
+    openCreate()
   }
 }
 

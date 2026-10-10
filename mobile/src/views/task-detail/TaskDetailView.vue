@@ -2,6 +2,17 @@
   <div class="page">
     <van-nav-bar title="任务详情" left-arrow @click-left="router.back()" />
 
+    <div v-if="loading && !task" class="request-state" role="status" aria-live="polite">
+      <van-loading vertical>正在读取任务详情</van-loading>
+    </div>
+    <van-empty v-else-if="loadError && !task" image="network" :description="loadError">
+      <van-button round type="primary" size="small" @click="load">重新加载</van-button>
+    </van-empty>
+    <van-notice-bar v-if="loading && task" type="primary" left-icon="replay" text="正在刷新，当前显示上次成功读取的详情。" />
+    <van-notice-bar v-if="loadError && task" type="warning" left-icon="warning-o" :text="`${loadError}，当前展示的是上次成功读取的详情。`">
+      <template #right-icon><van-button size="mini" plain type="warning" @click="load">重试</van-button></template>
+    </van-notice-bar>
+
     <van-cell-group inset v-if="task" class="card">
       <van-cell title="任务号" :value="task.task_no" />
       <van-cell title="产品">
@@ -23,7 +34,7 @@
       <van-cell title="进度偏差" :value="`${task.deviation_pct ?? 0}%`" />
     </van-cell-group>
 
-    <van-cell-group inset class="card" title="工序排程">
+    <van-cell-group v-if="task" inset class="card" title="工序排程">
       <van-cell v-for="s in task?.schedules ?? []" :key="s.id" :title="s.op_name ?? s.op_type" :label="s.machine_code ?? s.team_name ?? ''">
         <template #value>
           <span class="time">{{ (s.plan_start ?? '').slice(5, 16) }} ~ {{ (s.plan_end ?? '').slice(5, 16) }}</span>
@@ -49,6 +60,8 @@ import { mobileTask } from '@/api/mobile'
 const route = useRoute()
 const router = useRouter()
 const task = ref<any>(null)
+const loading = ref(true)
+const loadError = ref('')
 const canOperateReports = (() => {
   try {
     const user = JSON.parse(localStorage.getItem('hy_mobile_user') ?? 'null') as { job_type?: string; roles?: string[] } | null
@@ -59,20 +72,28 @@ const canOperateReports = (() => {
   }
 })()
 
-onMounted(async () => {
+onMounted(load)
+
+async function load(): Promise<void> {
+  loadError.value = ''
   const id = Number(route.params.id)
   if (!id) {
-    showToast('缺少任务参数')
+    loadError.value = '缺少任务编号，请从任务列表重新进入'
+    loading.value = false
     return
   }
+  loading.value = true
   try {
     const resp = await mobileTask(id)
     const body = resp.data
-    if (body?.code === 0) task.value = body.data
-  } catch {
-    showToast('任务加载失败')
+    if (body?.code !== 0) throw new Error(body?.message || '任务读取失败，请稍后重试')
+    task.value = body.data
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? error?.message ?? '任务读取失败，请检查网络后重试'
+  } finally {
+    loading.value = false
   }
-})
+}
 
 function goReport(): void {
   const schedule = task.value?.schedules?.find((item: any) => item.machine?.code || item.machine_code)
@@ -95,9 +116,10 @@ function statusType(s: string): 'primary' | 'success' | 'warning' | 'default' {
 <style scoped>
 .page {
   min-height: 100vh;
-  background: #f7f8fa;
+  background: var(--hy-canvas);
   padding-bottom: 40px;
 }
+.request-state { display: grid; min-height: 180px; place-items: center; color: var(--hy-muted); }
 .card {
   margin-top: 12px;
 }

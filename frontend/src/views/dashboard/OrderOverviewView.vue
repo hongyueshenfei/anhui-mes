@@ -2,21 +2,24 @@
   <div class="order-overview">
     <div class="page-intro">
       <div>
-        <div class="page-title">订单履约统计</div>
-        <div class="page-subtitle">按订单汇总生产完成、入库完成、交期风险和计划偏差；拆单子任务统一归并到原订单。</div>
+        <div class="page-subtitle">拆单任务归并到原订单；工序推进、成品生产完成和入库完成分别统计。</div>
       </div>
-      <el-tag type="info" effect="plain">生产完成 ≠ 入库完成</el-tag>
+      <el-tag type="info" effect="plain">工序推进 ≠ 成品完成 ≠ 入库完成</el-tag>
     </div>
 
     <div class="metric-grid">
       <el-card v-for="card in summaryCards" :key="card.key" shadow="never" class="metric-card" :class="`metric-card--${card.tone}`">
-        <div class="metric-value">{{ card.value }}</div>
+        <div class="metric-value">{{ hasData ? card.value : '—' }}</div>
         <div class="metric-label">{{ card.label }}</div>
-        <div class="metric-sub">{{ card.sub }}</div>
+        <div class="metric-sub">{{ hasData ? card.sub : loadError ? '数据暂不可用' : '正在获取最新数据' }}</div>
       </el-card>
     </div>
 
     <el-card shadow="never" class="panel">
+      <div v-if="loadError" class="load-error" role="alert">
+        <span>{{ loadError }}</span>
+        <el-button size="small" type="primary" plain @click="load">重新加载</el-button>
+      </div>
       <template #header>
         <div class="panel-header">
           <div>
@@ -34,7 +37,8 @@
         </div>
       </template>
 
-      <div class="coverage-strip">
+      <div v-if="hasData" class="coverage-strip">
+        <span>工序推进 <strong>{{ summary.process_progress_pct }}%</strong>（{{ formatQty(summary.process_done_qty) }} / {{ formatQty(summary.process_plan_qty) }} 件）</span>
         <span>生产完成量 <strong>{{ formatQty(summary.done_qty) }}</strong> / {{ formatQty(summary.total_qty) }}</span>
         <span>入库完成量 <strong>{{ formatQty(summary.stocked_qty) }}</strong> / {{ formatQty(summary.total_qty) }}</span>
         <span>生产完成率 <strong>{{ summary.production_completion_pct }}%</strong></span>
@@ -42,9 +46,14 @@
         <span>暂停 <strong class="text-warning">{{ summary.paused }}</strong> 单</span>
         <span>未开工 <strong class="text-muted">{{ summary.not_started }}</strong> 单</span>
       </div>
+      <div v-else class="coverage-placeholder">
+        {{ loadError ? '汇总数据未能获取。' : '正在加载履约汇总…' }}
+      </div>
 
-      <el-table v-loading="loading" :data="items" size="small" stripe border empty-text="暂无订单履约数据" class="fulfillment-table">
-        <el-table-column label="订单号" width="180" fixed="left">
+      <div v-if="isCompact" class="table-scroll-hint">表格可横向滚动；工序推进量按订单各工序报工汇总，不代表最终成品数</div>
+      <div class="table-scroll">
+      <el-table v-loading="loading" :data="items" :style="{ minWidth: isCompact ? '1600px' : '100%' }" size="small" stripe border :empty-text="tableEmptyText" class="fulfillment-table">
+        <el-table-column label="订单号" width="180">
           <template #default="{ row }">
             <el-link type="primary" @click="openOrder(row.order_id)">{{ row.order_no }}</el-link>
             <div v-if="row.k3_bill_no" class="muted">{{ row.k3_bill_no }}</div>
@@ -72,6 +81,12 @@
             <div class="progress-caption">{{ formatQty(row.done_qty) }} / {{ formatQty(row.total_qty) }}</div>
           </template>
         </el-table-column>
+        <el-table-column label="工序推进" min-width="190">
+          <template #default="{ row }">
+            <el-progress :percentage="row.process_progress_pct ?? 0" :stroke-width="7" color="var(--hy-blue)" :format="(percentage: number) => `${percentage.toFixed(1)}%`" />
+            <div class="progress-caption">{{ formatQty(row.process_done_qty) }} / {{ formatQty(row.process_plan_qty) }} 件</div>
+          </template>
+        </el-table-column>
         <el-table-column label="入库完成" width="145" align="right">
           <template #default="{ row }">
             <span>{{ formatQty(row.stocked_qty ?? 0) }}</span>
@@ -97,21 +112,31 @@
           </template>
         </el-table-column>
       </el-table>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { dashboardApi } from '@/api/dashboard'
 import type { OrderOverviewData } from '@/types/dashboard'
 
 const router = useRouter()
-const loading = ref(false)
+const loading = ref(true)
+const loadError = ref('')
 const keyword = ref('')
 const fulfillmentStatus = ref('')
 const data = ref<OrderOverviewData | null>(null)
+const hasData = computed(() => data.value !== null)
+const isCompact = ref(false)
+let compactMediaQuery: MediaQueryList | undefined
+const tableEmptyText = computed(() => {
+  if (loading.value) return '正在加载订单履约数据…'
+  if (loadError.value && !hasData.value) return '数据加载失败，请重新加载'
+  return '暂无符合条件的订单履约数据'
+})
 
 const emptySummary: NonNullable<OrderOverviewData['summary']> = {
   total_orders: 0,
@@ -158,13 +183,16 @@ const summaryCards = computed(() => [
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = ''
   try {
     data.value = await dashboardApi.orderOverview({
       keyword: keyword.value.trim() || undefined,
       fulfillment_status: fulfillmentStatus.value || undefined,
     })
   } catch {
-    data.value = null
+    loadError.value = data.value
+      ? '刷新失败，当前仍显示上次成功查询的数据。'
+      : '订单履约数据加载失败，请检查连接后重试。'
   } finally {
     loading.value = false
   }
@@ -195,17 +223,28 @@ function fulfillmentTagType(status: string | undefined): 'success' | 'warning' |
 }
 
 function progressColor(status: string | undefined): string {
-  if (status === 'overdue' || status === 'completed_late') return '#f56c6c'
-  if (status === 'forecast_late') return '#e6a23c'
-  if (status === 'completed_on_time') return '#67c23a'
-  return '#409eff'
+  if (status === 'overdue' || status === 'completed_late') return 'var(--hy-red)'
+  if (status === 'forecast_late') return 'var(--hy-amber)'
+  if (status === 'completed_on_time') return 'var(--hy-green)'
+  return 'var(--hy-blue)'
 }
 
 function openOrder(orderId: number): void {
   router.push(`/order/detail/${orderId}`)
 }
 
-onMounted(load)
+function syncCompactLayout(event: MediaQueryListEvent): void {
+  isCompact.value = event.matches
+}
+
+onMounted(() => {
+  compactMediaQuery = window.matchMedia('(max-width: 1600px)')
+  isCompact.value = compactMediaQuery.matches
+  compactMediaQuery.addEventListener('change', syncCompactLayout)
+  load()
+})
+
+onUnmounted(() => compactMediaQuery?.removeEventListener('change', syncCompactLayout))
 </script>
 
 <style scoped>
@@ -221,12 +260,6 @@ onMounted(load)
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-}
-
-.page-title {
-  color: #1f2937;
-  font-size: 18px;
-  font-weight: 700;
 }
 
 .page-subtitle,
@@ -247,29 +280,29 @@ onMounted(load)
 }
 
 .metric-card {
-  min-height: 84px;
-  border-top: 3px solid #dbeafe;
-  text-align: center;
+  min-height: 88px;
+  border-left: 3px solid #dbe4ea;
+  text-align: left;
 }
 
 .metric-card--success {
-  border-top-color: #67c23a;
+  border-left-color: var(--hy-green);
 }
 
 .metric-card--primary {
-  border-top-color: #409eff;
+  border-left-color: var(--hy-blue);
 }
 
 .metric-card--warning {
-  border-top-color: #e6a23c;
+  border-left-color: var(--hy-amber);
 }
 
 .metric-card--danger {
-  border-top-color: #f56c6c;
+  border-left-color: var(--hy-red);
 }
 
 .metric-value {
-  color: #1f2937;
+  color: var(--hy-ink);
   font-size: 22px;
   font-variant-numeric: tabular-nums;
   font-weight: 700;
@@ -277,15 +310,15 @@ onMounted(load)
 }
 
 .metric-label {
-  color: #475569;
+  color: #536776;
   font-size: 13px;
 }
 
 .metric-sub {
   margin-top: 3px;
-  color: #94a3b8;
+  color: var(--hy-muted);
   font-size: 12px;
-  white-space: nowrap;
+  line-height: 1.4;
 }
 
 .panel-title {
@@ -314,33 +347,71 @@ onMounted(load)
   gap: 8px 20px;
   margin-bottom: 10px;
   padding: 8px 12px;
-  border-left: 3px solid #409eff;
-  background: #f8fafc;
-  color: #64748b;
+  border-left: 3px solid var(--hy-blue);
+  background: #f5f8fa;
+  color: #536776;
   font-size: 12px;
 }
 
 .coverage-strip strong {
-  color: #1f2937;
+  color: var(--hy-ink);
   font-variant-numeric: tabular-nums;
 }
 
 .text-danger {
-  color: #f56c6c;
+  color: var(--hy-red);
   font-weight: 600;
 }
 
 .text-warning {
-  color: #e6a23c;
+  color: var(--hy-amber);
 }
 
 .text-success {
-  color: #67c23a;
+  color: var(--hy-green);
   font-weight: 600;
 }
 
 .text-muted {
-  color: #64748b !important;
+  color: var(--hy-muted) !important;
+}
+
+.coverage-placeholder {
+  margin-bottom: 10px;
+  padding: 10px 12px;
+  border-left: 3px solid var(--hy-line);
+  background: #f8fafb;
+  color: var(--hy-muted);
+  font-size: 12px;
+}
+
+.coverage-placeholder span {
+  margin-left: 8px;
+}
+
+.load-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 9px 12px;
+  border: 1px solid #ecc8c5;
+  border-radius: 6px;
+  color: var(--hy-red);
+  background: #fff7f6;
+}
+
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.table-scroll-hint {
+  margin: -4px 0 7px;
+  color: var(--hy-muted);
+  font-size: 12px;
+  text-align: right;
 }
 
 .risk-hint,
@@ -368,6 +439,10 @@ onMounted(load)
   font-variant-numeric: tabular-nums;
 }
 
+:deep(.fulfillment-table .el-table__inner-wrapper) {
+  min-width: 100%;
+}
+
 :deep(.fulfillment-table th.el-table__cell) {
   color: #475569;
   font-weight: 600;
@@ -379,9 +454,16 @@ onMounted(load)
   }
 }
 
+@media (max-width: 1100px) {
+  .metric-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 760px) {
   .page-intro,
-  .panel-header {
+  .panel-header,
+  .load-error {
     align-items: flex-start;
     flex-direction: column;
   }

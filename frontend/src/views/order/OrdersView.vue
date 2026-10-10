@@ -29,12 +29,40 @@
       </div>
     </div>
 
-    <el-table ref="tableRef" v-loading="loading" :data="rows" stripe class="order-table">
+    <StaleDataNotice :visible="Boolean(loadError && rows.length)" @retry="load" />
+    <el-alert v-if="loading && rows.length && !loadError" title="正在更新查询结果，暂时显示上次成功读取的工单。" type="info" show-icon :closable="false" class="orders-load-alert" />
+    <div v-if="isCompact" class="table-scroll-hint">表格可横向滚动查看完整字段与操作列</div>
+    <div class="table-scroll">
+    <el-table
+      ref="tableRef"
+      v-loading="loading"
+      :data="rows"
+      :style="{ minWidth: isCompact ? '1630px' : undefined }"
+      stripe
+      class="order-table"
+    >
+      <template #empty>
+        <EmptyStatePanel
+          :kind="loading ? 'loading' : loadError ? 'error' : hasFilters ? 'filtered' : 'empty'"
+          :title="loading ? '正在读取工单' : loadError ? '工单读取失败' : hasFilters ? '没有匹配的工单' : '还没有生产工单'"
+          :description="loading ? '正在读取工单状态与工序进度。' : loadError ? '请检查连接后重试；读取失败不会被当作“没有工单”。' : hasFilters ? '可清除单号、客户或状态筛选后重试。' : '可手工建单或从 Excel 导入生产订单。'"
+          :action-label="loading ? '' : loadError ? '重新加载' : hasFilters ? '清除筛选' : '手工建单'"
+          @action="onEmptyAction"
+        />
+      </template>
       <!-- 工单中心：一行=一个工单（订单按产品拆解），工单号唯一 -->
-      <el-table-column prop="task_no" label="工单号" :width="colWidths.task_no" fixed="left">
+      <el-table-column prop="task_no" label="工单号" :width="colWidths.task_no" :fixed="isCompact ? false : 'left'">
         <template #default="{ row }">
-          <el-link type="primary" @click="openDetail(row)">{{ row.task_no }}</el-link>
-          <el-tag v-if="row.is_split_child" size="small" type="info" class="split-tag">拆分 {{ row.split_index }}/{{ row.split_total }}</el-tag>
+          <div class="task-identity">
+            <el-tooltip :content="row.task_no" placement="top" :show-after="400">
+              <el-link type="primary" class="task-no-link" :title="row.task_no" @click="openDetail(row)">
+                {{ row.task_no }}
+              </el-link>
+            </el-tooltip>
+            <el-tag v-if="row.is_split_child" size="small" type="info" class="split-tag">
+              子批次 {{ row.split_index }}/{{ row.split_total }}
+            </el-tag>
+          </div>
         </template>
       </el-table-column>
       <el-table-column prop="order_no" label="订单号" :width="colWidths.order_no" show-overflow-tooltip />
@@ -47,7 +75,7 @@
       <el-table-column label="来源" :width="colWidths.src">
         <template #default="{ row }">{{ srcLabel(row.src) }}</template>
       </el-table-column>
-      <el-table-column prop="qty" label="数量" :width="colWidths.qty" align="center" />
+      <el-table-column prop="qty" label="数量" :width="colWidths.qty" align="right" />
       <el-table-column label="优先级" :width="colWidths.priority" align="center">
         <template #default="{ row }">
           <el-tag size="small" :type="priorityType(row.priority)" :effect="row.priority === 0 ? 'dark' : 'light'">P{{ row.priority }}</el-tag>
@@ -61,7 +89,7 @@
           <el-tag size="small" :type="statusType(row.status)">{{ statusLabel(row.status) }}</el-tag>
         </template>
       </el-table-column>
-      <el-table-column label="总进度" :width="colWidths.progress" min-width="360" fixed="right">
+      <el-table-column label="总进度" :width="colWidths.progress" min-width="360" :fixed="isCompact ? false : 'right'">
         <template #default="{ row }">
           <OrderProgressSteps
             v-if="row.progress?.stages?.length"
@@ -72,7 +100,7 @@
           <span v-else class="muted">{{ row.progress?.percent ?? 0 }}%</span>
         </template>
       </el-table-column>
-      <el-table-column label="操作" :width="colWidths.actions" align="center" fixed="right">
+      <el-table-column label="操作" :width="colWidths.actions" align="center" :fixed="isCompact ? false : 'right'">
         <template #default="{ row }">
           <el-dropdown trigger="click" @command="(cmd: string) => onAction(row, cmd)">
             <el-button size="small" text type="primary">
@@ -90,8 +118,9 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
 
-    <div class="pager">
+    <div v-if="rows.length || (!loading && !loadError)" class="pager">
       <el-pagination
         v-model:current-page="page"
         :page-size="perPage"
@@ -170,7 +199,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowDown, Plus, Upload } from '@element-plus/icons-vue'
 import { orderApi } from '@/api/order'
@@ -180,18 +209,24 @@ import { formatDate, formatDateTime } from '@/utils/datetime'
 import ImportView from './ImportView.vue'
 import OrderProgressSteps from '@/components/order/OrderProgressSteps.vue'
 import { useRouter } from 'vue-router'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 
 const router = useRouter()
 
 const rows = ref<Order[]>([])
 const tableRef = ref<{ $el: HTMLElement } | null>(null)
-const loading = ref(false)
+const loading = ref(true)
+const loadError = ref('')
 const total = ref(0)
 const page = ref(1)
 const perPage = 15
 const keyword = ref('')
 const filterStatus = ref('')
 const filterSrc = ref('')
+const hasFilters = computed(() => Boolean(keyword.value.trim() || filterStatus.value || filterSrc.value))
+const isCompact = ref(false)
+let orderCompactMediaQuery: MediaQueryList | undefined
 
 const createVisible = ref(false)
 const creating = ref(false)
@@ -238,10 +273,22 @@ const form = ref<{
   lines: [{ product_code: '', qty: 100, delivery_date: null }],
 })
 
-onMounted(load)
+onMounted(() => {
+  orderCompactMediaQuery = window.matchMedia('(max-width: 1900px)')
+  isCompact.value = orderCompactMediaQuery.matches
+  orderCompactMediaQuery.addEventListener('change', syncCompactLayout)
+  load()
+})
+
+onUnmounted(() => orderCompactMediaQuery?.removeEventListener('change', syncCompactLayout))
+
+function syncCompactLayout(event: MediaQueryListEvent): void {
+  isCompact.value = event.matches
+}
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = ''
   try {
     const result = await orderApi.listOrders({
       page: page.value,
@@ -253,11 +300,27 @@ async function load(): Promise<void> {
     })
     rows.value = result.data
     total.value = result.total
-  } catch {
-    rows.value = []
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? '工单读取失败，请检查网络后重试。'
   } finally {
     loading.value = false
   }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+    return
+  }
+  if (hasFilters.value) {
+    keyword.value = ''
+    filterStatus.value = ''
+    filterSrc.value = ''
+    page.value = 1
+    void load()
+    return
+  }
+  createVisible.value = true
 }
 
 async function onCreate(): Promise<void> {
@@ -455,7 +518,15 @@ function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
 .toolbar-left,
 .toolbar-right {
   display: flex;
+  align-items: center;
   gap: 8px;
+  flex-wrap: wrap;
+}
+.toolbar-left {
+  flex: 1 1 620px;
+}
+.toolbar-right {
+  justify-content: flex-end;
 }
 .pager {
   display: flex;
@@ -477,7 +548,29 @@ function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
   font-size: 12px;
 }
 .split-tag {
-  margin-left: 6px;
+  margin-left: 0;
+  align-self: flex-start;
+  height: 18px;
+  line-height: 16px;
+}
+.task-identity {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  white-space: normal;
+}
+.task-no-link {
+  display: block;
+  max-width: 100%;
+}
+.task-identity :deep(.task-no-link .el-link__inner) {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .split-head,
 .split-row {
@@ -511,8 +604,18 @@ function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
   color: #c2410c;
 }
 
-/* 订单列表：单元格不换行；列宽固定，由父容器统一横向滚动 */
-/* 外层（page-card / el-card__body）需有 overflow-x:auto，否则浏览器窗口横滚 */
+/* 订单列表：单元格不换行，宽屏保持完整列宽，窄屏在表格区域内横向滚动 */
+.table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+.table-scroll-hint {
+  margin: -6px 0 8px;
+  color: var(--hy-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
 .order-table :deep(.el-table__header th .cell),
 .order-table :deep(.el-table__body td .cell) {
   white-space: nowrap;
@@ -528,5 +631,20 @@ function priorityType(p: number): 'danger' | 'warning' | 'primary' | 'info' {
   width: 8px;
   cursor: col-resize;
   z-index: 6;
+}
+
+@media (max-width: 700px) {
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+  }
+
+  .toolbar-right {
+    justify-content: flex-start;
+  }
+
+  .pager {
+    justify-content: center;
+  }
 }
 </style>

@@ -30,7 +30,7 @@
           <el-button size="small" @click="chartRef?.scrollToNow()">
             <el-icon><Aim /></el-icon>回到当前
           </el-button>
-          <el-button size="small" :loading="poolLoading" @click="reloadAll">
+          <el-button size="small" :loading="reloading" @click="reloadAll">
             <el-icon><Refresh /></el-icon>刷新
           </el-button>
           <el-button size="small" type="warning" :loading="recalculating" @click="recalculateSchedules">
@@ -61,7 +61,7 @@
             type="button"
             @click="toggleExceptionFilter('conflict')"
           >
-            <span>冲突</span><strong>{{ ganttStats.conflict }}</strong>
+            <span>冲突</span><strong>{{ timelineLoaded ? ganttStats.conflict : '—' }}</strong>
           </button>
           <button
             class="gantt-stat is-warning"
@@ -69,7 +69,7 @@
             type="button"
             @click="toggleExceptionFilter('overdue')"
           >
-            <span>超期</span><strong>{{ ganttStats.overdue }}</strong>
+            <span>超期</span><strong>{{ timelineLoaded ? ganttStats.overdue : '—' }}</strong>
           </button>
           <button
             class="gantt-stat is-info"
@@ -77,9 +77,9 @@
             type="button"
             @click="toggleExceptionFilter('forecast')"
           >
-            <span>预计滞后</span><strong>{{ ganttStats.forecast }}</strong>
+            <span>预计滞后</span><strong>{{ timelineLoaded ? ganttStats.forecast : '—' }}</strong>
           </button>
-          <span class="gantt-stat-note">任务池 {{ poolItems.length }} 条</span>
+          <span class="gantt-stat-note">任务池 {{ poolLoaded ? poolItems.length : '—' }} 条</span>
         </div>
         <div class="gantt-filter-inline">
           <el-input
@@ -103,18 +103,43 @@
           </el-select>
           <el-checkbox v-model="ganttFilters.exceptionOnly" label="只看异常" size="small" />
           <el-button v-if="hasGanttFilters" text size="small" @click="resetGanttFilters">清空筛选</el-button>
-          <span class="gantt-filter-summary">显示 {{ rows.length }} / {{ allRows.length }} 个资源</span>
+          <span class="gantt-filter-summary">{{ timelineLoaded ? `显示 ${rows.length} / ${allRows.length} 个资源` : timelineLoading ? '正在读取资源…' : '资源数据未获取' }}</span>
         </div>
       </div>
+      <el-alert
+        v-if="poolError || timelineError"
+        class="gantt-load-alert"
+        type="error"
+        :closable="false"
+        show-icon
+        :title="loadErrorTitle"
+      >
+        <template #default>
+          <div class="gantt-load-details">
+            <div v-if="timelineError"><strong>资源时间轴：</strong>{{ timelineError }}</div>
+            <div v-if="poolError"><strong>待排任务池：</strong>{{ poolError }}</div>
+            <el-button size="small" type="primary" plain :loading="reloading" @click="reloadAll">重试加载</el-button>
+          </div>
+        </template>
+      </el-alert>
     </el-card>
 
     <div class="gantt-main">
       <!-- 任务池 -->
-      <TaskPoolPanel :items="poolItems" :picked-id="pickedTask?.id ?? null" @pick="pickedTask = $event" />
+      <TaskPoolPanel
+        :items="poolItems"
+        :picked-id="pickedTask?.id ?? null"
+        :loading="poolLoading"
+        :error="poolError"
+        @pick="pickedTask = $event"
+        @retry="loadPool"
+      />
 
       <!-- 甘特 -->
       <el-card shadow="never" class="gantt-card">
-        <div class="gantt-help">操作提示：停机、维修、停用等异常资源始终显示且标明状态，不会自动移动其订单；计划员可选中未开工工单后手动转机，模具适配和排程冲突仍会校验。单击计划条选中并高亮该工单全部工序；当前起未来三天的锁定任务需先解锁；长按任务主体移动整条工序链，拖动左右手柄调整时间；双击进入排产明细。生产中/已完成或已有实际报工的任务仅支持查看。</div>
+        <div class="gantt-help" title="已开工、已完成或有报工记录的任务仅供查看；当前起未来三天的锁定任务需先解锁。双击计划条查看排产明细。">
+          选中待排任务后点时间轴空档，或拖到匹配资源；拖动计划条调整时间。维修/停机资源保持显示，需要时由计划员手动转机。
+        </div>
         <div v-if="selectedBar" class="selection-hint">
           <span>已选工单：<strong>{{ selectedBar.taskNo }}</strong></span>
           <span>订单：{{ selectedBar.orderNo || '—' }}</span>
@@ -122,27 +147,31 @@
           <el-button v-if="canTransferSelected" size="small" type="warning" plain @click="openTransferDialog">手动转机</el-button>
           <span v-if="selectedActualSummary" class="selection-metrics">{{ selectedActualSummary }}</span>
         </div>
-        <GanttChart
-          ref="chartRef"
-          :rows="rows"
-          :start-date="startDate"
-          :end-date="endDate"
-          :shift="timeline?.shift ?? defaultShift"
-          :dragging-task="pickedTask"
-          :px-per-day="pxPerDay"
-          :focus-now="rangePreset !== 'p7'"
-          @update:px-per-day="pxPerDay = $event"
-          @drop-on="onDropOn"
-          @click-empty="onClickEmpty"
-          @click-bar="onClickBar"
-          @dbl-click-bar="onDblClickBar"
-          @move-bar="onMoveBar"
-          @resize-bar="onResizeBar"
-          @native-drop="onNativeDrop"
-          @drop-rejected="onDropRejected"
-        />
-        <div v-if="rows.length === 0" class="empty-tip">
-          {{ allRows.length ? '没有匹配的排程资源，请清空筛选或展开车间。' : '加载甘特数据中…（确认已登录且有排产查看权限）' }}
+        <div class="chart-stage" v-loading="timelineLoading">
+          <GanttChart
+            ref="chartRef"
+            :rows="rows"
+            :start-date="startDate"
+            :end-date="endDate"
+            :shift="timeline?.shift ?? defaultShift"
+            :dragging-task="pickedTask"
+            :px-per-day="pxPerDay"
+            :focus-now="rangePreset !== 'p7'"
+            @update:px-per-day="pxPerDay = $event"
+            @drop-on="onDropOn"
+            @click-empty="onClickEmpty"
+            @click-bar="onClickBar"
+            @dbl-click-bar="onDblClickBar"
+            @move-bar="onMoveBar"
+            @resize-bar="onResizeBar"
+            @native-drop="onNativeDrop"
+            @drop-rejected="onDropRejected"
+          />
+          <div v-if="rows.length === 0" class="chart-empty-state" role="status">
+            <strong>{{ chartEmptyTitle }}</strong>
+            <span>{{ chartEmptyDescription }}</span>
+            <el-button v-if="timelineError" size="small" type="primary" plain :loading="timelineLoading" @click="reloadTimeline">重试资源加载</el-button>
+          </div>
         </div>
       </el-card>
     </div>
@@ -228,6 +257,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Aim, List, MagicStick, Refresh, RefreshRight, Unlock } from '@element-plus/icons-vue'
 import { scheduleApi } from '@/api/schedule'
+import { getApiErrorMessage } from '@/api/axios'
 import type { PoolTask, TimelineData } from '@/types/schedule'
 import type { GanttBar, GanttRow } from '@/utils/ScheduleAdapter'
 import { isAbnormalResource, machineTypeLabel, toDate, toIso, toRows } from '@/utils/ScheduleAdapter'
@@ -240,8 +270,13 @@ import ScheduleDetailView from '@/views/schedule/ScheduleDetailView.vue'
 // 默认同时展示历史完工与近期计划，避免打开甘特图看不到过去几天的数据。
 const rangePreset = ref<'p7' | '7d' | '14d' | '30d'>('p7')
 const poolItems = ref<PoolTask[]>([])
-const poolLoading = ref(false)
+const poolLoading = ref(true)
+const poolLoaded = ref(false)
+const poolError = ref('')
 const timeline = ref<TimelineData | null>(null)
+const timelineLoading = ref(true)
+const timelineLoaded = ref(false)
+const timelineError = ref('')
 const pickedTask = ref<PoolTask | null>(null)
 /** 比例尺（像素/天）：默认 140 天级总览，滑杆放大到 2160 小时级 */
 const pxPerDay = ref(140)
@@ -264,6 +299,25 @@ const endDate = computed(() => {
   const d = new Date(startDate.value)
   d.setDate(d.getDate() + days)
   return d
+})
+const reloading = computed(() => poolLoading.value || timelineLoading.value)
+const loadErrorTitle = computed(() => {
+  if (poolError.value && timelineError.value) return '排程数据未完整加载，图表和任务池可能不是最新数据'
+  return timelineError.value
+    ? '机台/产线时间轴加载失败，图表可能未显示最新排程'
+    : '待排任务池加载失败，任务列表可能未更新'
+})
+const chartEmptyTitle = computed(() => {
+  if (timelineLoading.value) return '正在加载资源排程'
+  if (timelineError.value) return '甘特资源加载失败'
+  if (allRows.value.length) return '当前筛选下没有匹配资源'
+  return '当前时间范围内没有排程资源'
+})
+const chartEmptyDescription = computed(() => {
+  if (timelineLoading.value) return '资源与工序排程加载完成后会显示在时间轴上。'
+  if (timelineError.value) return '请检查登录状态与排产查看权限，或重试加载。'
+  if (allRows.value.length) return '清除车间、资源或异常筛选后查看全部资源。'
+  return '可调整时间范围，或检查机台/产线是否已启用并配置。'
 })
 
 const allRows = computed<GanttRow[]>(() => (timeline.value ? toRows(timeline.value) : []))
@@ -518,11 +572,13 @@ async function reloadAll(): Promise<void> {
 
 async function loadPool(): Promise<void> {
   poolLoading.value = true
+  poolError.value = ''
   try {
     const result = await scheduleApi.taskPool()
     poolItems.value = result.items
-  } catch {
-    poolItems.value = []
+    poolLoaded.value = true
+  } catch (error) {
+    poolError.value = formatLoadError(error, '待排任务池加载失败，请重试。')
   } finally {
     poolLoading.value = false
   }
@@ -530,11 +586,22 @@ async function loadPool(): Promise<void> {
 
 async function reloadTimeline(): Promise<void> {
   const fmt = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+  timelineLoading.value = true
+  timelineError.value = ''
   try {
     timeline.value = await scheduleApi.timeline(fmt(startDate.value), fmt(endDate.value))
-  } catch {
-    timeline.value = null
+    timelineLoaded.value = true
+  } catch (error) {
+    timelineError.value = formatLoadError(error, '甘特资源加载失败，请检查连接和权限后重试。')
+  } finally {
+    timelineLoading.value = false
   }
+}
+
+function formatLoadError(error: unknown, fallback: string): string {
+  const message = getApiErrorMessage(error, fallback)
+  const status = message.match(/status code\s+(\d{3})/i)?.[1]
+  return status ? `后端接口返回 HTTP ${status}` : message
 }
 
 /** 拖拽/点击放置：先尝试手工保存；冲突 → 弹窗选择强制/插单 */
@@ -973,7 +1040,7 @@ async function recalculateSchedules(): Promise<void> {
 }
 .zoom-label {
   font-size: 12px;
-  color: #64748b;
+  color: var(--hy-muted);
   white-space: nowrap;
 }
 .zoom-slider {
@@ -984,7 +1051,7 @@ async function recalculateSchedules(): Promise<void> {
   align-items: center;
   gap: 4px;
   font-size: 12px;
-  color: #64748b;
+  color: var(--hy-muted);
   white-space: nowrap;
 }
 .legend-chip .dot {
@@ -994,28 +1061,28 @@ async function recalculateSchedules(): Promise<void> {
   display: inline-block;
 }
 .dot-plan {
-  background: #3b82f6;
+  background: var(--hy-blue);
 }
 .dot-actual {
-  background: #059669;
+  background: var(--hy-green);
   height: 5px;
   border-radius: 2px;
 }
 .dot-forecast {
-  background: rgba(245, 158, 11, 0.25);
-  border: 1px dashed #f59e0b;
+  background: rgba(173, 116, 25, 0.16);
+  border: 1px dashed var(--hy-amber);
 }
 .dot-paused {
-  background: rgba(245, 158, 11, 0.22);
-  border: 1px dashed #b45309;
+  background: rgba(173, 116, 25, 0.18);
+  border: 1px dashed var(--hy-amber);
 }
 .dot-abnormal {
-  background: #fff1d6;
-  border: 1px solid #d97706;
+  background: #fff4df;
+  border: 1px solid var(--hy-amber);
 }
 .toolbar-hint {
   font-size: 12px;
-  color: #94a3b8;
+  color: var(--hy-muted);
 }
 .gantt-control-row {
   display: flex;
@@ -1025,7 +1092,24 @@ async function recalculateSchedules(): Promise<void> {
   gap: 12px;
   padding-top: 12px;
   margin-top: 12px;
-  border-top: 1px solid #eef2f7;
+  border-top: 1px solid var(--hy-line);
+}
+.gantt-load-alert {
+  margin-top: 12px;
+}
+.gantt-load-details {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+.gantt-load-details > div {
+  color: var(--hy-muted);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+.gantt-load-details strong {
+  color: var(--hy-ink);
 }
 .gantt-exception-inline,
 .gantt-filter-inline {
@@ -1052,13 +1136,13 @@ async function recalculateSchedules(): Promise<void> {
   width: 120px;
 }
 .gantt-filter-summary {
-  color: #94a3b8;
+  color: var(--hy-muted);
   font-size: 12px;
   white-space: nowrap;
 }
 .gantt-summary-label {
   flex: 0 0 auto;
-  color: #64748b;
+  color: var(--hy-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1068,10 +1152,10 @@ async function recalculateSchedules(): Promise<void> {
   gap: 6px;
   height: 26px;
   padding: 0 8px;
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--hy-line);
   border-radius: 5px;
   background: #fff;
-  color: #475569;
+  color: var(--hy-text);
   font-size: 12px;
   cursor: pointer;
 }
@@ -1079,16 +1163,16 @@ async function recalculateSchedules(): Promise<void> {
   font-size: 13px;
   line-height: 1;
 }
-.gantt-stat.is-danger strong { color: #dc2626; }
-.gantt-stat.is-warning strong { color: #d97706; }
-.gantt-stat.is-info strong { color: #2563eb; }
+.gantt-stat.is-danger strong { color: var(--hy-red); }
+.gantt-stat.is-warning strong { color: var(--hy-amber); }
+.gantt-stat.is-info strong { color: var(--hy-blue); }
 .gantt-stat.is-active {
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.14);
-  border-color: #60a5fa;
-  background: #eff6ff;
+  box-shadow: 0 0 0 2px rgba(23, 109, 179, 0.14);
+  border-color: var(--hy-blue);
+  background: var(--hy-blue-soft);
 }
 .gantt-stat-note {
-  color: #94a3b8;
+  color: var(--hy-muted);
   font-size: 12px;
 }
 .gantt-main {
@@ -1107,8 +1191,40 @@ async function recalculateSchedules(): Promise<void> {
 }
 .gantt-help {
   margin-bottom: 8px;
-  color: #64748b;
+  color: var(--hy-muted);
   font-size: 12px;
+}
+.chart-stage {
+  position: relative;
+  min-width: 0;
+}
+.chart-empty-state {
+  position: absolute;
+  inset: 48px 12px 12px;
+  z-index: 4;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  gap: 8px;
+  border: 1px dashed var(--hy-line);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.94);
+  color: var(--hy-muted);
+  text-align: center;
+  pointer-events: none;
+}
+.chart-empty-state strong {
+  color: var(--hy-ink);
+  font-size: 15px;
+}
+.chart-empty-state span {
+  max-width: 360px;
+  font-size: 12px;
+  line-height: 1.6;
+}
+.chart-empty-state :deep(.el-button) {
+  pointer-events: auto;
 }
 .selection-hint {
   display: flex;
@@ -1118,38 +1234,32 @@ async function recalculateSchedules(): Promise<void> {
   min-height: 34px;
   padding: 0 12px;
   margin-bottom: 8px;
-  border: 1px solid #bfdbfe;
+  border: 1px solid #c6dce9;
   border-radius: 6px;
-  background: #eff6ff;
-  color: #475569;
+  background: var(--hy-blue-soft);
+  color: var(--hy-text);
   font-size: 12px;
 }
 .selection-hint strong {
-  color: #1d4ed8;
+  color: var(--hy-blue);
   font-weight: 700;
 }
 .selection-metrics {
   margin-left: auto;
-  color: #047857;
+  color: var(--hy-green);
   font-weight: 600;
-}
-.empty-tip {
-  padding: 20px;
-  text-align: center;
-  color: #94a3b8;
-  font-size: 13px;
 }
 .mb-12 {
   margin-bottom: 12px;
 }
 .transfer-empty {
   margin-top: 6px;
-  color: #b45309;
+  color: var(--hy-amber);
   font-size: 12px;
 }
 .conflict-item {
   font-size: 12px;
-  color: #b91c1c;
+  color: var(--hy-red);
   padding: 4px 0;
   line-height: 1.6;
 }
@@ -1165,6 +1275,41 @@ async function recalculateSchedules(): Promise<void> {
   }
   .toolbar-right {
     justify-content: flex-end;
+  }
+}
+
+@media (max-width: 1400px) {
+  .gantt-main {
+    flex-direction: column;
+  }
+  .gantt-main > :first-child {
+    width: 100%;
+    height: 116px;
+    max-height: 116px;
+    flex-basis: auto;
+    overflow: hidden;
+  }
+  .gantt-main > :first-child :deep(.el-card__header) {
+    padding: 4px 10px;
+  }
+  .gantt-main > :first-child :deep(.el-card__body) {
+    padding: 4px 10px;
+  }
+  .gantt-main > :first-child :deep(.pool-list) {
+    max-height: 76px;
+  }
+  .gantt-main > :first-child :deep(.pool-list .el-empty) {
+    padding: 0;
+  }
+  .gantt-main > :first-child :deep(.pool-list .el-empty__image) {
+    width: 32px !important;
+    height: 32px !important;
+  }
+  .gantt-main > :first-child :deep(.pool-list .el-empty__description) {
+    margin-top: 4px;
+  }
+  .gantt-main > :last-child {
+    width: 100%;
   }
 }
 
@@ -1189,6 +1334,27 @@ async function recalculateSchedules(): Promise<void> {
   }
   .selection-metrics {
     margin-left: 0;
+  }
+}
+
+@media (max-width: 560px) {
+  .toolbar-card :deep(.el-card__body) {
+    padding: 12px;
+  }
+  .toolbar-left > *,
+  .toolbar-right > * {
+    max-width: 100%;
+  }
+  .zoom-slider {
+    width: min(120px, 28vw);
+  }
+  .gantt-filter-keyword,
+  .gantt-filter-select,
+  .gantt-filter-status {
+    width: 100%;
+  }
+  .selection-hint {
+    font-size: 11px;
   }
 }
 </style>

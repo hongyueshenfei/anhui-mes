@@ -5,7 +5,18 @@
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon>新建角色</el-button>
     </div>
 
+    <StaleDataNotice :visible="loadError && rows.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="rows" stripe>
+      <template #empty>
+        <EmptyStatePanel
+          :kind="loading ? 'loading' : loadError ? 'error' : 'empty'"
+          :title="loading ? '正在读取角色权限' : loadError ? '角色列表加载失败' : '未读取到预置角色'"
+          :description="loading ? '正在读取角色与权限配置。' : loadError ? '请检查服务连接后重试。' : '系统通常预置六个基础角色；若列表为空，请检查角色初始化与访问权限。'"
+          :action-label="loading ? '' : loadError ? '重新加载' : ''"
+          @action="load"
+        />
+      </template>
       <el-table-column prop="name" label="角色名" width="120" />
       <el-table-column label="角色中文" width="110">
         <template #default="{ row }">{{ roleLabel(row.name) }}</template>
@@ -56,6 +67,8 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { systemApi } from '@/api/system'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import type { SysRole } from '@/types'
 import { useAuthStore } from '@/stores/auth'
 import { STATUS_LABELS } from '@/utils/capacity'
@@ -63,7 +76,8 @@ import { STATUS_LABELS } from '@/utils/capacity'
 const auth = useAuthStore()
 const canManage = computed(() => auth.can('system.role.manage'))
 
-const loading = ref(false)
+const loading = ref(true)
+const loadError = ref(false)
 const rows = ref<SysRole[]>([])
 const dialogVisible = ref(false)
 const editingRole = ref<SysRole | null>(null)
@@ -88,8 +102,12 @@ function roleLabel(name: string): string {
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
+  loadError.value = false
   try {
     rows.value = await systemApi.listRoles()
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
   }

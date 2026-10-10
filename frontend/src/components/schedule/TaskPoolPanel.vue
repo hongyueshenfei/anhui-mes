@@ -2,12 +2,12 @@
   <el-card shadow="never" class="pool-card">
     <template #header>
       <div class="pool-header">
-        <span>待排任务池（{{ items.length }}）</span>
+        <span>待排任务池（{{ loading && !items.length ? error ? '读取失败' : '读取中' : items.length }}）</span>
         <el-input v-model="keyword" placeholder="搜索任务/产品" size="small" clearable style="width: 150px" />
       </div>
     </template>
 
-    <div class="pool-list">
+    <div v-loading="loading" class="pool-list">
       <div
         v-for="item in filtered"
         :key="item.id"
@@ -49,10 +49,14 @@
           <span>{{ item.customer_name }}</span>
         </div>
       </div>
-      <el-empty v-if="filtered.length === 0" description="暂无待排任务" :image-size="60" />
+      <el-empty
+        v-if="!loading && filtered.length === 0"
+        :description="error ? '待排任务加载失败' : keyword ? '没有匹配的待排任务' : '暂无待排任务'"
+        :image-size="error ? 44 : 60"
+      >
+        <el-button v-if="error" size="small" type="primary" link @click="emit('retry')">重试</el-button>
+      </el-empty>
     </div>
-
-    <div class="pool-tip">① 颜色标识首道工序资源类型 → ② 仅可拖到同类型机台/产线 → ③ 绿色预览后点击放置；后端仍会再次校验</div>
   </el-card>
 </template>
 
@@ -60,9 +64,10 @@
 import { computed, ref } from 'vue'
 import type { PoolTask } from '@/types/schedule'
 
-const props = defineProps<{ items: PoolTask[]; pickedId?: number | null }>()
+const props = defineProps<{ items: PoolTask[]; pickedId?: number | null; loading?: boolean; error?: string }>()
 const emit = defineEmits<{
   (e: 'pick', task: PoolTask | null): void
+  (e: 'retry'): void
 }>()
 
 const keyword = ref('')
@@ -273,5 +278,49 @@ function onDragStart(event: DragEvent, task: PoolTask): void {
   font-size: 12px;
   color: #94a3b8;
   text-align: center;
+}
+
+@media (max-width: 1400px) {
+  .pool-list {
+    max-height: 76px;
+  }
+  .pool-list :deep(.el-empty) {
+    padding: 0;
+  }
+  .pool-item {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas:
+      'title title'
+      'name meta'
+      'resource due';
+    align-items: center;
+    column-gap: 10px;
+    row-gap: 2px;
+    padding: 5px 8px;
+  }
+  .pool-item-title { grid-area: title; min-width: 0; }
+  .pool-item-name { grid-area: name; min-width: 0; }
+  .pool-item-resource { grid-area: resource; min-width: 0; }
+  .pool-item-meta { grid-area: meta; justify-content: flex-end; white-space: nowrap; }
+  .pool-item-due { grid-area: due; justify-content: flex-end; gap: 8px; white-space: nowrap; }
+  .pool-item-blocked { grid-column: 1 / -1; }
+  .pool-item-name {
+    margin: 2px 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .pool-item-resource {
+    margin: 2px 0;
+    overflow: hidden;
+  }
+  .resource-op {
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .pool-item-due {
+    margin-top: 2px;
+  }
 }
 </style>

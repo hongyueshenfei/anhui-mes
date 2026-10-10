@@ -3,7 +3,7 @@
     <div class="toolbar">
       <div class="toolbar-left">
         <el-input v-model="taskIdInput" placeholder="任务 ID（查可入库量/分批入库）" clearable style="width: 180px" />
-        <el-button type="primary" plain :disabled="!taskIdInput" @click="loadAvailable">
+        <el-button type="primary" plain :disabled="!taskIdInput" :loading="availableLoading" @click="loadAvailable">
           <el-icon><Search /></el-icon>查询可入库量
         </el-button>
         <el-divider direction="vertical" />
@@ -23,6 +23,28 @@
       </div>
     </div>
 
+    <el-alert
+      v-if="availableError"
+      class="view-alert"
+      type="warning"
+      :closable="false"
+      show-icon
+      :title="availableError"
+    />
+
+    <el-alert
+      v-if="listError"
+      class="view-alert"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="listError"
+    >
+      <template #default>
+        <el-button size="small" type="danger" plain @click="loadIns">重新加载入库单</el-button>
+      </template>
+    </el-alert>
+
     <!-- 可入库量 -->
     <el-descriptions v-if="available" :column="4" border size="small" class="mb-12">
       <el-descriptions-item label="任务号">{{ available.task_no }}</el-descriptions-item>
@@ -38,27 +60,29 @@
     </el-descriptions>
 
     <!-- 入库单列表 -->
-    <el-table v-loading="loading" :data="rows" stripe>
+    <div class="stock-in-scroll-hint">表格可横向滚动查看推送原因、金蝶单号和重推操作</div>
+    <div class="stock-in-table-scroll">
+    <el-table v-loading="loading" :data="rows" stripe class="stock-in-table" :empty-text="listError ? '加载失败，可点击上方按钮重试' : '暂无入库单记录'">
       <el-table-column prop="ins_no" label="入库单号" width="180" />
-      <el-table-column label="任务/产品" min-width="150">
+      <el-table-column label="任务/产品" min-width="190">
         <template #default="{ row }">
-          {{ row.task?.task_no ?? '-' }}
+          <span class="task-number">{{ row.task?.task_no ?? '-' }}</span>
           <div class="sub">{{ row.task?.product?.name ?? row.product?.name ?? '-' }}</div>
         </template>
       </el-table-column>
       <el-table-column prop="qty" label="数量" width="80" align="center" />
       <el-table-column prop="created_at" label="入库时间" width="160">
-        <template #default="{ row }">{{ (row.created_at ?? '').slice(0, 16) }}</template>
+        <template #default="{ row }">{{ formatStockInDateTime(row.created_at) }}</template>
       </el-table-column>
       <el-table-column label="推送状态" width="130">
         <template #default="{ row }">
-          <el-tag size="small" :type="pushTag(row.k3_push_status)">{{ row.k3_push_status_label ?? row.k3_push_status }}</el-tag>
+          <el-tag size="small" :type="pushTag(row.k3_push_status)">{{ pushStatusLabel(row.k3_push_status, row.k3_push_status_label) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="失败原因" min-width="180">
         <template #default="{ row }">
           <el-tooltip v-if="row.k3_push_status === 'failed'" :content="pushError(row)" placement="top">
-            <span class="push-error">{{ pushError(row) }}</span>
+            <span class="push-error">{{ pushErrorSummary(row) }}</span>
           </el-tooltip>
           <span v-else class="sub">-</span>
         </template>
@@ -75,6 +99,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
 
     <div class="pager">
       <el-pagination
@@ -124,8 +149,11 @@ import type { AvailableQty, StockIn } from '@/types/production'
 
 const taskIdInput = ref('')
 const available = ref<AvailableQty | null>(null)
+const availableError = ref('')
+const availableLoading = ref(false)
 const rows = ref<StockIn[]>([])
-const loading = ref(false)
+const listError = ref('')
+const loading = ref(true)
 const total = ref(0)
 const page = ref(1)
 const perPage = 15
@@ -146,16 +174,22 @@ const taskId = computed(() => Number(taskIdInput.value))
 
 async function loadAvailable(): Promise<void> {
   if (!taskId.value) return
+  availableLoading.value = true
+  availableError.value = ''
+  available.value = null
   try {
     available.value = await warehouseApi.availableQty(taskId.value)
     stockQty.value = Math.min(1, available.value.available_qty)
-  } catch {
-    available.value = null
+  } catch (error) {
+    availableError.value = getApiErrorMessage(error, '可入库量查询失败，请检查任务 ID 后重试。')
+  } finally {
+    availableLoading.value = false
   }
 }
 
 async function loadIns(): Promise<void> {
   loading.value = true
+  listError.value = ''
   try {
     const result = await warehouseApi.listStockIns({
       page: page.value,
@@ -165,8 +199,8 @@ async function loadIns(): Promise<void> {
     })
     rows.value = result.data
     total.value = result.total
-  } catch {
-    rows.value = []
+  } catch (error) {
+    listError.value = getApiErrorMessage(error, '入库单加载失败，请检查连接后重试。')
   } finally {
     loading.value = false
   }
@@ -217,14 +251,39 @@ function pushError(row: StockIn): string {
   return typeof value === 'string' && value.trim() ? value : '未返回具体原因'
 }
 
+function pushErrorSummary(row: StockIn): string {
+  const reason = pushError(row)
+  if (reason.includes('URI must include a scheme and host')) return '金蝶接口地址未正确配置'
+  return reason
+}
+
 function pushTag(s: string): 'success' | 'danger' | 'warning' | 'info' {
   return ({ success: 'success', failed: 'danger', retry: 'warning', pushing: 'warning', queued: 'info' }[s] ?? 'info') as 'success' | 'danger' | 'warning' | 'info'
+}
+
+function pushStatusLabel(status: string, label?: string): string {
+  if (label && label !== status) return label
+  const labels: Record<string, string> = {
+    queued: '待推送',
+    pushing: '推送中',
+    success: '已推送',
+    failed: '推送失败',
+    retry: '重试中',
+  }
+  return labels[status] ?? label ?? status
+}
+
+function formatStockInDateTime(value?: string | null): string {
+  return value ? value.replace('T', ' ').slice(0, 16) : '-'
 }
 </script>
 
 <style scoped>
 .page-card {
   border-radius: 8px;
+}
+.view-alert {
+  margin-bottom: 12px;
 }
 .toolbar {
   display: flex;
@@ -247,10 +306,28 @@ function pushTag(s: string): 'success' | 'danger' | 'warning' | 'info' {
   display: inline-block;
   max-width: 220px;
   overflow: hidden;
-  color: #b91c1c;
+  color: var(--hy-red);
   text-overflow: ellipsis;
   white-space: nowrap;
   vertical-align: bottom;
+}
+.task-number {
+  color: var(--hy-ink);
+  white-space: nowrap;
+}
+.stock-in-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+.stock-in-table {
+  min-width: 1230px;
+}
+.stock-in-scroll-hint {
+  display: none;
+  margin: -4px 0 8px;
+  color: var(--hy-muted);
+  font-size: 12px;
+  text-align: right;
 }
 .pager {
   display: flex;
@@ -268,5 +345,21 @@ function pushTag(s: string): 'success' | 'danger' | 'warning' | 'info' {
   font-size: 12px;
   max-height: 320px;
   overflow: auto;
+}
+@media (max-width: 1500px) {
+  .stock-in-scroll-hint {
+    display: block;
+  }
+}
+@media (max-width: 760px) {
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .pager {
+    justify-content: center;
+  }
 }
 </style>

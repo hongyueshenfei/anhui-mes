@@ -63,13 +63,17 @@
           <el-button size="small" text type="primary" @click="loadUnmatched">刷新</el-button>
         </div>
       </template>
-      <el-alert type="warning" :closable="false" class="mb12" v-if="unmatched.total > 0">
+      <el-alert v-if="unmatchedError" type="error" :title="`${unmatchedError}${unmatched.items.length ? '；下方仍显示上次成功读取的数据。' : ''}`" :closable="false" class="mb12">
+        <template #default><el-button size="small" type="danger" plain @click="loadUnmatched">重试</el-button></template>
+      </el-alert>
+      <el-alert v-else-if="unmatchedLoading" type="info" title="正在读取物料匹配状态…" :closable="false" class="mb12" />
+      <el-alert type="warning" :closable="false" class="mb12" v-else-if="unmatched.total > 0">
         以下产品编码在金蝶物料库中未匹配到（供人工核对/补建物料）：共 {{ unmatched.total }} 条
       </el-alert>
-      <el-alert type="success" :closable="false" class="mb12" v-else>
+      <el-alert type="success" :closable="false" class="mb12" v-else-if="!unmatchedLoading && !unmatchedError">
         产品编码与金蝶物料库全部对齐，无未匹配项
       </el-alert>
-      <el-table :data="unmatched.items" size="small" stripe>
+      <el-table :data="unmatched.items" size="small" stripe v-loading="unmatchedLoading" :empty-text="unmatchedError ? '读取失败，请重试' : '暂无未匹配物料'">
         <el-table-column prop="code" label="产品编码" width="160" />
         <el-table-column prop="name" label="产品名称" min-width="160" />
         <el-table-column prop="reason" label="提示" min-width="220" />
@@ -89,7 +93,10 @@
           </el-radio-group>
         </div>
       </template>
-      <el-table :data="logs" size="small" stripe>
+      <el-alert v-if="logsError" :title="`${logsError}${logs.length ? '；下方仍显示上次成功读取的日志。' : ''}`" type="error" show-icon :closable="false" class="mb12">
+        <template #default><el-button size="small" type="danger" plain @click="loadLogs">重试</el-button></template>
+      </el-alert>
+      <el-table :data="logs" size="small" stripe v-loading="logsLoading" :empty-text="logsError ? '读取失败，请重试' : '暂无集成日志'">
         <el-table-column prop="created_at" label="时间" width="160" />
         <el-table-column label="方向" width="70">
           <template #default="{ row }">
@@ -151,6 +158,10 @@ const syncing = ref(false)
 const pullResult = ref('')
 const syncResult = ref('')
 const lastCursor = ref('')
+const unmatchedLoading = ref(true)
+const unmatchedError = ref('')
+const logsLoading = ref(true)
+const logsError = ref('')
 
 const unmatched = ref<{ total: number; items: Array<{ id: number; code: string; name: string; reason: string }> }>({ total: 0, items: [] })
 
@@ -216,20 +227,28 @@ async function doSyncMaterials(): Promise<void> {
 }
 
 async function loadUnmatched(): Promise<void> {
+  unmatchedLoading.value = true
+  unmatchedError.value = ''
   try {
     const r = await integrationApiV4.unmatchedMaterials()
     unmatched.value = { total: r.total, items: r.items }
-  } catch {
-    unmatched.value = { total: 0, items: [] }
+  } catch (error: any) {
+    unmatchedError.value = error?.response?.data?.message ?? '物料匹配状态读取失败，请稍后重试。'
+  } finally {
+    unmatchedLoading.value = false
   }
 }
 
 async function loadLogs(): Promise<void> {
+  logsLoading.value = true
+  logsError.value = ''
   try {
     const r = (await systemApiV4.listIntegrationLogs({ status: logStatus.value || undefined })) as PageResult<IntegrationLog>
     logs.value = Array.isArray(r) ? r : r.data
-  } catch {
-    logs.value = []
+  } catch (error: any) {
+    logsError.value = error?.response?.data?.message ?? '集成日志读取失败，请检查后端连接后重试。'
+  } finally {
+    logsLoading.value = false
   }
 }
 

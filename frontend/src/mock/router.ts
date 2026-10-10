@@ -1158,9 +1158,14 @@ export function dispatch(config: AxiosRequestConfig): unknown {
         product_name: t.product?.name ?? '',
         product_code: t.product?.code ?? '',
         product_id: t.product_id,
+        qty: t.qty,
         mold_id: t.mold_id ?? null,
         task_status: t.status,
         is_locked: !!t.is_locked,
+        parent_task_id: t.parent_task_id ?? null,
+        split_index: t.split_index ?? null,
+        split_total: t.split_total ?? null,
+        is_split_child: !!t.parent_task_id,
       }
       // 完工进度：按工序分阶段（注塑/吹塑成型→喷漆→效果→包装），工单中心必带
       row.progress = getTaskProgress(t.id)

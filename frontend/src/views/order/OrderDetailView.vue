@@ -3,7 +3,7 @@
     <template #header>
       <div class="detail-header">
         <span>
-          工单中心 · 订单详情 <el-tag size="small" class="ml8">{{ detail?.order_no ?? '' }}</el-tag>
+          工单中心 · 订单详情 <el-tag size="small" class="ml8">{{ detail?.order_no ?? (loading ? '读取中…' : '') }}</el-tag>
         </span>
         <div class="op-bar">
           <el-button size="small" @click="router.back()">返回</el-button>
@@ -18,7 +18,19 @@
       </div>
     </template>
 
-    <el-empty v-if="!detail && !loading" description="订单不存在" :image-size="70" />
+    <div v-if="loading && !detail" class="detail-request-state" role="status" aria-live="polite">
+      <el-skeleton :rows="6" animated />
+      <span>正在读取工单详情、工艺排程和领料清单…</span>
+    </div>
+    <el-alert v-else-if="loadError && !detail" :title="loadError" type="error" show-icon :closable="false" class="detail-load-error">
+      <template #default>
+        <el-button size="small" type="danger" plain @click="load">重新加载</el-button>
+      </template>
+    </el-alert>
+    <el-empty v-else-if="!detail && !loading" description="订单不存在或已被删除" :image-size="70">
+      <el-button size="small" @click="router.back()">返回工单中心</el-button>
+      <el-button size="small" type="primary" plain @click="load">重新查询</el-button>
+    </el-empty>
 
     <template v-if="detail">
       <el-descriptions :column="4" border size="small" class="mb-12">
@@ -491,6 +503,7 @@ const fmtDate = formatDate
 
 const detail = ref<Order | null>(null)
 const loading = ref(false)
+const loadError = ref('')
 
 const logs = ref<WorkOrderLog[]>([])
 const editVisible = ref(false)
@@ -999,7 +1012,12 @@ onMounted(() => {
 
 async function load(): Promise<void> {
   const id = Number(route.params.id)
-  if (!id) return
+  loadError.value = ''
+  if (!id) {
+    loading.value = false
+    loadError.value = '工单编号无效，请返回工单中心重新打开。'
+    return
+  }
   loading.value = true
   try {
     detail.value = await orderApi.getOrder(id)
@@ -1007,8 +1025,12 @@ async function load(): Promise<void> {
     void cfgLoad()
     // 详情页「领料清单」展示框：与编辑弹窗 Tab3 同源（按已发布 BOM 计算需求量）
     void loadDetailPick(id)
-  } catch {
+  } catch (error: any) {
     detail.value = null
+    const status = error?.response?.status
+    loadError.value = status === 404
+      ? '订单不存在或已被删除。'
+      : error?.response?.data?.message ?? '工单详情读取失败，请检查网络后重试。'
   } finally {
     loading.value = false
   }
@@ -1277,6 +1299,17 @@ function logActionLabel(a: string): string {
   return { edit: '编辑', start: '开始', complete: '完结', revoke: '撤销', route_confirm: '工艺确认' }[a] ?? a
 }
 </script>
+
+<style scoped>
+.detail-request-state {
+  display: grid;
+  gap: 12px;
+  padding: 22px 12px 28px;
+  color: var(--hy-muted, #718391);
+  font-size: 12px;
+}
+.detail-load-error { margin: 20px 0; }
+</style>
 
 <style scoped>
 .form-tip {

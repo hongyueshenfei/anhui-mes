@@ -9,7 +9,7 @@
           </el-text>
         </div>
         <div class="actions">
-          <el-radio-group v-model="statusFilter" size="small" @change="load">
+          <el-radio-group v-model="statusFilter" size="small" @change="onFilterChange">
             <el-radio-button value="pending">待处理</el-radio-button>
             <el-radio-button value="all">全部</el-radio-button>
           </el-radio-group>
@@ -18,6 +18,11 @@
         </div>
       </div>
     </template>
+
+    <el-alert v-if="loadError" :title="`${loadError}${items.length ? '；当前仍显示上次读取的建议。' : ''}`" type="error" show-icon :closable="false" class="load-alert">
+      <template #default><el-button size="small" type="danger" plain @click="load">重试</el-button></template>
+    </el-alert>
+    <el-alert v-else-if="loading && items.length" title="正在更新顺延建议，暂时显示上次读取结果。" type="info" show-icon :closable="false" class="load-alert" />
 
     <el-table v-loading="loading" :data="items" size="small" border stripe row-key="id">
       <el-table-column label="任务" width="120">
@@ -45,7 +50,7 @@
         <template #default="{ row }">
           <el-popover placement="left" :width="380" trigger="hover">
             <template #reference>
-              <el-link type="primary" :underline="false">{{ (row.affected ?? []).length }} 道</el-link>
+              <el-link type="primary" underline="never">{{ (row.affected ?? []).length }} 道</el-link>
             </template>
             <el-table :data="row.affected" size="small" max-height="240">
               <el-table-column prop="seq" label="序" width="40" />
@@ -80,7 +85,7 @@
         </template>
       </el-table-column>
       <template #empty>
-        <el-empty :description="statusFilter === 'pending' ? '暂无待处理的顺延建议' : '暂无建议记录'" :image-size="70" />
+        <el-empty :description="loadError ? '加载失败，请重试' : statusFilter === 'pending' ? '暂无待处理的顺延建议' : '暂无建议记录'" :image-size="70" />
       </template>
     </el-table>
   </el-card>
@@ -94,7 +99,8 @@ import { scheduleApi } from '@/api/schedule'
 import type { ScheduleSuggestion } from '@/types/schedule'
 
 const items = ref<ScheduleSuggestion[]>([])
-const loading = ref(false)
+const loading = ref(true)
+const loadError = ref('')
 const refreshing = ref(false)
 const busy = ref<number | null>(null)
 const statusFilter = ref<'pending' | 'all'>('pending')
@@ -103,14 +109,20 @@ onMounted(load)
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = ''
   try {
     const data = await scheduleApi.suggestions(statusFilter.value)
     items.value = Array.isArray(data) ? data : []
-  } catch {
-    items.value = []
+  } catch (error: any) {
+    loadError.value = error?.response?.data?.message ?? '顺延建议读取失败，请检查连接后重试。'
   } finally {
     loading.value = false
   }
+}
+
+function onFilterChange(): void {
+  items.value = []
+  void load()
 }
 
 async function refreshAll(): Promise<void> {
@@ -190,6 +202,7 @@ function short(v: string | null): string {
   gap: 8px;
   align-items: center;
 }
+.load-alert { margin-bottom: 12px; }
 .reason {
   color: #b45309;
 }

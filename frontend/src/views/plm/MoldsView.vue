@@ -18,7 +18,12 @@
       <el-button v-if="canManage" type="primary" @click="openCreate"><el-icon><Plus /></el-icon>新增模具</el-button>
     </div>
 
+    <StaleDataNotice :visible="loadError && rows.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="rows" stripe>
+      <template #empty>
+        <EmptyStatePanel :kind="emptyKind" :title="emptyTitle" :description="emptyDescription" :action-label="emptyActionLabel" @action="onEmptyAction" />
+      </template>
       <el-table-column prop="code" label="模具编码" width="100" />
       <el-table-column prop="name" label="模具名称" min-width="160" show-overflow-tooltip />
       <el-table-column label="类型" width="90">
@@ -100,7 +105,7 @@
           <el-link
             v-if="row.order_id ?? row.task?.line?.order?.id"
             type="primary"
-            :underline="false"
+            underline="never"
             @click="goOrderDetail(row.order_id ?? row.task?.line?.order?.id)"
           >
             {{ row.order_no ?? row.task?.line?.order?.order_no }}
@@ -125,6 +130,8 @@ import { plmApi } from '@/api/plm'
 import type { Machine, Mold, Product } from '@/types'
 import { formatDateTime } from '@/utils/datetime'
 import FormDialog, { type FormField } from '@/components/common/FormDialog.vue'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -132,7 +139,7 @@ const auth = useAuthStore()
 const router = useRouter()
 const canManage = computed(() => auth.can('plm.mold.manage'))
 
-const loading = ref(false)
+const loading = ref(true)
 const rows = ref<Mold[]>([])
 const total = ref(0)
 const page = ref(1)
@@ -141,6 +148,14 @@ const keyword = ref('')
 const filterType = ref('')
 const filterStatus = ref('')
 const onlyDue = ref(false)
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(keyword.value.trim() || filterType.value || filterStatus.value || onlyDue.value))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取模具台账' : loadError.value ? '模具台账加载失败' : hasFilters.value ? '没有匹配的模具' : '还没有模具档案')
+const emptyDescription = computed(() => loading.value ? '正在从生产系统读取最新记录。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有模具”。'
+  : hasFilters.value ? '调整筛选条件，也可以清空筛选后查看全部模具。' : '新增模具档案后，可维护适用产品、机台与保养周期。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空筛选' : '')
 
 const dialogVisible = ref(false)
 const editingId = ref<number | null>(null)
@@ -210,6 +225,7 @@ const maintainFields: FormField[] = [
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
   try {
     const result = await plmApi.listMolds({
       page: page.value,
@@ -226,8 +242,25 @@ async function load(): Promise<void> {
       rows.value = result.data
       total.value = result.total
     }
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    keyword.value = ''
+    filterType.value = ''
+    filterStatus.value = ''
+    onlyDue.value = false
+    page.value = 1
+    void load()
+  } else if (canManage.value) {
+    openCreate()
   }
 }
 

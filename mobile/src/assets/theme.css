@@ -1,0 +1,119 @@
+:root {
+  color-scheme: light;
+  font-family: Inter, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-synthesis: none;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  text-rendering: optimizeLegibility;
+
+  --hy-ink: #172b3a;
+  --hy-canvas: #f2f5f7;
+  --hy-surface: #ffffff;
+  --hy-line: #dce4e9;
+  --hy-text: #203342;
+  --hy-muted: #718391;
+  --hy-blue: #176db3;
+  --hy-green: #1b816e;
+  --hy-red: #ce554d;
+  --hy-amber: #ad7419;
+
+  --van-primary-color: var(--hy-blue);
+  --van-success-color: var(--hy-green);
+  --van-danger-color: var(--hy-red);
+  --van-warning-color: var(--hy-amber);
+  --van-text-color: var(--hy-text);
+  --van-text-color-2: #536776;
+  --van-text-color-3: var(--hy-muted);
+  --van-background: var(--hy-canvas);
+  --van-background-2: var(--hy-surface);
+  --van-border-color: var(--hy-line);
+  --van-radius-md: 8px;
+  --van-radius-lg: 10px;
+  --van-tabbar-height: 54px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  min-width: 320px;
+  min-height: 100%;
+  margin: 0;
+  background: var(--hy-canvas);
+}
+
+body {
+  color: var(--hy-text);
+  font-size: 14px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+textarea,
+select {
+  font: inherit;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 3px solid rgba(23, 109, 179, 0.55);
+  outline-offset: 2px;
+}
+
+.van-nav-bar {
+  border-bottom: 1px solid var(--hy-line);
+  background: rgba(255, 255, 255, 0.97);
+}
+
+.van-nav-bar__title {
+  color: var(--hy-ink);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.van-cell-group--inset {
+  overflow: hidden;
+  border: 1px solid var(--hy-line);
+  border-radius: 9px;
+  background: var(--hy-surface);
+}
+
+.van-cell::after {
+  border-color: #edf1f3;
+}
+
+.van-tabbar {
+  border-top: 1px solid var(--hy-line);
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.van-tabbar-item--active {
+  color: var(--hy-blue);
+  font-weight: 600;
+}
+
+.van-button--primary {
+  --van-button-primary-background: var(--hy-blue);
+  --van-button-primary-border-color: var(--hy-blue);
+}
+
+.van-button--success {
+  --van-button-success-background: var(--hy-green);
+  --van-button-success-border-color: var(--hy-green);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}

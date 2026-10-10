@@ -1007,7 +1007,7 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 <style scoped>
 .gantt-wrap {
   display: flex;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--hy-line);
   border-radius: 8px;
   overflow: hidden;
   background: #fff;
@@ -1017,7 +1017,7 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 }
 .gantt-labels {
   flex: 0 0 200px;
-  border-right: 1px solid #e5e7eb;
+  border-right: 1px solid var(--hy-line);
   overflow: hidden;
   display: flex;
   flex-direction: column;
@@ -1026,10 +1026,10 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   height: 34px;
   line-height: 34px;
   padding: 0 12px;
-  background: #f8fafc;
-  border-bottom: 1px solid #e5e7eb;
+  background: var(--hy-canvas);
+  border-bottom: 1px solid var(--hy-line);
   font-size: 12px;
-  color: #64748b;
+  color: var(--hy-muted);
   flex: 0 0 34px;
 }
 .gantt-labels-body {
@@ -1041,16 +1041,16 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   flex-direction: column;
   justify-content: center;
   padding: 0 12px;
-  border-bottom: 1px solid #f1f5f9;
+  border-bottom: 1px solid var(--hy-line);
   box-sizing: border-box;
 }
 .gantt-label-row.is-abnormal {
   padding-left: 9px;
-  border-left: 3px solid #e59a32;
+  border-left: 3px solid var(--hy-amber);
   background: #fff8eb;
 }
 .gantt-label-row.is-unavailable {
-  border-left-color: #dc2626;
+  border-left-color: var(--hy-red);
   background: #fff5f5;
 }
 .label-main {
@@ -1059,7 +1059,7 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   gap: 6px;
   font-size: 13px;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--hy-ink);
 }
 .label-title {
   overflow: hidden;
@@ -1072,8 +1072,8 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   height: 18px;
   padding: 0 4px;
   border-radius: 9px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--hy-blue-soft);
+  color: var(--hy-blue);
   font-size: 10px;
   font-weight: 700;
   line-height: 18px;
@@ -1082,18 +1082,18 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 .resource-status-badge {
   flex: 0 0 auto;
   padding: 1px 6px;
-  border: 1px solid #f2c078;
+  border: 1px solid #e2c78f;
   border-radius: 10px;
   background: #fff1d6;
-  color: #a85b08;
+  color: var(--hy-amber);
   font-size: 10px;
   font-weight: 600;
   line-height: 15px;
 }
 .resource-status-badge.is-unavailable {
-  border-color: #f3a6a6;
+  border-color: #e9b3af;
   background: #feecec;
-  color: #b42318;
+  color: var(--hy-red);
 }
 .label-sub {
   display: flex;
@@ -1101,7 +1101,7 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   justify-content: space-between;
   gap: 4px;
   font-size: 11px;
-  color: #94a3b8;
+  color: var(--hy-muted);
   margin-top: 2px;
   white-space: nowrap;
 }
@@ -1113,16 +1113,16 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   line-height: 14px;
 }
 .load-badge.is-low {
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--hy-canvas);
+  color: var(--hy-muted);
 }
 .load-badge.is-normal {
-  background: #ecfdf5;
-  color: #047857;
+  background: #e8f3ef;
+  color: var(--hy-green);
 }
 .load-badge.is-high {
-  background: #fff7ed;
-  color: #c2410c;
+  background: #fbf0dc;
+  color: var(--hy-amber);
 }
 .gantt-scroll {
   flex: 1;
@@ -1146,7 +1146,7 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   fill: #ffffff;
 }
 .gantt-row-bg-alt {
-  fill: #f8fafc;
+  fill: #f7f9fa;
 }
 .gantt-row-bg-abnormal {
   fill: #fff8eb;
@@ -1173,7 +1173,7 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   opacity: 0.16;
 }
 .gantt-day-line {
-  stroke: #dbe4ee;
+  stroke: var(--hy-line);
   stroke-width: 1.2;
 }
 .gantt-grid-line {
@@ -1181,23 +1181,23 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
   stroke-width: 0.5;
 }
 .gantt-header-bg {
-  fill: #e2e8f0;
+  fill: #dce4e9;
 }
 .gantt-day-header-line {
-  stroke: #cbd5e1;
+  stroke: #bccbd4;
   stroke-width: 1;
 }
 .gantt-day-band {
-  fill: #cbd5e1;
+  fill: #c5d1d8;
   opacity: 0.6;
 }
 .gantt-day-band-weekend {
-  fill: #94a3b8;
+  fill: #a9bac4;
   opacity: 0.8;
 }
 .gantt-day-text {
   font-size: 12.5px;
-  fill: #0f172a;
+  fill: var(--hy-ink);
   text-anchor: middle;
   font-weight: 700;
   letter-spacing: 0.2px;
@@ -1213,13 +1213,13 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 }
 /* 当前时间线 */
 .gantt-now-line {
-  stroke: #ef4444;
+  stroke: var(--hy-red);
   stroke-width: 1.5;
   stroke-dasharray: 5 3;
   pointer-events: none;
 }
 .gantt-now-flag {
-  fill: #ef4444;
+  fill: var(--hy-red);
 }
 .gantt-task-link {
   fill: none;
@@ -1245,14 +1245,14 @@ defineExpose({ xIso, rowY, bodyHeight, scrollToNow })
 }
 /* APS实际条：计划下方的绿色细轨道，避免与计划主条争夺视觉层级。 */
 .gantt-actual-rect {
-  fill: #059669;
+  fill: var(--hy-green);
   opacity: 0.9;
-  stroke: #047857;
+  stroke: var(--hy-green);
   stroke-width: 1.5;
 }
 .gantt-actual-label {
   font-size: 10px;
-  fill: #047857;
+  fill: var(--hy-green);
   font-weight: 600;
   pointer-events: none;
 }

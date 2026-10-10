@@ -4,7 +4,7 @@
       <div class="brand">
         <div class="brand-mark">虹</div>
         <h2>虹越智造平台</h2>
-        <p>PLM · MES · AI 报价一体化 · 一期工程骨架与数据底座</p>
+        <p>生产协同平台 · 计划排产 · 现场执行 · 数据追溯</p>
       </div>
 
       <el-alert v-if="demoMode" type="warning" :closable="false" show-icon class="demo-tip">
@@ -13,13 +13,14 @@
 
       <el-form ref="formRef" :model="form" :rules="rules" size="large" @keyup.enter="onLogin">
         <el-form-item prop="employee_no">
-          <el-input v-model="form.employee_no" placeholder="工号（如 admin）" :prefix-icon="User" />
+          <el-input v-model="form.employee_no" placeholder="请输入工号" autocomplete="username" :prefix-icon="User" />
         </el-form-item>
         <el-form-item prop="password">
           <el-input
             v-model="form.password"
             type="password"
-            placeholder="密码（默认 123456）"
+            placeholder="请输入密码"
+            autocomplete="current-password"
             show-password
             :prefix-icon="Lock"
           />
@@ -62,8 +63,8 @@ const loading = ref(false)
 const demoMode = ref(isDemoMode())
 
 const form = ref({
-  employee_no: 'admin',
-  password: '123456',
+  employee_no: demoMode.value ? 'admin' : '',
+  password: demoMode.value ? '123456' : '',
 })
 
 const rules: FormRules = {
@@ -100,18 +101,20 @@ function onWecomLogin(): void {
 
 <style scoped>
 .login-page {
-  height: 100vh;
+  min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   align-items: center;
   justify-content: center;
+  padding: 24px 16px;
   background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 55%, #0e7490 100%);
 }
 
 .login-card {
-  width: 420px;
+  width: min(420px, 100%);
   background: #fff;
   border-radius: 16px;
-  padding: 40px 36px 28px;
+  padding: 36px 32px 28px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
 }
 
@@ -169,5 +172,15 @@ function onWecomLogin(): void {
   color: #9ca3af;
   text-align: center;
   line-height: 1.8;
+}
+
+@media (max-width: 420px) {
+  .login-card {
+    padding: 28px 20px 22px;
+  }
+
+  .brand h2 {
+    font-size: 20px;
+  }
 }
 </style>

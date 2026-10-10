@@ -51,7 +51,29 @@
       </div>
     </div>
 
-    <el-table v-loading="loading" :data="rows" stripe>
+    <el-alert
+      v-if="ledgerError"
+      class="ledger-error"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="ledgerError"
+    >
+      <template #default>
+        <el-button size="small" type="danger" plain @click="load">重新加载报工流水</el-button>
+      </template>
+    </el-alert>
+
+    <div class="ledger-scroll-hint">表格可横向滚动查看合格数、来源、备注与冲减入口</div>
+    <div class="ledger-table-scroll">
+    <el-table
+      v-loading="loading"
+      :data="rows"
+      size="small"
+      stripe
+      class="ledger-table"
+      :empty-text="ledgerError ? '加载失败，可点击上方按钮重试' : '暂无报工记录'"
+    >
       <el-table-column prop="report_time" label="报工时间" width="160">
         <template #default="{ row }">{{ formatDateTime(row.report_time) }}</template>
       </el-table-column>
@@ -92,9 +114,9 @@
         </template>
       </el-table-column>
       <el-table-column prop="defect_qty" label="次品" width="70" align="center" />
-      <el-table-column label="来源" width="100">
+      <el-table-column label="来源" width="130">
         <template #default="{ row }">
-          <el-tag size="small" :type="sourceTag(row.source)">{{ row.source_label ?? row.source }}</el-tag>
+          <el-tag size="small" :type="sourceTag(row.source)">{{ row.source_label || sourceLabel(row.source) }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column label="备注/冲减原因" min-width="140">
@@ -114,6 +136,7 @@
         </template>
       </el-table-column>
     </el-table>
+    </div>
 
     <div class="pager">
       <el-pagination
@@ -160,6 +183,7 @@ import { computed, onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import { productionApi } from '@/api/production'
+import { getApiErrorMessage } from '@/api/axios'
 import type { WorkReport } from '@/types/production'
 import ReportDialog from '@/components/production/ReportDialog.vue'
 import { useAuthStore } from '@/stores/auth'
@@ -170,7 +194,8 @@ const auth = useAuthStore()
 const canReport = computed(() => auth.canOperateReports)
 
 const rows = ref<WorkReport[]>([])
-const loading = ref(false)
+const loading = ref(true)
+const ledgerError = ref('')
 const total = ref(0)
 const page = ref(1)
 const perPage = 15
@@ -199,6 +224,7 @@ async function onReportSuccess(): Promise<void> {
 
 async function load(): Promise<void> {
   loading.value = true
+  ledgerError.value = ''
   try {
     const result = await productionApi.listReports({
       page: page.value,
@@ -211,8 +237,8 @@ async function load(): Promise<void> {
     })
     rows.value = result.data
     total.value = result.total
-  } catch {
-    rows.value = []
+  } catch (error) {
+    ledgerError.value = getApiErrorMessage(error, '报工流水加载失败，请检查连接后重试。')
   } finally {
     loading.value = false
   }
@@ -228,6 +254,18 @@ function sourceTag(s: string): 'primary' | 'success' | 'warning' | 'info' | 'dan
     offline: 'danger',
   }
   return tags[s] ?? 'info'
+}
+
+function sourceLabel(source: string): string {
+  const labels: Record<string, string> = {
+    scan: '扫码',
+    click: '点选',
+    leader_report: '班组长代报',
+    leader_batch: '班组长/统计员日结',
+    makeup: '补报',
+    offline: '离线补传',
+  }
+  return labels[source] ?? source
 }
 
 function openCorrection(row: WorkReport): void {
@@ -309,7 +347,24 @@ async function onCorrection(): Promise<void> {
   margin-left: 4px;
 }
 .correction {
-  color: #b91c1c;
+  color: var(--hy-red);
+}
+.ledger-error {
+  margin-bottom: 12px;
+}
+.ledger-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+}
+.ledger-scroll-hint {
+  display: none;
+  margin: -6px 0 8px;
+  color: var(--hy-muted);
+  font-size: 12px;
+  text-align: right;
+}
+.ledger-table {
+  min-width: 1500px;
 }
 .pager {
   display: flex;
@@ -318,5 +373,27 @@ async function onCorrection(): Promise<void> {
 }
 .mb-12 {
   margin-bottom: 12px;
+}
+
+@media (max-width: 1600px) {
+  .ledger-scroll-hint {
+    display: block;
+  }
+}
+
+@media (max-width: 760px) {
+  .page-head {
+    flex-direction: column;
+  }
+
+  .toolbar-left,
+  .toolbar-right {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+
+  .pager {
+    justify-content: center;
+  }
 }
 </style>

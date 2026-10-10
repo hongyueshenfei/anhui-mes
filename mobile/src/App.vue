@@ -16,8 +16,8 @@
 html,
 body,
 #app {
-  height: 100%;
-  background: #f7f8fa;
-  font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Helvetica Neue', sans-serif;
+  min-height: 100%;
+  background: var(--hy-canvas);
+  font-family: Inter, 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
 }
 </style>

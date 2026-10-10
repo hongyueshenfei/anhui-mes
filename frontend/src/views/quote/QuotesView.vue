@@ -16,7 +16,18 @@
         </div>
       </template>
 
-      <el-table :data="items" size="small" stripe>
+      <StaleDataNotice :visible="loadError && items.length > 0" @retry="load" />
+
+      <el-table v-loading="loading" :data="items" size="small" stripe>
+        <template #empty>
+          <EmptyStatePanel
+            :kind="loading ? 'loading' : loadError ? 'error' : filterStatus ? 'filtered' : 'empty'"
+            :title="loading ? '正在读取报价单' : loadError ? '报价单加载失败' : filterStatus ? '该状态下没有报价单' : '还没有报价单'"
+            :description="loading ? '正在读取报价与成交状态。' : loadError ? '请检查服务连接后重试；接口异常不会被当作“没有报价单”。' : filterStatus ? '切换状态，或清除状态筛选后查看全部报价。' : '完成一次快速估价后，可在这里跟踪发送、成交与未成交状态。'"
+            :action-label="loading ? '' : loadError ? '重新加载' : filterStatus ? '查看全部' : '开始估价'"
+            @action="onEmptyAction"
+          />
+        </template>
         <el-table-column prop="quote_no" label="报价单号" width="160" />
         <el-table-column prop="customer_name" label="客户" min-width="130" />
         <el-table-column prop="total_qty" label="数量" width="90" />
@@ -96,11 +107,17 @@
 import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import { quoteApi } from '@/api/quote'
+import { useRouter } from 'vue-router'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import type { PageResult } from '@/types'
 import type { Quote } from '@/types/quote'
 
 const items = ref<Quote[]>([])
 const filterStatus = ref('')
+const loading = ref(true)
+const loadError = ref(false)
+const router = useRouter()
 const detailVisible = ref(false)
 const current = ref<Quote | null>(null)
 
@@ -110,11 +127,26 @@ function statusType(s: string): 'info' | 'warning' | 'success' | 'danger' {
 }
 
 async function load(): Promise<void> {
+  loading.value = true
+  loadError.value = false
   try {
     const r = (await quoteApi.listQuotes({ status: filterStatus.value || undefined })) as PageResult<Quote>
     items.value = Array.isArray(r) ? r : r.data
   } catch {
-    items.value = []
+    loadError.value = true
+  } finally {
+    loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (filterStatus.value) {
+    filterStatus.value = ''
+    void load()
+  } else {
+    void router.push('/quote/estimate')
   }
 }
 

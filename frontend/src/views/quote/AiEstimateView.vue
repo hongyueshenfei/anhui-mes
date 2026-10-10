@@ -2,7 +2,7 @@
   <div class="ai-estimate-page">
     <el-row :gutter="12">
       <!-- 输入区 -->
-      <el-col :span="9">
+      <el-col :xs="24" :lg="9">
         <el-card shadow="never" class="panel">
           <template #header>
             <div class="panel-header">
@@ -14,9 +14,13 @@
 
           <el-form label-width="90px">
             <el-form-item label="近似老品">
-              <el-select v-model="productId" filterable clearable placeholder="选择近似产品（可选）" style="width: 100%" @change="recalc">
+              <el-select v-model="productId" filterable clearable :loading="productLoading" :no-data-text="productLoadError ? '产品读取失败，请重试' : '暂无可选产品'" placeholder="选择近似产品（可选）" style="width: 100%" @change="recalc">
                 <el-option v-for="p in products" :key="p.id" :label="`${p.code} · ${p.name}`" :value="p.id" />
               </el-select>
+              <div v-if="productLoadError" class="product-load-error" role="status">
+                {{ productLoadError }}
+                <el-button link type="primary" :loading="productLoading" @click="loadProducts">重试</el-button>
+              </div>
             </el-form-item>
             <el-form-item label="规格描述">
               <el-input v-model="specText" type="textarea" :rows="2" placeholder="如：PP 材质 · 500ml · 带盖" @input="recalc" />
@@ -36,17 +40,17 @@
             估价提交后由后端规则引擎与 AI 服务计算；页面输入变化仅用于即时预览。
           </el-alert>
 
-          <el-button type="primary" class="full-btn" :disabled="qty <= 0" @click="doEstimate">
+          <el-button type="primary" class="full-btn" :disabled="qty <= 0" :loading="estimating" @click="doEstimate">
             <el-icon><MagicStick /></el-icon>开始估价
           </el-button>
-          <el-button class="full-btn mt8" :disabled="!estimate" @click="saveAsQuote">
+          <el-button class="full-btn mt8" :disabled="!estimate || estimating" :loading="saving" @click="saveAsQuote">
             <el-icon><DocumentAdd /></el-icon>一键转报价单
           </el-button>
         </el-card>
       </el-col>
 
       <!-- 结果区 -->
-      <el-col :span="15">
+      <el-col :xs="24" :lg="15">
         <el-card shadow="never" class="panel">
           <template #header>
             <div class="panel-header">
@@ -55,15 +59,20 @@
             </div>
           </template>
 
-          <div v-if="!estimate" class="empty">请选择近似产品/填写规格与数量后点击「开始估价」</div>
+          <el-alert v-if="estimateError" type="error" show-icon :closable="false" class="mb12">
+            <template #title>{{ estimateError }}<span v-if="estimate">；下方仍是上次成功估价结果，请重新估价后再转报价单。</span></template>
+          </el-alert>
+          <el-alert v-else-if="estimating && estimate" type="info" :closable="false" class="mb12">正在更新估价；下方暂时保留上次成功结果。</el-alert>
+          <div v-if="estimating && !estimate" class="empty" role="status" aria-live="polite"><el-skeleton :rows="4" animated /></div>
+          <div v-else-if="!estimate" class="empty">请选择近似产品/填写规格与数量后点击「开始估价」</div>
 
           <template v-else>
             <!-- KPI -->
             <el-row :gutter="10" class="kpi-row">
-              <el-col :span="6"><div class="kpi-card price"><div class="kpi-label">建议单价（元）</div><div class="kpi-value">{{ estimate.suggest_price.toFixed(2) }}</div></div></el-col>
-              <el-col :span="6"><div class="kpi-card"><div class="kpi-label">单位总成本（元）</div><div class="kpi-value">{{ estimate.total_cost.toFixed(2) }}</div></div></el-col>
-              <el-col :span="6"><div class="kpi-card"><div class="kpi-label">目标毛利</div><div class="kpi-value">{{ estimate.margin }}%</div></div></el-col>
-              <el-col :span="6"><div class="kpi-card"><div class="kpi-label">建议交期（天）</div><div class="kpi-value">{{ estimate.delivery_days }}</div></div></el-col>
+              <el-col :xs="12" :sm="6"><div class="kpi-card price"><div class="kpi-label">建议单价（元）</div><div class="kpi-value">{{ estimate.suggest_price.toFixed(2) }}</div></div></el-col>
+              <el-col :xs="12" :sm="6"><div class="kpi-card"><div class="kpi-label">单位总成本（元）</div><div class="kpi-value">{{ estimate.total_cost.toFixed(2) }}</div></div></el-col>
+              <el-col :xs="12" :sm="6"><div class="kpi-card"><div class="kpi-label">目标毛利</div><div class="kpi-value">{{ estimate.margin }}%</div></div></el-col>
+              <el-col :xs="12" :sm="6"><div class="kpi-card"><div class="kpi-label">建议交期（天）</div><div class="kpi-value">{{ estimate.delivery_days }}</div></div></el-col>
             </el-row>
 
             <!-- 成本构成 -->
@@ -122,6 +131,11 @@ const margin = ref(20)
 const customerName = ref('')
 const estimate = ref<QuoteEstimate | null>(null)
 const saving = ref(false)
+const estimating = ref(false)
+const estimateError = ref('')
+const productLoading = ref(true)
+const productLoadError = ref('')
+let estimateRequestId = 0
 
 const costRows = computed(() => {
   if (!estimate.value) return []
@@ -142,16 +156,25 @@ async function recalc(): Promise<void> {
 }
 
 async function runEstimate(showMsg = true): Promise<void> {
+  const requestId = ++estimateRequestId
+  estimating.value = true
+  estimateError.value = ''
   try {
-    estimate.value = await quoteApi.aiEstimate({
+    const result = await quoteApi.aiEstimate({
       product_id: productId.value,
       spec_text: specText.value.trim() || undefined,
       qty: qty.value,
       margin: margin.value,
     })
+    if (requestId !== estimateRequestId) return
+    estimate.value = result
     if (showMsg) ElMessage.success(`估价完成：建议价 ${estimate.value.suggest_price.toFixed(2)} 元/件`)
-  } catch {
-    ElMessage.error('估价失败')
+  } catch (error: any) {
+    if (requestId !== estimateRequestId) return
+    estimateError.value = error?.response?.data?.message ?? '估价暂时不可用，请检查服务连接后重试。'
+    if (showMsg) ElMessage.error('估价失败')
+  } finally {
+    if (requestId === estimateRequestId) estimating.value = false
   }
 }
 
@@ -176,14 +199,20 @@ async function saveAsQuote(): Promise<void> {
   }
 }
 
-onMounted(async () => {
+async function loadProducts(): Promise<void> {
+  productLoading.value = true
+  productLoadError.value = ''
   try {
     const r = (await plmApi.listProducts({ per_page: 100 })) as Product[]
-    products.value = Array.isArray(r) ? r : (r as unknown as { data: Product[] }).data
-  } catch {
-    products.value = []
+    products.value = Array.isArray(r) ? r : Array.isArray((r as { data?: Product[] })?.data) ? (r as { data: Product[] }).data : []
+  } catch (error: any) {
+    productLoadError.value = error?.response?.data?.message ?? '产品档案读取失败；仍可直接填写规格进行估价。'
+  } finally {
+    productLoading.value = false
   }
-})
+}
+
+onMounted(loadProducts)
 </script>
 
 <style scoped>
@@ -214,6 +243,14 @@ onMounted(async () => {
   text-align: center;
   color: #94a3b8;
   padding: 60px 0;
+}
+.product-load-error {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+  color: var(--el-color-danger);
+  font-size: 12px;
 }
 .kpi-row {
   margin-bottom: 12px;

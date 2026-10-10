@@ -34,10 +34,59 @@
       </div>
     </div>
 
+    <div class="resource-summary" aria-label="机台状态概览" :aria-busy="loading">
+      <div class="summary-heading">
+        <span class="summary-marker" aria-hidden="true"></span>
+        <strong>设备状态</strong>
+        <span class="summary-total">{{ loading ? '读取中…' : machineCounts.total + ' 台资源' }}</span>
+      </div>
+      <div class="summary-filters" role="group" aria-label="按设备状态快速筛选">
+        <button
+          type="button"
+          class="summary-filter"
+          :class="{ 'is-active': !filterStatus }"
+          :aria-pressed="!filterStatus"
+          @click="setStatusFilter('')"
+        >
+          全部 <b>{{ loading ? '—' : machineCounts.total }}</b>
+        </button>
+        <button
+          type="button"
+          class="summary-filter summary-filter--running"
+          :class="{ 'is-active': filterStatus === 'running' }"
+          :aria-pressed="filterStatus === 'running'"
+          @click="setStatusFilter('running')"
+        >
+          <i aria-hidden="true"></i>运行中 <b>{{ loading ? '—' : machineCounts.running }}</b>
+        </button>
+        <button
+          type="button"
+          class="summary-filter summary-filter--maintenance"
+          :class="{ 'is-active': filterStatus === 'maintenance' }"
+          :aria-pressed="filterStatus === 'maintenance'"
+          @click="setStatusFilter('maintenance')"
+        >
+          <i aria-hidden="true"></i>维修中 <b>{{ loading ? '—' : machineCounts.maintenance }}</b>
+        </button>
+        <button
+          type="button"
+          class="summary-filter summary-filter--stopped"
+          :class="{ 'is-active': filterStatus === 'stopped' }"
+          :aria-pressed="filterStatus === 'stopped'"
+          @click="setStatusFilter('stopped')"
+        >
+          <i aria-hidden="true"></i>停机 <b>{{ loading ? '—' : machineCounts.stopped }}</b>
+        </button>
+        <span v-if="!loading && machineCounts.inactive" class="inactive-note">已停用 {{ machineCounts.inactive }} 台</span>
+      </div>
+    </div>
+
     <!-- 车间 → 机台/产线 树形表 -->
     <el-table
+      class="resource-table"
       v-loading="loading"
       :data="treeRows"
+      :row-class-name="resourceRowClassName"
       row-key="_key"
       :tree-props="{ children: 'children', hasChildren: 'hasChildren' }"
       default-expand-all
@@ -83,7 +132,7 @@
       <el-table-column label="排序" width="70">
         <template #default="{ row }">{{ row._rowType === 'workshop' ? row.sort : '—' }}</template>
       </el-table-column>
-    <el-table-column v-if="canManage" label="操作" width="270" fixed="right">
+      <el-table-column v-if="canManage" label="操作" width="270" :fixed="isCompact ? false : 'right'">
         <template #default="{ row }">
           <template v-if="row._rowType === 'workshop'">
             <el-button link type="primary" @click="openEditWorkshop(row)">编辑</el-button>
@@ -128,7 +177,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { OfficeBuilding, Plus } from '@element-plus/icons-vue'
 import QRCode from 'qrcode'
@@ -155,9 +204,12 @@ const canManage = computed(() => auth.can('plm.machine.manage'))
 
 const loading = ref(false)
 const treeRows = ref<TreeRow[]>([])
+const allMachines = ref<Machine[]>([])
 const keyword = ref('')
 const filterType = ref('')
 const filterStatus = ref('')
+const isCompact = ref(false)
+let compactMediaQuery: MediaQueryList | undefined
 
 // 机台弹窗
 const dialogVisible = ref(false)
@@ -177,6 +229,13 @@ const qrMachine = ref<Machine | null>(null)
 
 /** 全部车间（用于树形父行） */
 const workshops = ref<PlmWorkshop[]>([])
+const machineCounts = computed(() => ({
+  total: allMachines.value.length,
+  running: allMachines.value.filter((machine) => machine.status === 'running').length,
+  maintenance: allMachines.value.filter((machine) => machine.status === 'maintenance').length,
+  stopped: allMachines.value.filter((machine) => machine.status === 'stopped').length,
+  inactive: allMachines.value.filter((machine) => machine.is_active !== 1).length,
+}))
 /** 启用车间（用于机台表单「所属车间」下拉） */
 const workshopOptions = ref<Array<{ label: string; value: number }>>([])
 
@@ -236,6 +295,7 @@ async function load(): Promise<void> {
     const allWorkshops = toArray<PlmWorkshop>(wsResult, [])
     const machines = toArray<Machine>(mResult, [])
     workshops.value = allWorkshops
+    allMachines.value = machines
     // 机台表单「所属车间」下拉只取启用车间
     workshopOptions.value = allWorkshops
       .filter((w) => w.is_active === 1)
@@ -250,6 +310,7 @@ async function load(): Promise<void> {
       return true
     })
 
+    const hasResourceFilter = Boolean(kw || filterType.value || filterStatus.value)
     treeRows.value = allWorkshops
       .slice()
       .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0))
@@ -262,9 +323,23 @@ async function load(): Promise<void> {
           .filter((m) => m.workshop_id === ws.id)
           .map((m) => ({ _key: `m-${m.id}`, _rowType: 'machine' as const, ...m })),
       }))
+      .filter((ws) => !hasResourceFilter || ws.children.length > 0)
   } finally {
     loading.value = false
   }
+}
+
+function setStatusFilter(status: Machine['status'] | ''): void {
+  filterStatus.value = filterStatus.value === status && status ? '' : status
+  load()
+}
+
+function resourceRowClassName({ row }: { row: TreeRow }): string {
+  if (row._rowType === 'workshop') return ''
+  if (row.status === 'maintenance') return 'resource-row--maintenance'
+  if (row.status === 'stopped') return 'resource-row--stopped'
+  if (row.is_active !== 1) return 'resource-row--inactive'
+  return ''
 }
 
 // ============ 机台 新增/编辑 ============
@@ -408,7 +483,18 @@ async function onDeleteWorkshop(row: PlmWorkshop): Promise<void> {
   await load()
 }
 
-onMounted(load)
+onMounted(() => {
+  compactMediaQuery = window.matchMedia('(max-width: 700px)')
+  isCompact.value = compactMediaQuery.matches
+  compactMediaQuery.addEventListener('change', syncCompactLayout)
+  load()
+})
+
+onUnmounted(() => compactMediaQuery?.removeEventListener('change', syncCompactLayout))
+
+function syncCompactLayout(event: MediaQueryListEvent): void {
+  isCompact.value = event.matches
+}
 </script>
 
 <style scoped>
@@ -471,5 +557,142 @@ onMounted(load)
 
 .qr-url {
   width: 100%;
+}
+
+.resource-table {
+  width: 100%;
+}
+
+.resource-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  min-height: 48px;
+  margin: -2px 0 14px;
+  padding: 7px 12px;
+  border: 1px solid #e1e7ec;
+  border-radius: 6px;
+  background: #f7f9fb;
+}
+
+.summary-heading,
+.summary-filters {
+  display: flex;
+  align-items: center;
+}
+
+.summary-heading {
+  flex: 0 0 auto;
+  gap: 8px;
+  color: #263746;
+  font-size: 13px;
+}
+
+.summary-marker {
+  width: 3px;
+  height: 18px;
+  border-radius: 2px;
+  background: #176db3;
+}
+
+.summary-total {
+  color: #8190a0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.summary-filters {
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.summary-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 30px;
+  padding: 0 9px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #536575;
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+}
+
+.summary-filter:hover,
+.summary-filter:focus-visible {
+  border-color: #b8d5e9;
+  background: #fff;
+  outline: none;
+}
+
+.summary-filter.is-active {
+  border-color: #c9dff0;
+  background: #eaf3fa;
+  color: #155f99;
+}
+
+.summary-filter b {
+  color: #31485b;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+}
+
+.summary-filter i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.summary-filter--running i { color: #22826a; }
+.summary-filter--maintenance i { color: #ad7419; }
+.summary-filter--stopped i { color: #82909d; }
+
+.inactive-note {
+  padding-left: 7px;
+  border-left: 1px solid #d9e0e6;
+  color: #7b8792;
+  font-size: 11px;
+}
+
+.resource-table :deep(.resource-row--maintenance > td) {
+  background: #fffaf1;
+}
+
+.resource-table :deep(.resource-row--maintenance > td:first-child .cell) {
+  box-shadow: inset 3px 0 0 #c58a2a;
+}
+
+.resource-table :deep(.resource-row--stopped > td) {
+  background: #f5f7f9;
+}
+
+.resource-table :deep(.resource-row--stopped > td:first-child .cell),
+.resource-table :deep(.resource-row--inactive > td:first-child .cell) {
+  box-shadow: inset 3px 0 0 #8d9aa5;
+}
+
+@media (max-width: 700px) {
+  .resource-summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .summary-filters {
+    width: 100%;
+  }
+
+  .page-card :deep(.el-card__body) {
+    overflow-x: auto;
+  }
+
+  .resource-table {
+    min-width: 860px;
+  }
 }
 </style>

@@ -45,6 +45,13 @@
         </template>
       </van-cell>
     </van-cell-group>
+
+    <div v-if="loading && !context" class="request-state" role="status" aria-live="polite">
+      <van-loading vertical>正在读取机台任务</van-loading>
+    </div>
+    <van-empty v-else-if="loadError && !context" image="network" :description="loadError">
+      <van-button round type="primary" size="small" @click="loadContext">重新加载</van-button>
+    </van-empty>
   </div>
 </template>
 
@@ -83,6 +90,7 @@ const today = localDate()
 const workDate = ref(String(route.query.date ?? today))
 const context = ref<ReportContext | null>(null)
 const loading = ref(false)
+const loadError = ref('')
 
 const shiftLabel = computed(() => context.value?.shift_options.find((s) => s.code === context.value?.default_shift)?.name ?? '白班')
 
@@ -103,14 +111,17 @@ async function resolveMachine(): Promise<void> {
 
 async function loadContext(): Promise<void> {
   if (!machineCode.value.trim()) return
+  context.value = null
+  loadError.value = ''
   loading.value = true
   try {
     const resp = await mobileMachineReportContext(machineCode.value.trim(), workDate.value)
     const body = resp.data
-    if (body?.code === 0) context.value = body.data
-    else showToast(body?.message ?? '机台任务加载失败')
+    if (body?.code !== 0) throw new Error(body?.message ?? '机台任务加载失败，请稍后重试')
+    context.value = body.data
   } catch (error: any) {
-    showToast(error?.response?.data?.message ?? '机台任务加载失败')
+    loadError.value = error?.response?.data?.message ?? error?.message ?? '机台任务加载失败，请检查网络后重试'
+    showToast(loadError.value)
   } finally {
     loading.value = false
   }
@@ -146,8 +157,9 @@ function localDate(): string {
 .page {
   min-height: 100vh;
   padding-bottom: 60px;
-  background: #f7f8fa;
+  background: var(--hy-canvas);
 }
+.request-state { display: grid; min-height: 160px; place-items: center; color: var(--hy-muted); }
 .scan-card,
 .machine-card,
 .task-card {

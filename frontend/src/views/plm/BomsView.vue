@@ -36,7 +36,18 @@
     <div class="hint">金蝶物料清单样式：BOM 头 + 明细行；草稿可编辑，发布后供生产引用（四期直发金蝶）</div>
 
     <!-- 混合行列表：BOM 头行 + 紧跟的明细行 -->
+    <StaleDataNotice :visible="loadError && visibleRows.length > 0" @retry="load" />
+
     <el-table v-loading="loading" :data="visibleRows" :row-class-name="rowClassName" :cell-class-name="cellClassName" @row-click="toggleExpand">
+      <template #empty>
+        <EmptyStatePanel
+          :kind="emptyKind"
+          :title="emptyTitle"
+          :description="emptyDescription"
+          :action-label="emptyActionLabel"
+          @action="onEmptyAction"
+        />
+      </template>
       <el-table-column label="" width="50" align="center">
         <template #default="{ row }">
           <span v-if="row.row_type === 'bom'" class="bom-indicator">
@@ -47,7 +58,7 @@
       </el-table-column>
       <el-table-column label="版本" width="180">
         <template #default="{ row }">
-          <el-link v-if="row.row_type === 'bom'" type="primary" :underline="false" @click.stop="openDetail(row)">
+          <el-link v-if="row.row_type === 'bom'" type="primary" underline="never" @click.stop="openDetail(row)">
             {{ row.version }}
           </el-link>
           <span v-else class="line-version">{{ bomVersionOf(row.bom_id) }}</span>
@@ -75,7 +86,7 @@
           <el-link
             v-if="row.row_type === 'line' && row.is_semi_finished"
             type="primary"
-            :underline="false"
+            underline="never"
             @click="jumpToSemi(row.item_code!)"
           >
             {{ row.item_code }}
@@ -253,6 +264,8 @@ import { ArrowDown, CaretBottom, CaretRight, Plus, Search } from '@element-plus/
 import { plmApi } from '@/api/plm'
 import type { Bom, BomLine, BomListRow } from '@/types'
 import FormDialog, { type FormField } from '@/components/common/FormDialog.vue'
+import EmptyStatePanel from '@/components/common/EmptyStatePanel.vue'
+import StaleDataNotice from '@/components/common/StaleDataNotice.vue'
 import StatusTag from '@/components/common/StatusTag.vue'
 import { useAuthStore } from '@/stores/auth'
 
@@ -269,7 +282,15 @@ const status = ref('')
 const search = ref('')
 
 const rows = ref<BomListRow[]>([])
-const loading = ref(false)
+const loading = ref(true)
+const loadError = ref(false)
+const hasFilters = computed(() => Boolean(productCode.value.trim() || status.value || search.value.trim()))
+const emptyKind = computed(() => loading.value ? 'loading' : loadError.value ? 'error' : hasFilters.value ? 'filtered' : 'empty')
+const emptyTitle = computed(() => loading.value ? '正在读取 BOM 版本' : loadError.value ? 'BOM 列表加载失败' : hasFilters.value ? '没有匹配的 BOM 版本' : '还没有 BOM 版本')
+const emptyDescription = computed(() => loading.value ? '正在读取物料清单与版本信息。' : loadError.value
+  ? '请检查服务连接后重试；接口异常不会被当作“没有 BOM”。'
+  : hasFilters.value ? '检查产品编码、名称或状态条件，也可以清空筛选。' : '输入产品编码查看对应物料清单；新建版本需要先选定产品。')
+const emptyActionLabel = computed(() => loading.value ? '' : loadError.value ? '重新加载' : hasFilters.value ? '清空筛选' : '')
 
 /** 展开的 BOM id 集合（默认不展开，点击 BOM 头行展开/收起明细行） */
 const expandedBoms = ref<Set<number>>(new Set())
@@ -356,6 +377,7 @@ function cellClassName({ row, columnIndex }: { row: BomListRow; columnIndex: num
 
 async function load(): Promise<void> {
   loading.value = true
+  loadError.value = false
   try {
     const params: { product_code?: string; status?: string; search?: string } = {}
     if (productCode.value.trim()) params.product_code = productCode.value.trim()
@@ -364,8 +386,18 @@ async function load(): Promise<void> {
     rows.value = await plmApi.listAllBoms(params)
     // 新查询默认全部收起
     expandedBoms.value = new Set()
+  } catch {
+    loadError.value = true
   } finally {
     loading.value = false
+  }
+}
+
+function onEmptyAction(): void {
+  if (loadError.value) {
+    void load()
+  } else if (hasFilters.value) {
+    reset()
   }
 }
 
