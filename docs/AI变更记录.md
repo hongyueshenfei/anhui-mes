@@ -30,6 +30,30 @@
 
 ## 二、变更日志
 
+### [2026-10-15 17:20] 启动本机 Compose 联调环境
+- **需求/背景**：用户要求“docker compose 帮我把本地环境跑一遍，我要部署到服务器的生产环境”，先验证本地服务链路。
+- **改动内容**：本机安装 Docker CLI/Compose 并启动 Colima，在 `~/.docker/cli-plugins/` 注册 Compose 插件，使 `docker compose` 可用；通过临时覆盖文件 `/private/tmp/hy-local-compose-override.yml` 以 `hy-local` 项目启动 Nginx、PHP-FPM、MySQL、Redis、AI 服务，端口仅绑定本机回环（Nginx 8010/8080、MySQL 3307、Redis 6380、AI 8001）；PC/H5 Vite 分别运行于 5175/5174。新建独立 MySQL/Redis 卷并执行 `php artisan migrate --seed`，Seeder 已审阅，未调用 DemoBusinessSeeder。未改业务代码或 `.env`，未启动队列 worker/调度器，避免本地自动触发外部集成。
+- **弯路/踩坑**：启动前本机没有 Docker Engine；Colima 镜像和 Docker Hub 镜像下载多次遇到 EOF，单镜像重试后完成。AI 服务首次创建时 Colima 未生成 8001 的宿主机转发，重建容器后转发恢复。
+- **可优化点**：现有 `hongyue/docker-compose.yml` 是开发编排，未包含队列 worker、单例调度器、生产静态前端/TLS/备份配置；上服务器前应另做生产 Compose 与网关配置，并确认 K3/小程序写入使用 mock 或沙箱。
+- **验证**：`docker compose version` 为 5.6.0，Compose 配置校验通过，5 个容器均运行；MySQL `mysqld is alive`、Redis `PONG`；Laravel `/api/health`、AI `/health`（solver=ortools）、PC/H5 页面及其 API 代理均 HTTP 200；全部迁移完成，基础 Seeder 成功；未运行自动化测试。
+- **提交**：未提交、未推送。
+
+### [2026-10-10 17:08] 补充验证项目级 MCP 配置与凭据保护
+- **需求/背景**：完成上一条项目目录级 MCP 配置后，补充验证 Codex 读取状态、Git 忽略规则与本机文件权限。
+- **改动内容**：将 `.codex/config.toml` 权限收紧为仅当前用户可读写（600）；未在记录中写入凭据。
+- **弯路/踩坑**：普通沙箱命令无法修改权限，精确申请后才成功。一次验证输出意外展开了 Token，已提醒用户尽快轮换。
+- **可优化点**：轮换后更新本机忽略配置中的 Token；内网服务恢复可达后完成 MCP 握手与工具调用验证。
+- **验证**：Codex CLI 列表能解析并识别该启用的 Streamable HTTP MCP（Bearer 认证）；配置被 `.gitignore` 排除，文件权限为 `-rw-------`，`git diff --check` 通过。当前环境直连 `192.168.0.51:8888` 失败，尚未验证服务端握手。
+- **提交**：未提交、未推送。
+
+### [2026-10-10 16:58] 配置项目目录级 Knowledge Atlas MCP
+- **需求/背景**：用户提供项目 Token 与 MCP 配置，要求安装并限定在当前项目目录。
+- **改动内容**：新增根目录 `.codex/config.toml` 注册 `progress_anhui-core-biz_9c641900`；在根 `.gitignore` 排除该本机配置文件，避免凭据进入版本控制。凭据未写入本记录。
+- **弯路/踩坑**：当前环境无法连接 `192.168.0.51:8888`，代理 `127.0.0.1:7897` 也不可用；配置可写入，但暂时无法完成 MCP 服务端握手。
+- **可优化点**：内网服务恢复可达后重新加载 Codex 并验证工具清单与认证；凭据若已在聊天中明文分享，建议按内部凭据管理规范评估轮换。
+- **验证**：待执行配置读取、Git 忽略规则与 MCP 连通性检查。
+- **提交**：未提交、未推送。
+
 ### [2026-10-10 15:35] 全项目快照推送到内网 Git 仓库
 - **需求/背景**：用户要求安装 Git 并将整个项目上传到指定仓库，并确认该 HTTP 地址用于受控内网。
 - **改动内容**：Git 已安装（Apple Git 2.54.0）；将根仓库中 PC、移动端及项目文档等 55 个变更文件提交为 `f67b6a5`，新增独立远端 `hy-internal`，保留原 GitHub `origin`，并将本地 `main` 推送为远端 `master`。

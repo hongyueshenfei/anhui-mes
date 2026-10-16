@@ -30,3 +30,6 @@
 .DS_Store
 .idea/
 .vscode/
+
+# Codex 项目配置可能包含本机 MCP 凭据，不纳入版本控制
+/.codex/config.toml
