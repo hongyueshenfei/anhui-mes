@@ -30,6 +30,14 @@
 
 ## 二、变更日志
 
+### [2026-10-16 08:47] 准备上传本机联调改动到内网 Git
+- **需求/背景**：用户要求先上传 Git，为后续服务器部署做准备。
+- **改动内容**：根仓库 `.gitignore` 与本机联调记录已提交为 `2afc16b`；未纳入 `AGENTS.md` 中绑定当前开发者身份的项目问答规则。前端与移动端快照已包含在此前根仓库提交 `f67b6a5`；四个子仓库未配置独立远端。
+- **弯路/踩坑**：内网远端 `hy-internal` 需要 Git 认证；读取远端与推送均因无法读取用户名失败。未保存或写入凭据。
+- **可优化点**：在本机配置 Git Credential Manager 或为内网 Git 配置 SSH/HTTPS 认证。
+- **验证**：提交前 `git diff --cached --check` 通过；`GIT_TERMINAL_PROMPT=0 git push hy-internal HEAD:refs/heads/master` 因缺少认证失败，远端未更新。
+- **提交**：`2afc16b` 已本地提交，待认证后推送。
+
 ### [2026-10-15 17:20] 启动本机 Compose 联调环境
 - **需求/背景**：用户要求“docker compose 帮我把本地环境跑一遍，我要部署到服务器的生产环境”，先验证本地服务链路。
 - **改动内容**：本机安装 Docker CLI/Compose 并启动 Colima，在 `~/.docker/cli-plugins/` 注册 Compose 插件，使 `docker compose` 可用；通过临时覆盖文件 `/private/tmp/hy-local-compose-override.yml` 以 `hy-local` 项目启动 Nginx、PHP-FPM、MySQL、Redis、AI 服务，端口仅绑定本机回环（Nginx 8010/8080、MySQL 3307、Redis 6380、AI 8001）；PC/H5 Vite 分别运行于 5175/5174。新建独立 MySQL/Redis 卷并执行 `php artisan migrate --seed`，Seeder 已审阅，未调用 DemoBusinessSeeder。未改业务代码或 `.env`，未启动队列 worker/调度器，避免本地自动触发外部集成。
