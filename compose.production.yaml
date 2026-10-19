@@ -1,0 +1,236 @@
+name: ${COMPOSE_PROJECT_NAME:-hongyue-prod}
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: 20m
+    max-file: '5'
+
+x-app: &app
+  image: ${IMAGE_PREFIX:-hongyue}/app:${RELEASE_TAG:?请先运行部署初始化命令}
+  build:
+    context: .
+    dockerfile: deploy/production/Dockerfile.php
+    target: app
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 150s
+  environment: &app-env
+    APP_NAME: 虹越智造平台
+    APP_ENV: production
+    APP_DEBUG: 'false'
+    APP_TEST_NOW: ''
+    APP_KEY: ${APP_KEY:?缺少 APP_KEY}
+    APP_TIMEZONE: Asia/Shanghai
+    APP_URL: https://${PC_DOMAIN:?缺少 PC_DOMAIN}
+    FRONTEND_URL: https://${PC_DOMAIN}
+    APP_LOCALE: zh_CN
+    LOG_CHANNEL: stderr
+    LOG_LEVEL: ${LOG_LEVEL:-info}
+    DB_CONNECTION: mysql
+    DB_HOST: mysql
+    DB_PORT: '3306'
+    DB_DATABASE: ${DB_DATABASE:-hongyue}
+    DB_USERNAME: ${DB_USERNAME:-hongyue}
+    DB_PASSWORD: ${DB_PASSWORD:?缺少数据库密码}
+    REDIS_CLIENT: predis
+    REDIS_HOST: redis
+    REDIS_PASSWORD: ${REDIS_PASSWORD:?缺少 Redis 密码}
+    REDIS_PORT: '6379'
+    REDIS_DB: '0'
+    REDIS_CACHE_DB: '1'
+    REDIS_QUEUE_RETRY_AFTER: '180'
+    CACHE_STORE: redis
+    QUEUE_CONNECTION: redis
+    SESSION_DRIVER: redis
+    SESSION_SECURE_COOKIE: 'true'
+    SANCTUM_STATEFUL_DOMAINS: ${PC_DOMAIN},${MOBILE_DOMAIN}
+    AI_SERVICE_URL: http://ai-service:8001
+    AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?缺少内部 AI Token}
+    MP_APP_KEY: ${MP_APP_KEY:?缺少小程序鉴权标识}
+    MP_APP_SECRET: ${MP_APP_SECRET:?缺少小程序鉴权密钥}
+    MP_PUSH_URL: ${MP_PUSH_URL:-}
+    K3_BASE_URL: ${K3_BASE_URL:-http://127.0.0.1:9}
+    K3_MOCK: ${K3_MOCK:-false}
+    K3_ACCT_ID: ${K3_ACCT_ID:-}
+    K3_USERNAME: ${K3_USERNAME:-}
+    K3_PASSWORD: ${K3_PASSWORD:-}
+    K3_STOCK_ID: ${K3_STOCK_ID:-}
+    K3_BILL_TYPE_ID: ${K3_BILL_TYPE_ID:-}
+    K3_CREATOR_ID: ${K3_CREATOR_ID:-}
+    WECOM_MOCK_MODE: 'false'
+    WECOM_CORP_ID: ${WECOM_CORP_ID:-}
+    WECOM_AGENT_ID: ${WECOM_AGENT_ID:-}
+    WECOM_SECRET: ${WECOM_SECRET:-}
+    WECOM_OAUTH_REDIRECT_URI: https://${PC_DOMAIN}/api/auth/wecom-callback
+    WX_APP_ID: ${WX_APP_ID:-}
+    WX_APP_SECRET: ${WX_APP_SECRET:-}
+    MAIL_MAILER: log
+  volumes:
+    - app_storage:/var/www/html/storage
+  networks: [backend]
+  logging: *logging
+  depends_on:
+    mysql:
+      condition: service_healthy
+      restart: true
+    redis:
+      condition: service_healthy
+      restart: true
+    ai-service:
+      condition: service_healthy
+      restart: true
+
+services:
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: ${DB_DATABASE:-hongyue}
+      MYSQL_USER: ${DB_USERNAME:-hongyue}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?缺少数据库密码}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?缺少数据库 root 密码}
+      TZ: Asia/Shanghai
+    command: [--character-set-server=utf8mb4, --collation-server=utf8mb4_unicode_ci]
+    volumes: [mysql_data:/var/lib/mysql]
+    networks: [backend]
+    logging: *logging
+    healthcheck:
+      test: [CMD-SHELL, 'MYSQL_PWD="$${MYSQL_ROOT_PASSWORD}" mysql -uroot -h127.0.0.1 --silent -e "SELECT 1" >/dev/null']
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 40s
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    user: redis
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?缺少 Redis 密码}
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        printf 'bind 0.0.0.0\nprotected-mode yes\nappendonly yes\nappendfsync everysec\nmaxmemory-policy noeviction\nrequirepass %s\n' "$$REDIS_PASSWORD" > /tmp/redis.conf
+        exec redis-server /tmp/redis.conf
+    volumes: [redis_data:/data]
+    networks: [backend]
+    logging: *logging
+    healthcheck:
+      test: [CMD-SHELL, 'REDISCLI_AUTH="$${REDIS_PASSWORD}" redis-cli ping | grep -q PONG']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  php-fpm:
+    <<: *app
+    stop_signal: SIGQUIT
+    healthcheck:
+      test: [CMD, php, -r, '$$s=@fsockopen("127.0.0.1",9000); exit($$s ? 0 : 1);']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  ai-service:
+    image: ${IMAGE_PREFIX:-hongyue}/ai:${RELEASE_TAG}
+    build:
+      context: .
+      dockerfile: deploy/production/Dockerfile.ai
+    restart: unless-stopped
+    init: true
+    environment:
+      TZ: Asia/Shanghai
+      AI_SERVICE_TOKEN: ${AI_SERVICE_TOKEN:?缺少内部 AI Token}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+    networks: [backend]
+    logging: *logging
+    depends_on:
+      redis:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: [CMD, python, /opt/production/ai-health.py]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  api:
+    image: ${IMAGE_PREFIX:-hongyue}/api:${RELEASE_TAG}
+    build:
+      context: .
+      dockerfile: deploy/production/Dockerfile.php
+      target: api
+    restart: unless-stopped
+    volumes: [app_storage:/var/www/html/storage:ro]
+    networks: [backend]
+    logging: *logging
+    depends_on:
+      php-fpm:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/up]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  gateway:
+    image: ${IMAGE_PREFIX:-hongyue}/gateway:${RELEASE_TAG}
+    build:
+      context: .
+      dockerfile: deploy/production/Dockerfile.gateway
+      args:
+        MOBILE_APP_URL: https://${MOBILE_DOMAIN:?缺少 MOBILE_DOMAIN}
+    restart: unless-stopped
+    environment:
+      PC_DOMAIN: ${PC_DOMAIN}
+      MOBILE_DOMAIN: ${MOBILE_DOMAIN}
+      NGINX_ENVSUBST_FILTER: '^(PC_DOMAIN|MOBILE_DOMAIN)$$'
+    ports:
+      - target: 80
+        published: ${HTTP_PORT:-80}
+        host_ip: ${BIND_ADDRESS:-0.0.0.0}
+      - target: 443
+        published: ${HTTPS_PORT:-443}
+        host_ip: ${BIND_ADDRESS:-0.0.0.0}
+    volumes:
+      - ${TLS_DIR:-./deploy/production/tls}:/etc/nginx/tls:ro
+    networks: [edge, backend]
+    logging: *logging
+    depends_on:
+      api:
+        condition: service_healthy
+        restart: true
+      ai-service:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1/healthz]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  worker:
+    <<: *app
+    profiles: [queue]
+    command: [php, artisan, 'queue:work', redis, '--sleep=3', '--tries=5', '--timeout=120', '--max-time=3600', '--no-interaction']
+
+  scheduler:
+    <<: *app
+    profiles: [scheduler]
+    command: [php, artisan, 'schedule:work', '--no-interaction']
+
+volumes:
+  mysql_data:
+  redis_data:
+  app_storage:
+
+networks:
+  edge:
+  backend:

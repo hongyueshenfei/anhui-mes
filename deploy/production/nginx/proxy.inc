@@ -1,0 +1,12 @@
+resolver 127.0.0.11 valid=10s ipv6=off;
+set $api_upstream api:80;
+proxy_pass http://$api_upstream;
+proxy_http_version 1.1;
+proxy_set_header Host $host;
+proxy_set_header X-Forwarded-Host $host;
+proxy_set_header X-Forwarded-Proto $scheme;
+proxy_set_header X-Forwarded-For $remote_addr;
+proxy_set_header X-Real-IP $remote_addr;
+proxy_set_header Proxy "";
+proxy_read_timeout 130s;
+proxy_send_timeout 130s;

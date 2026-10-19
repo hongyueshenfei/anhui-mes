@@ -1,0 +1,22 @@
+FROM node:22-alpine AS pc
+WORKDIR /build/frontend
+COPY frontend/package.json frontend/package-lock.json ./
+RUN npm ci
+COPY frontend/ ./
+ARG MOBILE_APP_URL
+ENV VITE_DEMO_MODE=0 VITE_MOBILE_APP_URL=${MOBILE_APP_URL}
+RUN npm run build
+
+FROM node:22-alpine AS h5
+WORKDIR /build/mobile
+COPY mobile/package.json mobile/package-lock.json ./
+RUN npm ci
+COPY mobile/ ./
+RUN npm run build
+
+FROM nginx:1.28-alpine
+COPY --from=pc /build/frontend/dist /srv/pc
+COPY --from=h5 /build/mobile/dist /srv/h5
+COPY deploy/production/nginx/gateway.conf.template /etc/nginx/templates/default.conf.template
+COPY deploy/production/nginx/proxy.inc /etc/nginx/snippets/proxy.inc
+COPY deploy/production/nginx/https-common.inc /etc/nginx/conf.d/https-common.inc

@@ -1,0 +1,30 @@
+server {
+    listen 80 default_server;
+    server_name _;
+    location = /healthz { access_log off; return 200 "ok\n"; }
+    location / { return 444; }
+}
+server {
+    listen 80;
+    server_name ${PC_DOMAIN} ${MOBILE_DOMAIN};
+    return 308 https://$host$request_uri;
+}
+server {
+    listen 443 ssl default_server;
+    server_name _;
+    ssl_reject_handshake on;
+}
+server {
+    listen 443 ssl;
+    server_name ${PC_DOMAIN};
+    root /srv/pc;
+    include /etc/nginx/conf.d/https-common.inc;
+    location / { try_files $uri $uri/ /index.html; }
+}
+server {
+    listen 443 ssl;
+    server_name ${MOBILE_DOMAIN};
+    root /srv/h5;
+    include /etc/nginx/conf.d/https-common.inc;
+    location / { try_files $uri $uri/ /index.html; }
+}

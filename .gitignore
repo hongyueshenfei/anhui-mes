@@ -33,3 +33,7 @@
 
 # Codex 项目配置可能包含本机 MCP 凭据，不纳入版本控制
 /.codex/config.toml
+
+# 生产证书、密钥与数据库/附件备份仅保存在服务器
+/deploy/production/tls/
+/deploy/production/backups/

@@ -664,6 +664,21 @@ ai-service/
 | HTTPS | 全链路；敏感配置（金蝶账套账号/密钥/DeepSeek key）存 `.env` 加密 + config 层脱敏 |
 | 监控 | 集成日志表 + 失败告警（企微通知） |
 
+### 9.1 单台 ECS 生产部署包（2026-10-19）
+
+根目录 `compose.production.yaml` 与 `deploy/production/README.md` 提供独立于开发 Compose 的生产入口。
+生产镜像包含 Laravel 源码/Composer 依赖、PC/H5 构建产物及 AI 依赖锁，不挂载业务源码。
+gateway 使用 PC、H5 两个域名和覆盖两域名的 TLS 证书，只发布 80/443；两站点的 `/api`、`/mobile`、公开 `/storage` 都转给内部 API Nginx/PHP-FPM。
+MySQL、Redis、AI 无宿主机端口，Laravel 默认/缓存 Redis 库与 AI job 库分别为 0/1/2；数据库、Redis、上传文件使用命名卷。
+
+`manage.py init/build/install/admin/check` 负责独立密钥生成、构建、迁移、基础权限/字典初始化、交互创建管理员及部署检查；不运行演示业务总 Seeder。
+生产时钟使用真实时间、调试关闭、PC 演示开关固定为 0。首次安装默认不启动队列和调度；完成集成确认后通过 `ENABLE_QUEUE`、`ENABLE_SCHEDULER` 启用，scheduler 仅一实例。
+队列 timeout=120 秒、retry_after=180 秒、停止宽限 150 秒；调度入口使用 Laravel `schedule:work`，不再额外配置系统 cron。
+
+`manage.py backup/update/restore` 在维护模式和后台任务停止后保存 MySQL/附件/配置及校验和；更新失败保持维护，恢复须显式确认并匹配原 APP_KEY。
+备份包含密钥，服务商必须安排受控的加密异机备份、证书续期、告警和实际恢复演练；本包只提供操作入口，不代替云端资源开通和业务验收。
+升级保留旧标签镜像，数据库迁移采用兼容旧应用的方式；不兼容时使用对应备份恢复，不自动逆向迁移。
+
 ## 10. 待明确事项（设计假设）
 
 1. **金蝶账套/接口授权**：K2 生产入库单使用的具体表单标识（STK_MISCELLANEOUS 或客户自配单据），待联调环境确认；PRD §9.3 风险提示保留。
