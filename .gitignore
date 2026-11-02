@@ -37,3 +37,9 @@
 # 生产证书、密钥与数据库/附件备份仅保存在服务器
 /deploy/production/tls/
 /deploy/production/backups/
+
+# 本机 AI 协作规则：绑定开发者身份，按规则本身要求不入库
+/.codebuddy/
+
+# 云端应用标记文件（WorkBuddy 发布产物）
+/*.genie
