@@ -30,6 +30,23 @@
 
 ## 二、变更日志
 
+### [2026-11-02 09:38] 仓库可见性由私有改为公开（anhui-mes）
+- **需求/背景**：用户先问「这个仓库是私有的还是公开的」，随后指示「先公开」。
+- **改动内容**：`gh repo edit hongyueshenfei/anhui-mes --visibility public --accept-visibility-change-consequences`；远程仓库默认分支 `main`，当前 HEAD = `52e3d43`。未改动任何代码文件。
+- **公开前安全扫描（对全部 14 个提交的历史遍历）**：
+  - 环境变量类文件仅 `hongyue/.env.example`（模板，无真实值）；无真实 `.env`。
+  - 无 GitHub Token（`ghp_`/`github_pat_`）、无金蝶 AppSecret、无 `-----BEGIN` 证书私钥。
+  - `compose.production.yaml` / `compose.yaml` 全部使用 `${DB_PASSWORD:?}` 等环境变量占位，无硬编码生产密钥。
+  - `AGENTS.md` 未入库（末尾被自动追加身份绑定块，含 `project_id` / `actor_id`），本次公开不包含该内容。
+- **已确认仍暴露在公开仓库的事项（均为非致命，但需知悉）**：
+  1. 开发默认密码 `root123` / `hongyue123`（位于 `hongyue/docker-compose.yml`、`hongyue/.env.example`，仅本地开发库使用）。
+  2. 内网 Gitea 地址 `121.196.210.154:30080`（位于 `deploy/production/README.md` 与历史变更记录）。
+  3. 金蝶域名 `k3.hongyue.com`（位于原型 HTML，属公开可解析域名，非凭据）。
+- **弯路/踩坑**：无。
+- **可优化点**：若后续不希望开发默认口令出现在公开仓库，可将其改为 `.env.example` 中的占位注释并强制 `docker compose` 从 `.env` 读取；内网地址可替换为 `<internal-gitea>` 占位。
+- **验证**：`gh repo view` 返回 `visibility: PUBLIC`、`isPrivate: false`；未登录匿名请求 GitHub API 返回 200 且 `"visibility": "public"`，确认外网可访问；`git status` 仅剩 `M AGENTS.md` 未提交（有意保留）。
+- **提交**：本次仅为远程仓库设置变更，无代码提交、无推送。
+
 ### [2026-11-02 09:30] 全量代码推送 GitHub（anhui-mes）
 - **需求/背景**：用户要求「https://github.com/hongyueshenfei/anhui-mes 在吧所有的推送到github上」。
 - **仓库结构说明**：根目录本身是聚合快照仓库（488 个跟踪文件，顶层含 `hongyue/`、`frontend/`、`mobile/`、`ai-service/`、`docs/`、`PRD/`、`deploy/`），`.gitignore` 以 `**/.git` 排除四个子仓库的版本历史、但纳入其源码；未使用 submodule。四个子仓库（hongyue 108 / frontend 69 / mobile 4 / ai-service 9 commits）保持本地独立，不随本次推送。
