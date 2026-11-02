@@ -8,6 +8,7 @@
  *      + 三期（报工台账/入库单）+ 四期（红灯四源/产能热力/报表/工作台）。
  */
 import dayjs, { type Dayjs } from 'dayjs'
+import { installTestClock } from '@/utils/testClock'
 import type { AuditLog, Bom, BomLine, Machine, Mold, OpType, PlmRoute, PlmWorkshop, Product, RouteOp, SysRole, SysUser } from '@/types'
 import type { Order, OrderLine, PoolTask, ProdTask, ScheduleSuggestion, ScheduleVersion, TaskSchedule } from '@/types/schedule'
 import type { IntegrationLog, ProductionException, StockIn, WorkReport } from '@/types/production'
@@ -272,10 +273,14 @@ function buildRoutes(): { routes: PlmRoute[]; ops: Record<number, RouteOp[]> } {
     { seq: 3, op_type: 'effect', op_name: '效果处理', workshop_id: 4, mold_change_min: null, shift_mode: 'day', machine_type: null, rate_key: 'effect' },
     { seq: 4, op_type: 'pack', op_name: '包装', workshop_id: 5, mold_change_min: null, shift_mode: 'day', machine_type: null, rate_key: 'pack' },
   ]
+  // 吹塑工艺与注塑同构：成型 → 喷漆 → 效果 → 包装（共 4 道）。
+  // 真实库 5 个产品共 20 条 route_ops，即每个产品都是 4 道；此处必须一致，
+  // 否则吹塑产品少一条「效果」排程，甘特条数与真实系统对不上（34 vs 44）。
   const blowOps: RouteOp[] = [
     { seq: 1, op_type: 'molding_blow', op_name: '吹塑成型', workshop_id: 2, mold_change_min: 20, shift_mode: 'two_shift', machine_type: 'blow', rate_key: 'molding' },
     { seq: 2, op_type: 'paint', op_name: '喷漆', workshop_id: 3, mold_change_min: null, shift_mode: 'day', machine_type: null, rate_key: 'paint' },
-    { seq: 3, op_type: 'pack', op_name: '包装', workshop_id: 5, mold_change_min: null, shift_mode: 'day', machine_type: null, rate_key: 'pack' },
+    { seq: 3, op_type: 'effect', op_name: '效果处理', workshop_id: 4, mold_change_min: null, shift_mode: 'day', machine_type: null, rate_key: 'effect' },
+    { seq: 4, op_type: 'pack', op_name: '包装', workshop_id: 5, mold_change_min: null, shift_mode: 'day', machine_type: null, rate_key: 'pack' },
   ]
   const routes: PlmRoute[] = [1, 2, 3, 4, 5, 6, 7, 8].map((id) => ({
     id,
@@ -283,7 +288,7 @@ function buildRoutes(): { routes: PlmRoute[]; ops: Record<number, RouteOp[]> } {
     version: 'R1',
     status: id === 8 ? 'draft' : 'published',
     remark: id === 8 ? '草稿：待发布' : `产品 ${id} 标准工艺`,
-    ops_count: id === 2 || id === 4 || id === 7 ? 3 : 4,
+    ops_count: 4,
     ops: id === 2 || id === 4 || id === 7 ? blowOps.map((o) => ({ ...o })) : baseOps.map((o) => ({ ...o })),
   }))
   routes.forEach((r) => {
@@ -333,6 +338,43 @@ function buildOrdersAndTasks(routeOps: Record<number, RouteOp[]>, molds: Mold[])
     return Math.max(30, Math.ceil((productionMinutes + changeoverMinutes) / 30) * 30)
   }
 
+  // 按班次日历推进工时：day 模式每天只在 08:00–17:00 工作（9h/天），two_shift 全天 24h 连续。
+  // 与真实库排程同口径（例：喷漆 36000 件 = 25.2h 工时 → 日历 09-05 08:01 ~ 09-07 15:13，条宽 2.3 天）。
+  // 若用连续时间排法，25h 工序 1 天出头就排完，甘特条会比真实系统短一半以上、碎成小点。
+  const advanceByShift = (from: dayjs.Dayjs, minutes: number, mode: string): { start: string; end: string } => {
+    if (mode !== 'day') {
+      return { start: from.format('YYYY-MM-DD HH:mm:ss'), end: from.add(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss') }
+    }
+    let cursorAt = from
+    let remaining = minutes
+    let startedAt: dayjs.Dayjs | null = null
+    for (let guard = 0; guard < 400 && remaining > 0; guard += 1) {
+      const win = dayWindow(cursorAt)
+      if (cursorAt.isBefore(win.start)) {
+        cursorAt = win.start
+        continue
+      }
+      if (!cursorAt.isBefore(win.end)) {
+        cursorAt = dayWindow(cursorAt.add(1, 'day')).start
+        continue
+      }
+      if (!startedAt) startedAt = cursorAt
+      const available = win.end.diff(cursorAt, 'minute')
+      if (remaining <= available) {
+        return {
+          start: startedAt.format('YYYY-MM-DD HH:mm:ss'),
+          end: cursorAt.add(remaining, 'minute').format('YYYY-MM-DD HH:mm:ss'),
+        }
+      }
+      remaining -= available
+      cursorAt = dayWindow(cursorAt.add(1, 'day')).start
+    }
+    return {
+      start: (startedAt ?? from).format('YYYY-MM-DD HH:mm:ss'),
+      end: from.add(minutes, 'minute').format('YYYY-MM-DD HH:mm:ss'),
+    }
+  }
+
   // 订单定义：8 单 = 完成 1 + 逾期 2 + 紧急顺延 1 + 在产 2 + 待排 1 + K3 拉单 1
   const defs: Array<{
     i: number
@@ -345,14 +387,14 @@ function buildOrdersAndTasks(routeOps: Record<number, RouteOp[]>, molds: Mold[])
     remark?: string
     items: Array<{ productId: number; qty: number; status: OrderLine['status']; lineNo: number }>
   }> = [
-    { i: 1, src: 'manual', k3: null, customer: '合肥华联日化', status: 'produced', priority: 3, deliveryOffset: -20, remark: '已交付（演示）', items: [{ productId: 1, qty: 20000, status: 'done', lineNo: 1 }, { productId: 3, qty: 12000, status: 'done', lineNo: 2 }] },
+    { i: 1, src: 'manual', k3: null, customer: '合肥华联日化', status: 'produced', priority: 3, deliveryOffset: -20, remark: '已交付（演示）', items: [{ productId: 1, qty: 20000, status: 'done', lineNo: 1 }, { productId: 3, qty: 24000, status: 'done', lineNo: 2 }] },
     { i: 2, src: 'manual', k3: null, customer: '芜湖美的电器', status: 'in_progress', priority: 2, deliveryOffset: 2, remark: '临期 2 天 · 整单跟催', items: [{ productId: 6, qty: 30000, status: 'in_progress', lineNo: 1 }] },
-    { i: 3, src: 'manual', k3: null, customer: '上海联合利华', status: 'in_progress', priority: 0, deliveryOffset: -3, remark: '逾期 3 天 · 紧急插单已排', items: [{ productId: 1, qty: 50000, status: 'in_progress', lineNo: 1 }, { productId: 6, qty: 25000, status: 'in_progress', lineNo: 2 }] },
-    { i: 4, src: 'manual', k3: null, customer: '杭州纳爱斯', status: 'scheduled', priority: 3, deliveryOffset: 5, remark: '上批顺延 1 天（插单影响）', items: [{ productId: 7, qty: 15000, status: 'scheduled', lineNo: 1 }] },
-    { i: 5, src: 'manual', k3: null, customer: '苏州绿叶日化', status: 'scheduled', priority: 2, deliveryOffset: 4, remark: '喷雾瓶试产', items: [{ productId: 5, qty: 8000, status: 'scheduled', lineNo: 1 }] },
-    { i: 6, src: 'excel', k3: null, customer: '南京苏宁易购', status: 'pending', priority: 4, deliveryOffset: 9, remark: '', items: [{ productId: 2, qty: 40000, status: 'pending', lineNo: 1 }] },
-    { i: 7, src: 'manual', k3: null, customer: '武汉中百仓储', status: 'in_progress', priority: 3, deliveryOffset: 6, remark: '分批发货', items: [{ productId: 3, qty: 20000, status: 'in_progress', lineNo: 1 }, { productId: 2, qty: 10000, status: 'in_progress', lineNo: 2 }] },
-    { i: 8, src: 'k3', k3: 'MO202501010001', customer: '金蝶同步·宁波客户', status: 'pending', priority: 2, deliveryOffset: 7, remark: '来自金蝶生产订单（四期拉单）', items: [{ productId: 4, qty: 6000, status: 'pending', lineNo: 1 }] },
+    { i: 3, src: 'manual', k3: null, customer: '上海联合利华', status: 'in_progress', priority: 0, deliveryOffset: -3, remark: '逾期 3 天 · 紧急插单已排', items: [{ productId: 1, qty: 36000, status: 'in_progress', lineNo: 1 }, { productId: 6, qty: 24000, status: 'in_progress', lineNo: 2 }] },
+    { i: 4, src: 'manual', k3: null, customer: '杭州纳爱斯', status: 'scheduled', priority: 3, deliveryOffset: 5, remark: '上批顺延 1 天（插单影响）', items: [{ productId: 7, qty: 30000, status: 'scheduled', lineNo: 1 }] },
+    { i: 5, src: 'manual', k3: null, customer: '苏州绿叶日化', status: 'scheduled', priority: 2, deliveryOffset: 4, remark: '喷雾瓶试产', items: [{ productId: 5, qty: 20000, status: 'scheduled', lineNo: 1 }] },
+    { i: 6, src: 'excel', k3: null, customer: '南京苏宁易购', status: 'pending', priority: 4, deliveryOffset: 9, remark: '', items: [{ productId: 2, qty: 36000, status: 'pending', lineNo: 1 }] },
+    { i: 7, src: 'manual', k3: null, customer: '武汉中百仓储', status: 'in_progress', priority: 3, deliveryOffset: 6, remark: '分批发货', items: [{ productId: 3, qty: 30000, status: 'in_progress', lineNo: 1 }, { productId: 2, qty: 36000, status: 'in_progress', lineNo: 2 }] },
+    { i: 8, src: 'k3', k3: 'MO202501010001', customer: '金蝶同步·宁波客户', status: 'pending', priority: 2, deliveryOffset: 7, remark: '来自金蝶生产订单（四期拉单）', items: [{ productId: 4, qty: 20000, status: 'pending', lineNo: 1 }] },
   ]
 
   const products = buildProducts()
@@ -537,13 +579,19 @@ function buildOrdersAndTasks(routeOps: Record<number, RouteOp[]>, molds: Mold[])
             forecastEnd = plan.deviation && plan.deviation > 0
               ? dayjs(end).add(plan.deviation, 'hour').format('YYYY-MM-DD HH:mm:ss')
               : end
+            // 下游从「首工序实际算出的结束时间」接龙，而不是任务级的 plan.end：
+            // plan.end 是演示用的放大窗口（含落后余量），拿它接龙会把下游整体推远好几天，
+            // running 任务会漂到一两周后，与「今天」脱节（真实引擎是成型完即接喷漆）。
+            cursor = dayjs(end)
           } else {
+            // day 班制（喷漆/效果/包装）按「每天 08:00–17:00」窗口展开，工时跨日历天；
+            // two_shift（成型）全天连续，两种模式与真实排产引擎口径一致。
             const s = cursor.add(taskSwitchGapMinutes, 'minute')
-            const e = s.add(durationMinutesOf(op, machineId, qty), 'minute')
-            start = s.format('YYYY-MM-DD HH:mm:ss')
-            end = e.format('YYYY-MM-DD HH:mm:ss')
+            const seg = advanceByShift(s, durationMinutesOf(op, machineId, qty), op.shift_mode ?? 'day')
+            start = seg.start
+            end = seg.end
             forecastEnd = end
-            cursor = e
+            cursor = dayjs(end)
           }
 
           // 状态与完工数：首工序按 plan；已完成任务全部工序 done；否则后续工序 pending
@@ -603,24 +651,24 @@ function buildOrdersAndTasks(routeOps: Record<number, RouteOp[]>, molds: Mold[])
 
   // O1（已完成）：2 任务 done，历史完工排程（计划/实际双线样例：实际晚开始/提前或滞后收尾）
   pushTask(1, 0, 'done', 20000, 3, day(-2).concat(' 18:00:00'), 1, 1, 20000, { start: dayTime(-13, 8, 0), end: dayTime(-11, 20, 0), machineId: 1, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'done', doneQty: 20000, deviation: 0, actualStart: dayTime(-13, 10, 0), actualEnd: dayTime(-11, 16, 0) })
-  pushTask(1, 1, 'done', 12000, 3, day(-2).concat(' 18:00:00'), 3, 3, 12000, { start: dayTime(-10, 8, 0), end: dayTime(-8, 20, 0), machineId: 1, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'done', doneQty: 12000, deviation: 0, actualStart: dayTime(-10, 8, 0), actualEnd: dayTime(-8, 12, 0) })
+  pushTask(1, 1, 'done', 24000, 3, day(-2).concat(' 18:00:00'), 3, 3, 12000, { start: dayTime(-10, 8, 0), end: dayTime(-8, 20, 0), machineId: 1, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'done', doneQty: 12000, deviation: 0, actualStart: dayTime(-10, 8, 0), actualEnd: dayTime(-8, 12, 0) })
   // O2（临期在产）：餐盒 900ml 已迁移至保留机 I-02，落后 5%（正常）
-  pushTask(2, 0, 'in_progress', 30000, 2, day(2).concat(' 18:00:00'), 6, 6, 8000, { start: dayTime(-4, 8, 0), end: dayTime(1, 20, 0), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 19000, deviation: -2 })
+  pushTask(2, 0, 'in_progress', 30000, 2, day(2).concat(' 18:00:00'), 6, 6, 8000, { start: dayTime(-7, 8, 0), end: dayTime(1, 20, 0), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 19000, deviation: -2 })
   // O3（逾期紧急插单）：直口杯 50000 在 I-01（进行中，落后 12% → 红灯）+ 餐盒 25000 已迁移至 I-02（延迟开始 → 顺延样例）
-  pushTask(3, 0, 'in_progress', 50000, 1, day(-3).concat(' 18:00:00'), 1, 1, 12000, { start: dayTime(-7, 8, 0), end: dayTime(3, 20, 0), machineId: 1, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 23000, deviation: 12 })
-  pushTask(3, 1, 'in_progress', 25000, 1, day(-3).concat(' 18:00:00'), 6, 6, 0, { start: dayTime(-5, 8, 0), end: dayTime(3, 20, 0), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 3000, deviation: 6 })
+  pushTask(3, 0, 'in_progress', 36000, 1, day(-3).concat(' 18:00:00'), 1, 1, 12000, { start: dayTime(-7, 8, 0), end: dayTime(3, 20, 0), machineId: 1, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 23000, deviation: 12 })
+  pushTask(3, 1, 'in_progress', 24000, 1, day(-3).concat(' 18:00:00'), 6, 6, 0, { start: dayTime(-9, 8, 0), end: dayTime(3, 20, 0), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 3000, deviation: 6 })
   // O4（顺延）：洗衣液桶 2L 已从 B-03 迁移至保留机 B-01，已排未开始（今晚开始）
-  pushTask(4, 0, 'scheduled', 15000, 3, day(5).concat(' 18:00:00'), 7, 7, 0, { start: dayHour(1, 20), end: dayTime(4, 8, 0), machineId: 13, seq: 1, opType: 'molding_blow', opName: '吹塑成型', scheduleStatus: 'pending', doneQty: 0, deviation: 0 })
+  pushTask(4, 0, 'scheduled', 30000, 3, day(5).concat(' 18:00:00'), 7, 7, 0, { start: dayHour(1, 20), end: dayTime(4, 8, 0), machineId: 13, seq: 1, opType: 'molding_blow', opName: '吹塑成型', scheduleStatus: 'pending', doneQty: 0, deviation: 0 })
   // O5（喷雾瓶试产）：已从 I-11 迁移至保留机 I-03；未排第二段（喷漆 → 班组，演示人工线）
-  pushTask(5, 0, 'scheduled', 8000, 2, day(4).concat(' 18:00:00'), 5, 5, 0, { start: dayHour(1, 14), end: dayTime(2, 12, 30), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'pending', doneQty: 0, deviation: 0 })
+  pushTask(5, 0, 'scheduled', 20000, 2, day(4).concat(' 18:00:00'), 5, 5, 0, { start: dayHour(1, 14), end: dayTime(2, 12, 30), machineId: 3, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'pending', doneQty: 0, deviation: 0 })
   // O6（待排）：圆瓶 1L 40000 未排 → 红灯「未排产」
-  pushTask(6, 0, 'unscheduled', 40000, 4, day(9).concat(' 18:00:00'), 2, 2)
+  pushTask(6, 0, 'unscheduled', 36000, 4, day(9).concat(' 18:00:00'), 2, 2)
   // O7（在产分批入库）：方盒 20000 已从 I-05 迁移至保留机 I-03 进行中落后 15% → 红灯「落后」；圆瓶 10000 B-02 进行中无报工 → 红灯「未报工」
-  pushTask(7, 0, 'in_progress', 20000, 3, day(6).concat(' 18:00:00'), 3, 3, 0, { start: dayTime(-5, 8, 0), end: dayTime(1, 12, 0), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 4500, deviation: 15 })
+  pushTask(7, 0, 'in_progress', 30000, 3, day(6).concat(' 18:00:00'), 3, 3, 0, { start: dayTime(-5, 8, 0), end: dayTime(1, 12, 0), machineId: 2, seq: 1, opType: 'molding_injection', opName: '注塑成型', scheduleStatus: 'running', doneQty: 4500, deviation: 15 })
   // 未报工样例：圆瓶 10000 在 B-02 计划昨天开始无报工 → no_report
-  pushTask(7, 1, 'in_progress', 10000, 3, day(6).concat(' 18:00:00'), 2, 2, 0, { start: dayTime(-2, 8, 0), end: dayTime(2, 12, 0), machineId: 13, seq: 1, opType: 'molding_blow', opName: '吹塑成型', scheduleStatus: 'running', doneQty: 0, deviation: 0 })
+  pushTask(7, 1, 'in_progress', 36000, 3, day(6).concat(' 18:00:00'), 2, 2, 0, { start: dayTime(-2, 8, 0), end: dayTime(2, 12, 0), machineId: 13, seq: 1, opType: 'molding_blow', opName: '吹塑成型', scheduleStatus: 'running', doneQty: 0, deviation: 0 })
   // O8（K3 拉单待排）：提手桶 5L 6000 未排 → 红灯「未排产」+ 模具 M-004 维修中无法排
-  pushTask(8, 0, 'unscheduled', 6000, 2, day(7).concat(' 18:00:00'), 4, 4, 0)
+  pushTask(8, 0, 'unscheduled', 20000, 2, day(7).concat(' 18:00:00'), 4, 4, 0)
 
   // 逾期红灯样例：O2 的餐盒任务 plan_end 已过？不，plan_end 是明天。再造一个逾期任务：
   // 用 O3 直口杯（delivery -3 天 = 逾期，plan_end +3 天）→ overdue 红灯（已由任务3提供）。
@@ -1982,6 +2030,11 @@ export function validateMockData(data: Pick<MockDb, 'orders' | 'orderLines' | 't
 
 /** 构建完整演示数据（调用方应深拷贝后再做可变操作） */
 export function buildMockDb(): MockDb {
+  // 演示数据全部以「今天」为基准生成，必须在建库前先把测试时钟装上：
+  // main.ts 的 installTestClock() 晚于 ESM import 求值，而 buildMockDb() 在模块加载期就执行，
+  // 若不在此时固定时钟，mock 会按真实当天生成，与固定时钟下的视图窗口错开（甘特错月/整图空白）。
+  installTestClock()
+
   const machines = buildMachines()
   const workshops = buildWorkshops()
   const workers = buildWorkers()

@@ -211,7 +211,8 @@ export function toBar(s: TaskSchedule): GanttBar {
     qty: s.qty,
     reportedQty: Math.max(0, Number(s.reported_qty ?? s.done_qty ?? 0)),
     hasReportHistory: Boolean(s.has_report_history),
-    progressPct: Math.max(0, Math.min(100, Number(s.progress_pct ?? (s.qty > 0 ? ((s.reported_qty ?? s.done_qty ?? 0) / s.qty * 100) : 0)))),
+    // 百分比统一保留 1 位小数：避免 44.4444444444% 这类浮点噪声直接渲染到甘特标签
+    progressPct: Math.round(Math.max(0, Math.min(100, Number(s.progress_pct ?? (s.qty > 0 ? ((s.reported_qty ?? s.done_qty ?? 0) / s.qty * 100) : 0)))) * 10) / 10,
     start: s.plan_start,
     end: s.plan_end,
     // 没有完整实际起止时间的“已完成”记录只作为计划展示，避免误画成历史灰色虚线。

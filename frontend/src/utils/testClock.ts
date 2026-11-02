@@ -4,8 +4,11 @@
  */
 const configuredNow = String(import.meta.env.VITE_TEST_NOW ?? '').trim()
 
+let installed = false
+
 export function installTestClock(): void {
-  if (!configuredNow) return
+  // 幂等：mock 数据工厂与 main.ts 都会调用，重复 patch 会把 Date 一层层套娃。
+  if (!configuredNow || installed) return
 
   const nativeDate = globalThis.Date
   const fixedTimestamp = nativeDate.parse(configuredNow)
@@ -50,4 +53,5 @@ export function installTestClock(): void {
   }
 
   globalThis.Date = FixedDate as unknown as DateConstructor
+  installed = true
 }
